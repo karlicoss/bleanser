@@ -19,7 +19,10 @@ def cleanup() -> str:
     ]
     def ddel(q):
         return f'del({q})'
-    dq = []
+    d = ddel
+    dq = [
+        d('.. | .icon_img?'),
+    ]
     dq.extend([
         ddel(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_subscribers, .selftext_html, .num_comments)') for section in sections
     ])
@@ -58,6 +61,7 @@ def extract():
     # TODO remove line breaks?
     return ' | '.join(qs)
 
+# TODO also check mode?? diff if and only if
 q = extract if args.extract else cleanup
 
 # 2 styles of normalising:
