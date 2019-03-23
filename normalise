@@ -17,17 +17,16 @@ def cleanup() -> str:
         'downvoted',
         'submissions',
     ]
-    def ddel(q):
+    def d(q):
         return f'del({q})'
-    d = ddel
     dq = [
-        d('.. | .icon_img?'),
+        d('.. | (.icon_img?, .crosspost_parent_list?, .primary_color? )'),
     ]
     dq.extend([
-        ddel(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_subscribers, .selftext_html, .num_comments)') for section in sections
+        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_subscribers, .selftext_html, .num_comments)') for section in sections
     ])
     dq.append(
-        ddel('.multireddits[] | .description_html')
+        d('.multireddits[] | .description_html')
     )
     # del_preview = lambda s: ddel(f'.{s} | .[]')
     # dq.extend(del_preview(s) for s in sections)
@@ -36,7 +35,7 @@ def cleanup() -> str:
     # TODO not sure if it's necessary to sort.. | sort_by(.id) 
     # dq.append('.subreddits | map(del(.subscribers, .videostream_links_count, .description_html))') # ddel('(.subreddits) | .)') #  | del(.videostream_links_count) | del(.description_html)
     dq.extend([
-        ddel('.subreddits[] | (.subscribers, .description, .description_html, .videostream_links_count)'),
+        d('.subreddits[] | (.subscribers, .description, .description_html, .videostream_links_count)'),
     ])
     return ' | '.join(dq)
 
@@ -49,6 +48,7 @@ def extract():
         '.submissions  |= map({id, title, selftext})',
         '.subreddits   |= map({id, display_name})',
         '.upvoted      |= map({id, title, selftext})',
+        '.downvoted    |= map({id, title, selftext})',
 
         # '.comments     |= []',
         # '.multireddits |= []',
