@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+from argparse import ArgumentParser
+
+
+p = ArgumentParser()
+p.add_argument('--difftool', default='vimdiff')
+p.add_argument('--diff', action='store_const', dest='difftool', const='diff')
+p.add_argument('--extract', '-e', action='store_true')
+p.add_argument('first')
+p.add_argument('second')
+args = p.parse_args()
+F = args.first
+S = args.second
+
+from subprocess import check_call
+
+
+uu = '--extract' if args.extract else ''
+check_call([
+    'bash',
+    '-c',
+    f'{args.difftool} <(./normalise {uu} "{F}") <(./normalise {uu} "{S}")',
+])
+

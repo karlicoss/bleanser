@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+
+from argparse import ArgumentParser
+
+
+p = ArgumentParser()
+p.add_argument('--extract', '-e', action='store_true')
+p.add_argument('input')
+args = p.parse_args()
+inp = args.input
+
+def cleanup() -> str:
+    sections = [
+        'saved',
+        'comments',
+        'upvoted',
+        'downvoted',
+        'submissions',
+    ]
+    def ddel(q):
+        return f'del({q})'
+    dq = []
+    dq.extend([
+        ddel(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_subscribers, .selftext_html, .num_comments)') for section in sections
+    ])
+    dq.append(
+        ddel('.multireddits[] | .description_html')
+    )
+    # del_preview = lambda s: ddel(f'.{s} | .[]')
+    # dq.extend(del_preview(s) for s in sections)
+    # TODO shit, that's gonna remove lots of subreddits
+    # I should also check that result contains reasonable favorites??
+    # TODO not sure if it's necessary to sort.. | sort_by(.id) 
+    # dq.append('.subreddits | map(del(.subscribers, .videostream_links_count, .description_html))') # ddel('(.subreddits) | .)') #  | del(.videostream_links_count) | del(.description_html)
+    dq.extend([
+        ddel('.subreddits[] | (.subscribers, .description, .description_html, .videostream_links_count)'),
+    ])
+    return ' | '.join(dq)
+
+def extract():
+    qs = [
+        '.comments |= []',
+    ]
+    return ' | '.join(qs)
+
+q = extract if args.extract else cleanup
+
+# 2 styles of normalising:
+# first is extracting stuff we expect to see. this is nicer and gives the idea if something actually changed
+# second is cleaning up stuff that we don't need
+
+# INPUT="$1"
+# jq 'def(.saved.[].preview.images)' "$INPUT"
+import subprocess
+subprocess.check_call(['jq', q(), inp])
+# subreddit subscribers: ignore all
+
+# saved -> * -> preview -> images
+# same for upvoted and downvoted?
+
+
+# TODO nothing should decrease jq . reddit1.json | jq 'map_values(length)' | less 
+# jq 'paths'
