@@ -9,6 +9,7 @@ p.add_argument('input')
 args = p.parse_args()
 inp = args.input
 
+# TODO could be useful to assert cleanup in a strict subset?
 def cleanup() -> str:
     sections = [
         'saved',
@@ -45,16 +46,49 @@ def cleanup() -> str:
         'banner_size',
 
         'community_icon',
-        'author_flair_text',
         'no_follow',
         'submission_type',
+        'is_crosspostable',
+
         'link_flair_enabled',
         'link_flair_position',
+        'link_flair_css_class',
+        'link_flair_template_id',
+        'link_flair_text',
     ]
-    for aa in [ignore_keys_1, ignore_keys_2]:
+    ignore_keys_3 = [
+        'post_hint',
+        'is_robot_indexable',
+        'content_categories',
+
+        'parent_whitelist_status',
+        'pwls',
+        'whitelist_status',
+        'wls',
+        'show_media',
+        'spoilers_enabled',
+        'collapse_deleted_comments',
+        'key_color',
+        'can_assign_user_flair',
+        'emojis_enabled',
+    ]
+    ignore_keys_4 = [
+        'author_patreon_flair',
+        "author_flair_richtext",
+        'author_flair_text',
+        'author_flair_background_color',
+        'author_flair_text_color',
+        'author_flair_type',
+        'author_flair_css_class',
+        'author_flair_template_id',
+
+        "original_content_tag_enabled",
+        'emojis_custom_size',
+    ]
+    for aa in [ignore_keys_1, ignore_keys_2, ignore_keys_3, ignore_keys_4]:
         dq.append(d('.. | ({})'.format(', '.join('.' + a + '?' for a in aa))))
     dq.extend([
-        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts)') for section in sections
+        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail)') for section in sections
     ])
     dq.append(
         d('.multireddits[] | .description_html')
