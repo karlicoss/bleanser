@@ -39,8 +39,23 @@ def cleanup() -> str:
 
 def extract():
     qs = [
-        '.comments |= []',
+        # TODO FIXME this should be assertive on field existence
+        '.comments     |= map({id, body})',
+        '.multireddits |= map({name, subreddits: .subreddits | map_values(.display_name) })',
+        '.saved        |= map({id, body})',
+        '.submissions  |= map({id, title, selftext})',
+        '.subreddits   |= map({id, display_name})',
+        '.upvoted      |= map({id, title, selftext})',
+
+        # '.comments     |= []',
+        # '.multireddits |= []',
+        # '.profile      |= {}',
+        # '.saved        |= []',
+        # '.submissions  |= []',
+        # '.subreddits   |= []',
+        # '.upvoted      |= []',
     ]
+    # TODO remove line breaks?
     return ' | '.join(qs)
 
 q = extract if args.extract else cleanup
