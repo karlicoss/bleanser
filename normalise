@@ -19,11 +19,28 @@ def cleanup() -> str:
     ]
     def d(q):
         return f'del({q})'
-    dq = [
-        d('.. | (.icon_img?, .crosspost_parent_list?, .primary_color? )'),
+    dq = []
+    ignore_keys = [
+        'icon_img',
+        'crosspost_parent_list',
+        'primary_color',
+        'archived',
+        'suggested_sort',
+        'over_18',
+        'over18',
+        'allow_videos',
+        'comment_score_hide_mins',
+        'wiki_enabled',
+        'suggested_sort',
+        'suggested_comment_sort',
+        'banner_background_image',
+        'header_img',
+        'header_size',
+        'community_icon',
     ]
+    dq.append(d('.. | ({})'.format(', '.join('.' + a + '?' for a in ignore_keys))))
     dq.extend([
-        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_subscribers, .selftext_html, .num_comments)') for section in sections
+        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments)') for section in sections
     ])
     dq.append(
         d('.multireddits[] | .description_html')

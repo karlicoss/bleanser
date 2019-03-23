@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from argparse import ArgumentParser
+import sys
 
 
 p = ArgumentParser()
@@ -12,13 +13,16 @@ args = p.parse_args()
 F = args.first
 S = args.second
 
-from subprocess import check_call
+from subprocess import check_call, run
 
 
 uu = '--extract' if args.extract else ''
-check_call([
+res = run([
     'bash',
     '-c',
     f'{args.difftool} <(./normalise {uu} "{F}") <(./normalise {uu} "{S}")',
 ])
 
+
+assert res.returncode <= 1
+sys.exit(res.returncode)
