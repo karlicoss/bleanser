@@ -14,16 +14,16 @@ def different(p1: Path, p2: Path, extract: bool) -> bool:
     assert res.returncode <= 1
     return res.returncode == 1
 
-from_ = 38
+from_ = 58
 for i, before, after in islice(zip(range(10000000000000), paths, paths[1:]), from_, None):
     print(f'comparing {i} {before.name} vs {after.name}: ')
     extr_diff = different(before, after, extract=True)
     cleanup_diff = different(before, after, extract=False)
     # if there are differences, whatever, keep on going
     if extr_diff == cleanup_diff:
-        print('   OK: both normalisers agree ' + ('different' if extr_diff else 'SAME'))
+        print('   ok: both normalisers agree ' + ('different' if extr_diff else 'SAME'))
         continue
-    raise RuntimeError
+    print('   ERROR!!!!!')
 
     
     # if cleanup_diff:

@@ -20,7 +20,7 @@ def cleanup() -> str:
     def d(q):
         return f'del({q})'
     dq = []
-    ignore_keys = [
+    ignore_keys_1 = [
         'icon_img',
         'crosspost_parent_list',
         'primary_color',
@@ -33,14 +33,28 @@ def cleanup() -> str:
         'wiki_enabled',
         'suggested_sort',
         'suggested_comment_sort',
-        'banner_background_image',
         'header_img',
         'header_size',
-        'community_icon',
     ]
-    dq.append(d('.. | ({})'.format(', '.join('.' + a + '?' for a in ignore_keys))))
+    # TODO shit. looks like query might be too long for jq...
+    ignore_keys_2 = [
+        'has_menu_widget',
+        'banner_background_color',
+        'banner_background_image',
+        'banner_img',
+        'banner_size',
+
+        'community_icon',
+        'author_flair_text',
+        'no_follow',
+        'submission_type',
+        'link_flair_enabled',
+        'link_flair_position',
+    ]
+    for aa in [ignore_keys_1, ignore_keys_2]:
+        dq.append(d('.. | ({})'.format(', '.join('.' + a + '?' for a in aa))))
     dq.extend([
-        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments)') for section in sections
+        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts)') for section in sections
     ])
     dq.append(
         d('.multireddits[] | .description_html')
@@ -52,7 +66,7 @@ def cleanup() -> str:
     # TODO not sure if it's necessary to sort.. | sort_by(.id) 
     # dq.append('.subreddits | map(del(.subscribers, .videostream_links_count, .description_html))') # ddel('(.subreddits) | .)') #  | del(.videostream_links_count) | del(.description_html)
     dq.extend([
-        d('.subreddits[] | (.subscribers, .description, .description_html, .videostream_links_count)'),
+        d('.subreddits[] | (.subscribers, .description, .description_html, .videostream_links_count, .submit_text, .submit_text_html)'),
     ])
     return ' | '.join(dq)
 
@@ -63,7 +77,7 @@ def extract():
         '.multireddits |= map({name, subreddits: .subreddits | map_values(.display_name) })',
         '.saved        |= map({id, body})',
         '.submissions  |= map({id, title, selftext})',
-        '.subreddits   |= map({id, display_name})',
+        '.subreddits   |= map({id, display_name, public_description})',
         '.upvoted      |= map({id, title, selftext})',
         '.downvoted    |= map({id, title, selftext})',
 
