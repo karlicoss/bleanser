@@ -21,8 +21,13 @@ def cleanup() -> str:
     def d(q):
         return f'del({q})'
     dq = []
-    ignore_keys_1 = [
+    ignore_keys = [
         'icon_img',
+        'icon_size',
+
+        'thumbnail_height',
+        # TODO FIXME eh? ./jdiff --diff reddit/reddit-20190213191021.json reddit/reddit-20190213204024.json this is interesting, lots of created' changed. and then back??
+
         'crosspost_parent_list',
         'primary_color',
         'archived',
@@ -36,9 +41,6 @@ def cleanup() -> str:
         'suggested_comment_sort',
         'header_img',
         'header_size',
-    ]
-    # TODO shit. looks like query might be too long for jq...
-    ignore_keys_2 = [
         'has_menu_widget',
         'banner_background_color',
         'banner_background_image',
@@ -55,8 +57,9 @@ def cleanup() -> str:
         'link_flair_css_class',
         'link_flair_template_id',
         'link_flair_text',
-    ]
-    ignore_keys_3 = [
+        'link_flair_type',
+        'link_flair_richtext',
+
         'post_hint',
         'is_robot_indexable',
         'content_categories',
@@ -71,8 +74,6 @@ def cleanup() -> str:
         'key_color',
         'can_assign_user_flair',
         'emojis_enabled',
-    ]
-    ignore_keys_4 = [
         'author_patreon_flair',
         "author_flair_richtext",
         'author_flair_text',
@@ -84,8 +85,16 @@ def cleanup() -> str:
 
         "original_content_tag_enabled",
         'emojis_custom_size',
+
+        'gilded',
+        'gid_2',
+        'gid_3',
+        'media_metadata',
+        'can_assign_link_flair',
     ]
-    for aa in [ignore_keys_1, ignore_keys_2, ignore_keys_3, ignore_keys_4]:
+    # TODO shit. looks like query might be too long for jq...
+    for q in range(0, len(ignore_keys), 10):
+        aa = ignore_keys[q: q + 10]
         dq.append(d('.. | ({})'.format(', '.join('.' + a + '?' for a in aa))))
     dq.extend([
         d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail)') for section in sections

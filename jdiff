@@ -20,7 +20,8 @@ uu = '--extract' if args.extract else ''
 res = run([
     'bash',
     '-c',
-    f'{args.difftool} <(./normalise {uu} "{F}") <(./normalise {uu} "{S}")',
+    # hack to propagate failures in process substitution https://unix.stackexchange.com/a/217643/180307
+    f'{args.difftool} <(./normalise {uu} "{F}" || kill $$) <(./normalise {uu} "{S}" || kill $$)',
 ])
 
 
