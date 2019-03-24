@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys
 from argparse import ArgumentParser
 import logging
 from pathlib import Path
@@ -61,10 +62,11 @@ class JqNormaliser:
         setup_logzero(self.logger, level=logging.DEBUG)
 
         p = ArgumentParser()
+        p.add_argument('before', type=Path, nargs='?')
+        p.add_argument('after', type=Path, nargs='?')
         p.add_argument('--dry', action='store_true')
-        p.add_argument('before', nargs='?')
-        p.add_argument('after', nargs='?')
         p.add_argument('--all', action='store_true')
+        p.add_argument('--print-diff', action='store_true')
         args = p.parse_args()
         if args.all:
             files = all_files
@@ -73,7 +75,7 @@ class JqNormaliser:
             assert args.after is not None
             files = [args.before, args.after]
 
-        self.do(files=files, dry_run=args.dry)
+        self.do(files=files, dry_run=args.dry, print_diff=args.print_diff)
 
     def extract(self) -> Filter:
         raise NotImplementedError
@@ -157,18 +159,20 @@ class JqNormaliser:
             delete_start = 1 if self.keep_both else 0
             yield from g[delete_start: -1]
 
-    def _iter_relations(self, files) -> Iterator[Relation]:
+    def _iter_relations(self, files, print_diff=False) -> Iterator[Relation]:
         for i, before, after in zip(range(len(files)), files, files[1:]):
             self.logger.info('comparing %d: %s   %s', i, before, after)
             res, diff = self.compare(before, after)
             self.logger.info('result: %s', res)
+            if print_diff:
+                sys.stdout.write(diff.decode('utf8'))
             yield Relation(
                 before=before,
                 diff=Diff(cmp=res, diff=diff),
                 after=after,
             )
 
-    def do(self, files, dry_run=True) -> None:
+    def do(self, files, dry_run=True, print_diff=False) -> None:
         def rm(pp: XX):
             bfile = pp.path.parent.joinpath(pp.path.name + '.bleanser')
             rel = pp.rel_next
@@ -185,7 +189,7 @@ class JqNormaliser:
                 self.logger.warning('removing: %s', pp.path)
                 pp.path.unlink()
 
-        relations = self._iter_relations(files=files)
+        relations = self._iter_relations(files=files, print_diff=print_diff)
         for d in self._iter_deleted(relations):
             rm(d)
 
