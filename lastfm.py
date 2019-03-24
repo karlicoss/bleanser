@@ -3,10 +3,11 @@ from argparse import ArgumentParser
 import logging
 from pathlib import Path
 from subprocess import check_output, check_call, PIPE, run
-from typing import Optional, List, Iterator
+from typing import Optional, List, Iterator, Iterable
 from tempfile import TemporaryDirectory
 # make sure doesn't conain '<'
 
+from kython import numbers
 from kython.klogging import setup_logzero
 
 # TODO ok, it should only start with '>' I guess?
@@ -26,6 +27,14 @@ class CmpResult(Enum):
     SAME = 'same'
     DOMINATES = 'dominates'
 R = CmpResult
+
+from typing import NamedTuple
+
+
+class Relation(NamedTuple):
+    before: Path
+    cmp: CmpResult
+    after: Path
 
 
 class Normaliser:
@@ -81,8 +90,8 @@ class Normaliser:
         with TemporaryDirectory() as tdir:
             return self._compare(*args, **kwargs, tdir=Path(tdir)) # type: ignore
 
-    def _iter_groups(self, files: List[Path], results: List[CmpResult]):
-        assert len(files) == len(results) + 1
+    def _iter_groups(self, relations: Iterable[Relation]):
+        # assert len(files) == len(results) + 1
         group: List[Path] = []
         def dump_group():
             assert len(group) > 0
@@ -90,25 +99,43 @@ class Normaliser:
             group.clear()
             return res
 
-        group.append(files[0])
-        for i, before, res, after in zip(range(len(files)), files, results, files[1:]):
+        last = None
+        for i, rel in zip(numbers(), relations):
+            if i == 0:
+                group.append(rel.before)
+            else:
+                assert last == rel.before
+            last = rel.after
+
+            res = rel.cmp
             if res == CmpResult.DOMINATES:
                 res = CmpResult.SAME if self.delete_dominated else CmpResult.DIFFERENT
             if res == CmpResult.DIFFERENT:
                 yield dump_group()
-                group.append(after)
+                group.append(rel.after)
             else:
                 assert res == CmpResult.SAME
-                group.append(after)
+                group.append(rel.after)
         yield dump_group()
 
-    def _iter_deleted(self, files: List[Path], results: List[CmpResult]) -> Iterator[Path]:
-        groups = self._iter_groups(files, results)
+    def _iter_deleted(self, relations: Iterable[Relation]) -> Iterator[Path]:
+        groups = self._iter_groups(relations)
         for g in groups:
             if len(g) <= 1:
                 continue
             delete_start = 1 if self.keep_both else 0
             yield from g[delete_start: -1]
+
+    def _iter_relations(self, files) -> Iterator[Relation]:
+        for i, before, after in zip(range(len(files)), files, files[1:]):
+            self.logger.info('comparing %d: %s   %s', i, before, after)
+            res = self.compare(before, after)
+            self.logger.info('result: %s', res)
+            yield Relation(
+                before=before,
+                cmp=res,
+                after=after,
+            )
 
     def do(self, files, dry_run=True) -> None:
         def rm(pp: Path):
@@ -129,13 +156,19 @@ class Normaliser:
             rm(d)
 
 
+def asrel(files, results) -> Iterator[Relation]:
+    assert len(files) == len(results) + 1
+    for b, res, a in zip(files, results, files[1:]):
+        yield Relation(before=b, cmp=res, after=a)
+
+
 def test():
     P = Path
     # TODO kython this? it's quite common..
     nn = Normaliser(
         delete_dominated=True,
     )
-    assert list(nn._iter_groups(
+    assert list(nn._iter_groups(asrel(
         files=[
             P('a'),
             P('b'),
@@ -155,7 +188,7 @@ def test():
             R.SAME, # fg
             R.SAME, # gh
         ]
-    ))  == [
+    )))  == [
         [P('a'), P('b'), P('c')],
         [P('d'), P('e')],
         [P('f'), P('g'), P('h')],
@@ -186,16 +219,19 @@ def test2():
         delete_dominated=False,
         keep_both=True,
     )
-    assert list(nn._iter_deleted(
+    assert list(nn._iter_deleted(asrel(
         files=files,
         results=results,
-    )) == [P('d'), P('e')]
+    ))) == [P('d'), P('e')]
 
     nn2 = Normaliser(
         delete_dominated=True,
         keep_both=False,
     )
-    assert list(nn2._iter_deleted(files=files, results=results)) == [P('b'), P('c'), P('d'), P('e'), P('g')]
+    assert list(nn2._iter_deleted(asrel(
+        files=files,
+        results=results,
+    ))) == [P('b'), P('c'), P('d'), P('e'), P('g')]
 
 
 
