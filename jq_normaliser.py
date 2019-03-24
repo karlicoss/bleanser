@@ -57,6 +57,7 @@ class JqNormaliser:
         self.logger = logging.getLogger()
         self.delete_dominated = delete_dominated
         self.keep_both = keep_both
+        self.errors: List[str] = []
 
     def main(self, all_files: List[Path]):
         setup_logzero(self.logger, level=logging.DEBUG)
@@ -77,6 +78,12 @@ class JqNormaliser:
 
         self.do(files=files, dry_run=args.dry, print_diff=args.print_diff)
 
+        if len(self.errors) > 0:
+            for e in self.errors:
+                self.logger.error(e)
+            sys.exit(1)
+
+
     def extract(self) -> Filter:
         return NotImplemented
 
@@ -84,34 +91,43 @@ class JqNormaliser:
         raise NotImplementedError
 
     def _compare(self, before: Path, after: Path, tdir: Path) -> Diff:
-        cmd = self.cleanup()
-        norm_before = tdir.joinpath('before')
-        norm_after = tdir.joinpath('after')
+        # TODO need to check that it agrees with extract about changes
+        def diff_with(cmd: Filter) -> Diff:
+            norm_before = tdir.joinpath('before')
+            norm_after = tdir.joinpath('after')
 
-        jq(path=before, filt=cmd, output=norm_before)
-        jq(path=after, filt=cmd, output=norm_after)
+            jq(path=before, filt=cmd, output=norm_before)
+            jq(path=after, filt=cmd, output=norm_after)
 
-        # TODO hot to make it interactive? just output the command to compute diff?
-        # TODO keep tmp dir??
-        dres = run([
-            'diff', str(norm_before), str(norm_after)
-        ], stdout=PIPE)
-        assert dres.returncode <= 1
+            dres = run([
+                'diff', str(norm_before), str(norm_after)
+            ], stdout=PIPE)
+            assert dres.returncode <= 1
+            diff = dres.stdout
+            diff_lines = diff.decode('utf8').splitlines()
+            removed: List[str] = []
+            for l in diff_lines:
+                if l.startswith('<'):
+                    removed.append(l)
 
-        diff = dres.stdout
-        diff_lines = diff.decode('utf8').splitlines()
-        removed: List[str] = []
-        for l in diff_lines:
-            if l.startswith('<'):
-                removed.append(l)
-
-        if len(removed) == 0:
-            if dres.returncode == 0:
-                return Diff(CmpResult.SAME, diff)
+            if len(removed) == 0:
+                if dres.returncode == 0:
+                    return Diff(CmpResult.SAME, diff)
+                else:
+                    return Diff(CmpResult.DOMINATES, diff)
             else:
-                return Diff(CmpResult.DOMINATES, diff)
-        else:
-            return Diff(CmpResult.DIFFERENT, diff)
+                return Diff(CmpResult.DIFFERENT, diff)
+
+        diff_cleanup = diff_with(self.cleanup())
+        extr = self.extract()
+        if extr is not NotImplemented:
+            diff_extract = diff_with(extr)
+            if diff_cleanup.cmp != diff_extract.cmp:
+                err = f'while comparing {before} vs {after}: extraction gives {diff_cleanup.cmp} whereas cleanup gives {diff_extract.cmp}'
+                self.logger.error(err)
+                self.errors.append(err)
+        return diff_cleanup
+
 
     def compare(self, *args, **kwargs) -> Diff:
         with TemporaryDirectory() as tdir:
