@@ -66,14 +66,14 @@ class JqNormaliser:
         self.errors: List[str] = []
         self.print_diff = False
 
-    def main(self, all_files: List[Path]):
+    def main(self, glob: str='*.json'):
         setup_logzero(self.logger, level=logging.DEBUG)
 
         p = ArgumentParser()
         p.add_argument('before', type=Path, nargs='?')
         p.add_argument('after', type=Path, nargs='?')
         p.add_argument('--dry', action='store_true')
-        p.add_argument('--all', action='store_true')
+        p.add_argument('--all', type=Path, default=None)
         p.add_argument('--print-diff', action='store_true')
         p.add_argument('--extract', '-e', action='store_true')
         args = p.parse_args()
@@ -82,8 +82,8 @@ class JqNormaliser:
 
         normalise_file = None
 
-        if args.all:
-            files = all_files
+        if args.all is not None:
+            files = list(sorted(args.all.glob(glob)))
         else:
             assert args.before is not None
 

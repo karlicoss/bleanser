@@ -13,11 +13,8 @@ class LastfmNormaliser(JqNormaliser):
 
 
 def main():
-    bdir = Path('lastfm')
-    backups = list(sorted(bdir.glob('*.json')))
-
     norm = LastfmNormaliser()
-    norm.main(all_files=backups)
+    norm.main()
 
 
 if __name__ == '__main__':

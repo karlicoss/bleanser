@@ -64,11 +64,8 @@ class FsqNormaliser(JqNormaliser):
 
 
 def main():
-    bdir = Path('fsq')
-    backups = list(sorted(bdir.glob('*.json')))
-
     norm = FsqNormaliser()
-    norm.main(all_files=backups)
+    norm.main()
 
 
 if __name__ == '__main__':

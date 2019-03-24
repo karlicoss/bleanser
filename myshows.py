@@ -13,11 +13,8 @@ class MyshowsNormaliser(JqNormaliser):
 
 
 def main():
-    bdir = Path('myshows')
-    backups = list(sorted(bdir.glob('*.json')))
-
     norm = MyshowsNormaliser()
-    norm.main(all_files=backups)
+    norm.main()
 
 
 if __name__ == '__main__':
