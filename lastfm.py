@@ -127,13 +127,10 @@ class Normaliser:
             self.logger.info('result: %s', res)
             results.append(res)
 
-        # always try to keep latest backup
-        # in dominated mode, just treat dominated as same
+        deleted = self._get_deleted(files, results)
+        for d in deleted:
+            rm(d)
 
-        # a DIFF b SAME c DOM d SAME e DIFF f SAME g SAME h
-        # TODO extra mode for reddit for instance:
-        # one mode would keep a, e, h (basically last in every group)
-        # another  would keep a, b, e, f and h
 
 def test():
     P = Path
@@ -169,32 +166,39 @@ def test():
 
 def test2():
     P = Path
+    files = [
+        P('a'),
+        P('b'),
+        P('c'),
+        P('d'),
+        P('e'),
+        P('f'),
+        P('g'),
+        P('h'),
+    ]
+    results = [
+        R.DIFFERENT,
+        R.DOMINATES,
+        R.SAME,
+        R.SAME,
+        R.SAME,
+        R.DIFFERENT,
+        R.DOMINATES,
+    ]
     nn = Normaliser(
         delete_dominated=False,
         keep_both=True,
     )
     assert nn._get_deleted(
-        files=[
-            P('a'),
-            P('b'),
-            P('c'),
-            P('d'),
-            P('e'),
-            P('f'),
-            P('g'),
-            P('h'),
-        ],
-        results=[
-            R.DIFFERENT,
-            R.DOMINATES,
-            R.SAME,
-            R.SAME,
-            R.SAME,
-            R.DIFFERENT,
-            R.DOMINATES,
-        ]
+        files=files,
+        results=results,
     ) == [P('d'), P('e')]
 
+    nn2 = Normaliser(
+        delete_dominated=True,
+        keep_both=False,
+    )
+    assert nn2._get_deleted(files=files, results=results) == [P('b'), P('c'), P('d'), P('e'), P('g')]
 
 
 
@@ -202,7 +206,7 @@ ID_FILTER = '.'
 
 class LastfmNormaliser(Normaliser):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, logger_tag='lastfm-normaliser', delete_dominated=True)
+        super().__init__(*args, **kwargs, logger_tag='lastfm-normaliser', delete_dominated=True, keep_both=False)
 
     def extract(self) -> Filter:
         return 'sort_by(.date) | map(map_values(ascii_downcase))'
