@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import logging
 from pathlib import Path
 from subprocess import check_output, check_call, PIPE, run
-from typing import Optional, List
+from typing import Optional, List, Iterator
 from tempfile import TemporaryDirectory
 # make sure doesn't conain '<'
 
@@ -81,37 +81,34 @@ class Normaliser:
         with TemporaryDirectory() as tdir:
             return self._compare(*args, **kwargs, tdir=Path(tdir)) # type: ignore
 
-    def _get_groups(self, files: List[Path], results: List[CmpResult]):
+    def _iter_groups(self, files: List[Path], results: List[CmpResult]):
         assert len(files) == len(results) + 1
-        groups = []
         group: List[Path] = []
         def dump_group():
             assert len(group) > 0
-            groups.append([g for g in group])
+            res = [g for g in group]
             group.clear()
+            return res
 
         group.append(files[0])
         for i, before, res, after in zip(range(len(files)), files, results, files[1:]):
             if res == CmpResult.DOMINATES:
                 res = CmpResult.SAME if self.delete_dominated else CmpResult.DIFFERENT
             if res == CmpResult.DIFFERENT:
-                dump_group()
+                yield dump_group()
                 group.append(after)
             else:
                 assert res == CmpResult.SAME
                 group.append(after)
-        dump_group()
-        return groups
+        yield dump_group()
 
-    def _get_deleted(self, files: List[Path], results: List[CmpResult]) -> List[Path]:
-        groups = self._get_groups(files, results)
-        deleted: List[Path] = []
+    def _iter_deleted(self, files: List[Path], results: List[CmpResult]) -> Iterator[Path]:
+        groups = self._iter_groups(files, results)
         for g in groups:
             if len(g) <= 1:
                 continue
             delete_start = 1 if self.keep_both else 0
-            deleted.extend(g[delete_start: -1])
-        return deleted
+            yield from g[delete_start: -1]
 
     def do(self, files, dry_run=True) -> None:
         def rm(pp: Path):
@@ -138,7 +135,7 @@ def test():
     nn = Normaliser(
         delete_dominated=True,
     )
-    assert nn._get_groups(
+    assert list(nn._iter_groups(
         files=[
             P('a'),
             P('b'),
@@ -158,7 +155,7 @@ def test():
             R.SAME, # fg
             R.SAME, # gh
         ]
-    )  == [
+    ))  == [
         [P('a'), P('b'), P('c')],
         [P('d'), P('e')],
         [P('f'), P('g'), P('h')],
@@ -189,16 +186,16 @@ def test2():
         delete_dominated=False,
         keep_both=True,
     )
-    assert nn._get_deleted(
+    assert list(nn._iter_deleted(
         files=files,
         results=results,
-    ) == [P('d'), P('e')]
+    )) == [P('d'), P('e')]
 
     nn2 = Normaliser(
         delete_dominated=True,
         keep_both=False,
     )
-    assert nn2._get_deleted(files=files, results=results) == [P('b'), P('c'), P('d'), P('e'), P('g')]
+    assert list(nn2._iter_deleted(files=files, results=results)) == [P('b'), P('c'), P('d'), P('e'), P('g')]
 
 
 
