@@ -15,9 +15,13 @@ from kython.klogging import setup_logzero
 
 Filter = str
 
+def _jq(path: Path, filt: Filter, fo):
+    check_call(['jq', filt, str(path)], stdout=fo)
+
+
 def jq(path: Path, filt: Filter, output: Path):
     with output.open('wb') as fo:
-        check_call(['jq', filt, str(path)], stdout=fo)
+        _jq(path=path, filt=filt, fo=fo)
 
 Result = List[Path]
 
@@ -58,6 +62,7 @@ class JqNormaliser:
         self.delete_dominated = delete_dominated
         self.keep_both = keep_both
         self.errors: List[str] = []
+        self.print_diff = False
 
     def main(self, all_files: List[Path]):
         setup_logzero(self.logger, level=logging.DEBUG)
@@ -69,19 +74,31 @@ class JqNormaliser:
         p.add_argument('--all', action='store_true')
         p.add_argument('--print-diff', action='store_true')
         args = p.parse_args()
+
+        self.print_diff = args.print_diff # meh
+
+        normalise_file = None
+
         if args.all:
             files = all_files
         else:
             assert args.before is not None
-            assert args.after is not None
-            files = [args.before, args.after]
 
-        self.do(files=files, dry_run=args.dry, print_diff=args.print_diff)
+            if args.after is not None:
+                files = [args.before, args.after]
+            else:
+                normalise_file = args.before
 
-        if len(self.errors) > 0:
-            for e in self.errors:
-                self.logger.error(e)
-            sys.exit(1)
+        if normalise_file is not None:
+            _jq(path=normalise_file, filt=self.extract(), fo=sys.stdout)
+
+        else:
+            self.do(files=files, dry_run=args.dry)
+
+            if len(self.errors) > 0:
+                for e in self.errors:
+                    self.logger.error(e)
+                sys.exit(1)
 
 
     def extract(self) -> Filter:
@@ -119,9 +136,16 @@ class JqNormaliser:
                 return Diff(CmpResult.DIFFERENT, diff)
 
         diff_cleanup = diff_with(self.cleanup())
+        if self.print_diff:
+            self.logger.info('cleanup diff:')
+            sys.stderr.write(diff_cleanup.diff.decode('utf8'))
         extr = self.extract()
         if extr is not NotImplemented:
             diff_extract = diff_with(extr)
+            if self.print_diff:
+                self.logger.info('extract diff:')
+                sys.stderr.write(diff_extract.diff.decode('utf8'))
+
             if diff_cleanup.cmp != diff_extract.cmp:
                 err = f'while comparing {before} vs {after}: extraction gives {diff_cleanup.cmp} whereas cleanup gives {diff_extract.cmp}'
                 self.logger.error(err)
@@ -175,20 +199,18 @@ class JqNormaliser:
             delete_start = 1 if self.keep_both else 0
             yield from g[delete_start: -1]
 
-    def _iter_relations(self, files, print_diff=False) -> Iterator[Relation]:
+    def _iter_relations(self, files) -> Iterator[Relation]:
         for i, before, after in zip(range(len(files)), files, files[1:]):
             self.logger.info('comparing %d: %s   %s', i, before, after)
             res, diff = self.compare(before, after)
             self.logger.info('result: %s', res)
-            if print_diff:
-                sys.stdout.write(diff.decode('utf8'))
             yield Relation(
                 before=before,
                 diff=Diff(cmp=res, diff=diff),
                 after=after,
             )
 
-    def do(self, files, dry_run=True, print_diff=False) -> None:
+    def do(self, files, dry_run=True) -> None:
         def rm(pp: XX):
             bfile = pp.path.parent.joinpath(pp.path.name + '.bleanser')
             rel = pp.rel_next
@@ -205,7 +227,7 @@ class JqNormaliser:
                 self.logger.warning('removing: %s', pp.path)
                 pp.path.unlink()
 
-        relations = self._iter_relations(files=files, print_diff=print_diff)
+        relations = self._iter_relations(files=files)
         for d in self._iter_deleted(relations):
             rm(d)
 
@@ -305,3 +327,6 @@ def test2():
     ))] == [P('b'), P('c'), P('d'), P('e'), P('g')]
 
 
+
+def pipe(queries):
+    return ' | '.join(queries)
