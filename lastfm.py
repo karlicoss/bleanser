@@ -17,11 +17,25 @@ def jq(path: Path, filt: Filter, output: Path):
     with output.open('wb') as fo:
         check_call(['jq', filt, str(path)], stdout=fo)
 
+Result = List[Path]
+
+from enum import Enum, auto
+
+class CmpResult(Enum):
+    DIFFERENT = 'different'
+    SAME = 'same'
+    DOMINATES = 'dominates'
+R = CmpResult
+
 
 class Normaliser:
-    def __init__(self, logger_tag='normaliser') -> None:
+    def __init__(
+            self,
+            logger_tag='normaliser',
+            delete_dominated=False,
+    ) -> None:
         self.logger = logging.getLogger()
-        # TODO main function??
+        self.delete_dominated = delete_dominated
 
     def main(self):
         setup_logzero(self.logger, level=logging.DEBUG)
@@ -32,7 +46,7 @@ class Normaliser:
     def cleanup(self) -> Filter:
         raise NotImplementedError
 
-    def _compare(self, before: Path, after: Path, tdir: Path):
+    def _compare(self, before: Path, after: Path, tdir: Path) -> CmpResult:
         cmd = self.extract()
         norm_before = tdir.joinpath('before')
         norm_after = tdir.joinpath('after')
@@ -54,32 +68,103 @@ class Normaliser:
                 removed.append(l)
 
         if len(removed) == 0:
-            self.logger.info("no lines removed!")
+            if dres.returncode == 0:
+                return CmpResult.SAME
+            else:
+                return CmpResult.DOMINATES
         else:
-            for l in diff_lines:
-                print(l)
+            return CmpResult.DIFFERENT
 
-    def compare(self, *args, **kwargs) -> None:
+    def compare(self, *args, **kwargs) -> CmpResult:
         with TemporaryDirectory() as tdir:
-            self._compare(*args, **kwargs, tdir=Path(tdir))
-        # TODO diff??
+            return self._compare(*args, **kwargs, tdir=Path(tdir)) # type: ignore
 
-    def do(self, files) -> None:
+    def _get_groups(self, files: List[Path], results: List[CmpResult]):
+        assert len(files) == len(results) + 1
+        groups = []
+        group: List[Path] = []
+        def dump_group():
+            assert len(group) > 0
+            groups.append([g for g in group])
+            group.clear()
+
+        group.append(files[0])
+        for i, before, res, after in zip(range(len(files)), files, results, files[1:]):
+            if res == CmpResult.DOMINATES:
+                res = CmpResult.SAME if self.delete_dominated else CmpResult.DIFFERENT
+            if res == CmpResult.DIFFERENT:
+                dump_group()
+                group.append(after)
+            else:
+                assert res == CmpResult.SAME
+                group.append(after)
+        dump_group()
+        return groups
+
+    def do(self, files, dry_run=True) -> None:
+        def rm(pp: Path):
+            if dry_run:
+                self.logger.warning('dry run! would remove %s', pp)
+            else:
+                raise RuntimeError
+
+        results = []
         for i, before, after in zip(range(len(files)), files, files[1:]):
             self.logger.info('comparing %d: %s   %s', i, before, after)
-            self.compare(before, after)
+            res = self.compare(before, after)
+            self.logger.info('result: %s', res)
+            results.append(res)
+
+        # always try to keep latest backup
+        # in dominated mode, just treat dominated as same
+
+        # a DIFF b SAME c DOM d SAME e DIFF f SAME g SAME h
+        # TODO extra mode for reddit for instance:
+        # one mode would keep a, e, h (basically last in every group)
+        # another  would keep a, b, e, f and h
+
+def test():
+    nn = Normaliser(delete_dominated=True)
+    P = Path
+    # TODO kython this? it's quite common..
+    groups = nn._get_groups(
+        files=[
+            P('a'),
+            P('b'),
+            P('c'),
+            P('d'),
+            P('e'),
+            P('f'),
+            P('g'),
+            P('h'),
+        ],
+        results=[
+            R.SAME, # ab
+            R.DOMINATES, # bc
+            R.DIFFERENT, # cd
+            R.SAME, # de
+            R.DIFFERENT, # ef
+            R.SAME, # fg
+            R.SAME, # gh
+        ]
+    )
+    assert groups == [
+        [P('a'), P('b'), P('c')],
+        [P('d'), P('e')],
+        [P('f'), P('g'), P('h')],
+    ]
+
 
 
 
 ID_FILTER = '.'
 
 class LastfmNormaliser(Normaliser):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, logger_tag='lastfm-normaliser', delete_dominated=True)
+
     def extract(self) -> Filter:
-        # TODO sort by date?
-        # TODO shit looks like names are changing often...
         return 'sort_by(.date) | map(map_values(ascii_downcase))'
-# with_entries( .key |= ascii_downcase )
-    # TODO ignore case?
 
     def cleanup(self) -> Filter:
         return ID_FILTER
@@ -94,6 +179,7 @@ def main():
     norm = LastfmNormaliser()
     norm.main()
     p = ArgumentParser()
+    p.add_argument('--dry', action='store_true')
     p.add_argument('before', nargs='?')
     p.add_argument('after', nargs='?')
     p.add_argument('--all', action='store_true')
@@ -105,7 +191,7 @@ def main():
         assert args.after is not None
         backups = [args.before, args.after]
 
-    norm.do(backups)
+    norm.do(backups, dry_run=args.dry)
 
-
-main()
+if __name__ == '__main__':
+    main()
