@@ -3,22 +3,37 @@ import sys
 from argparse import ArgumentParser
 import logging
 from pathlib import Path
-from subprocess import check_output, check_call, PIPE, run
+from subprocess import check_output, check_call, PIPE, run, Popen
 from typing import Optional, List, Iterator, Iterable, Tuple, Optional
 from tempfile import TemporaryDirectory
 # make sure doesn't conain '<'
 
 from kython import numbers
 from kython.klogging import setup_logzero
+from kython import kompress
 
 # TODO ok, it should only start with '>' I guess?
 
 Filter = str
 
 def _jq(path: Path, filt: Filter, fo):
-    cmd = ['jq', filt, str(path)]
-    # print(' '.join(cmd))
-    check_call(cmd, stdout=fo)
+    cmd = ['jq', filt]
+    # # TODO shit.  why kompress is unhappy??
+    # with kompress.open(path, 'rb') as fi:
+    #     # # import ipdb; ipdb.set_trace()  
+    #     # sys.stdout.buffer.write(fi.read())
+    #     # raise RuntimeError
+    #     p = Popen(cmd, stdout=fo, stdin=fi)
+    #     _, _ = p.communicate()
+    #     assert p.returncode == 0
+    with TemporaryDirectory() as td:
+        tdir = Path(td)
+        if path.suffix.endswith('.xz'):
+            upath = tdir.joinpath('unpacked')
+            out = check_output(['aunpack', '-c', str(path)])
+            upath.write_bytes(out)
+            path = upath
+        return check_call(cmd + [str(path)], stdout=fo)
 
 
 def jq(path: Path, filt: Filter, output: Path):

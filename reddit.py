@@ -141,7 +141,7 @@ class RedditNormaliser(JqNormaliser):
 
 def main():
     norm = RedditNormaliser()
-    norm.main()
+    norm.main(glob='*.json.xz')
 
 
 if __name__ == '__main__':
