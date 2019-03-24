@@ -16,7 +16,9 @@ from kython.klogging import setup_logzero
 Filter = str
 
 def _jq(path: Path, filt: Filter, fo):
-    check_call(['jq', filt, str(path)], stdout=fo)
+    cmd = ['jq', filt, str(path)]
+    # print(' '.join(cmd))
+    check_call(cmd, stdout=fo)
 
 
 def jq(path: Path, filt: Filter, output: Path):
