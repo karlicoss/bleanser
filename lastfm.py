@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import logging
 from pathlib import Path
 from subprocess import check_output, check_call, PIPE, run
-from typing import Optional, List, Iterator, Iterable
+from typing import Optional, List, Iterator, Iterable, Tuple, Optional
 from tempfile import TemporaryDirectory
 # make sure doesn't conain '<'
 
@@ -31,10 +31,21 @@ R = CmpResult
 from typing import NamedTuple
 
 
+class Diff(NamedTuple):
+    cmp: CmpResult
+    diff: bytes
+
+
+class XX(NamedTuple):
+    path: Path
+    diff_next: Optional[Diff]
+
+
 class Relation(NamedTuple):
     before: Path
-    cmp: CmpResult
+    diff: Diff
     after: Path
+
 
 
 class Normaliser:
@@ -57,7 +68,7 @@ class Normaliser:
     def cleanup(self) -> Filter:
         raise NotImplementedError
 
-    def _compare(self, before: Path, after: Path, tdir: Path) -> CmpResult:
+    def _compare(self, before: Path, after: Path, tdir: Path) -> Diff:
         cmd = self.extract()
         norm_before = tdir.joinpath('before')
         norm_after = tdir.joinpath('after')
@@ -72,7 +83,8 @@ class Normaliser:
         ], stdout=PIPE)
         assert dres.returncode <= 1
 
-        diff_lines = dres.stdout.decode('utf8').splitlines()
+        diff = dres.stdout
+        diff_lines = diff.decode('utf8').splitlines()
         removed: List[str] = []
         for l in diff_lines:
             if l.startswith('<'):
@@ -80,45 +92,51 @@ class Normaliser:
 
         if len(removed) == 0:
             if dres.returncode == 0:
-                return CmpResult.SAME
+                return Diff(CmpResult.SAME, diff)
             else:
-                return CmpResult.DOMINATES
+                return Diff(CmpResult.DOMINATES, diff)
         else:
-            return CmpResult.DIFFERENT
+            return Diff(CmpResult.DIFFERENT, diff)
 
-    def compare(self, *args, **kwargs) -> CmpResult:
+    def compare(self, *args, **kwargs) -> Diff:
         with TemporaryDirectory() as tdir:
             return self._compare(*args, **kwargs, tdir=Path(tdir)) # type: ignore
 
     def _iter_groups(self, relations: Iterable[Relation]):
-        # assert len(files) == len(results) + 1
-        group: List[Path] = []
+        from typing import Any
+        group: List[XX] = []
+
         def dump_group():
-            assert len(group) > 0
+            if len(group) == 0:
+                return []
             res = [g for g in group]
             group.clear()
-            return res
+            return [res]
+
+        def group_add(path, diff):
+            group.append(XX(path=path, diff_next=diff))
 
         last = None
         for i, rel in zip(numbers(), relations):
-            if i == 0:
-                group.append(rel.before)
-            else:
+            if i != 0:
                 assert last == rel.before
             last = rel.after
 
-            res = rel.cmp
+            res = rel.diff.cmp
+
             if res == CmpResult.DOMINATES:
                 res = CmpResult.SAME if self.delete_dominated else CmpResult.DIFFERENT
+
             if res == CmpResult.DIFFERENT:
-                yield dump_group()
-                group.append(rel.after)
+                group_add(rel.before, None)
+                yield from dump_group()
             else:
                 assert res == CmpResult.SAME
-                group.append(rel.after)
-        yield dump_group()
+                group_add(rel.before, rel.diff)
+        group_add(last, None)
+        yield from dump_group()
 
-    def _iter_deleted(self, relations: Iterable[Relation]) -> Iterator[Path]:
+    def _iter_deleted(self, relations: Iterable[Relation]) -> Iterator[XX]:
         groups = self._iter_groups(relations)
         for g in groups:
             if len(g) <= 1:
@@ -129,12 +147,13 @@ class Normaliser:
     def _iter_relations(self, files) -> Iterator[Relation]:
         for i, before, after in zip(range(len(files)), files, files[1:]):
             self.logger.info('comparing %d: %s   %s', i, before, after)
-            res = self.compare(before, after)
+            res, diff = self.compare(before, after)
             self.logger.info('result: %s', res)
             yield Relation(
                 before=before,
                 cmp=res,
                 after=after,
+                diff=diff,
             )
 
     def do(self, files, dry_run=True) -> None:
@@ -142,33 +161,44 @@ class Normaliser:
             if dry_run:
                 self.logger.warning('dry run! would remove %s', pp)
             else:
+                # TODO touch a bleanser file??
                 raise RuntimeError
 
-        results = []
-        for i, before, after in zip(range(len(files)), files, files[1:]):
-            self.logger.info('comparing %d: %s   %s', i, before, after)
-            res = self.compare(before, after)
-            self.logger.info('result: %s', res)
-            results.append(res)
-
-        deleted = self._get_deleted(files, results)
-        for d in deleted:
+        relations = self._iter_relations(files=files)
+        for d in self._iter_deleted(relations):
             rm(d)
 
 
 def asrel(files, results) -> Iterator[Relation]:
     assert len(files) == len(results) + 1
     for b, res, a in zip(files, results, files[1:]):
-        yield Relation(before=b, cmp=res, after=a)
+        yield Relation(before=b, diff=Diff(res, b''), after=a)
+
+def test0():
+    P = Path
+    nn = Normaliser(
+        delete_dominated=True,
+    )
+    assert [[x.path for x in n] for n in nn._iter_groups(asrel(
+        files=[
+            P('a'),
+            P('b'),
+        ],
+        results=[
+            R.SAME,
+        ],
+    ))] == [
+        [P('a'), P('b')],
+    ]
 
 
-def test():
+def test1():
     P = Path
     # TODO kython this? it's quite common..
     nn = Normaliser(
         delete_dominated=True,
     )
-    assert list(nn._iter_groups(asrel(
+    assert [[x.path for x in n] for n in nn._iter_groups(asrel(
         files=[
             P('a'),
             P('b'),
@@ -188,7 +218,7 @@ def test():
             R.SAME, # fg
             R.SAME, # gh
         ]
-    )))  == [
+    ))]  == [
         [P('a'), P('b'), P('c')],
         [P('d'), P('e')],
         [P('f'), P('g'), P('h')],
@@ -219,19 +249,19 @@ def test2():
         delete_dominated=False,
         keep_both=True,
     )
-    assert list(nn._iter_deleted(asrel(
+    assert [x.path for x in nn._iter_deleted(asrel(
         files=files,
         results=results,
-    ))) == [P('d'), P('e')]
+    ))] == [P('d'), P('e')]
 
     nn2 = Normaliser(
         delete_dominated=True,
         keep_both=False,
     )
-    assert list(nn2._iter_deleted(asrel(
+    assert [x.path for x in nn2._iter_deleted(asrel(
         files=files,
         results=results,
-    ))) == [P('b'), P('c'), P('d'), P('e'), P('g')]
+    ))] == [P('b'), P('c'), P('d'), P('e'), P('g')]
 
 
 
