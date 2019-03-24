@@ -35,16 +35,16 @@ class Diff(NamedTuple):
     cmp: CmpResult
     diff: bytes
 
-
-class XX(NamedTuple):
-    path: Path
-    diff_next: Optional[Diff]
-
-
 class Relation(NamedTuple):
     before: Path
     diff: Diff
     after: Path
+
+
+class XX(NamedTuple):
+    path: Path
+    rel_next: Optional[Relation]
+
 
 
 
@@ -113,8 +113,8 @@ class Normaliser:
             group.clear()
             return [res]
 
-        def group_add(path, diff):
-            group.append(XX(path=path, diff_next=diff))
+        def group_add(path, rel):
+            group.append(XX(path=path, rel_next=rel))
 
         last = None
         for i, rel in zip(numbers(), relations):
@@ -132,7 +132,7 @@ class Normaliser:
                 yield from dump_group()
             else:
                 assert res == CmpResult.SAME
-                group_add(rel.before, rel.diff)
+                group_add(rel.before, rel)
         group_add(last, None)
         yield from dump_group()
 
@@ -151,18 +151,26 @@ class Normaliser:
             self.logger.info('result: %s', res)
             yield Relation(
                 before=before,
-                cmp=res,
+                diff=Diff(cmp=res, diff=diff),
                 after=after,
-                diff=diff,
             )
 
     def do(self, files, dry_run=True) -> None:
-        def rm(pp: Path):
+        def rm(pp: XX):
+            bfile = pp.path.parent.joinpath(pp.path.name + '.bleanser')
+            rel = pp.rel_next
+            assert rel is not None
+
+            with bfile.open('wb') as fo:
+                fline = f'comparing {rel.before} vs {rel.after}: {rel.diff.cmp}\n'
+                fo.write(fline.encode('utf8'))
+                fo.write(rel.diff.diff)
+
             if dry_run:
-                self.logger.warning('dry run! would remove %s', pp)
+                self.logger.warning('dry run! would remove %s', pp.path)
             else:
-                # TODO touch a bleanser file??
-                raise RuntimeError
+                self.logger.warning('removing: %s', pp.path)
+                pp.path.unlink()
 
         relations = self._iter_relations(files=files)
         for d in self._iter_deleted(relations):
