@@ -33,9 +33,11 @@ class Normaliser:
             self,
             logger_tag='normaliser',
             delete_dominated=False,
+            keep_both=True,
     ) -> None:
         self.logger = logging.getLogger()
         self.delete_dominated = delete_dominated
+        self.keep_both = keep_both
 
     def main(self):
         setup_logzero(self.logger, level=logging.DEBUG)
@@ -101,6 +103,16 @@ class Normaliser:
         dump_group()
         return groups
 
+    def _get_deleted(self, files: List[Path], results: List[CmpResult]) -> List[Path]:
+        groups = self._get_groups(files, results)
+        deleted: List[Path] = []
+        for g in groups:
+            if len(g) <= 1:
+                continue
+            delete_start = 1 if self.keep_both else 0
+            deleted.extend(g[delete_start: -1])
+        return deleted
+
     def do(self, files, dry_run=True) -> None:
         def rm(pp: Path):
             if dry_run:
@@ -124,10 +136,12 @@ class Normaliser:
         # another  would keep a, b, e, f and h
 
 def test():
-    nn = Normaliser(delete_dominated=True)
     P = Path
     # TODO kython this? it's quite common..
-    groups = nn._get_groups(
+    nn = Normaliser(
+        delete_dominated=True,
+    )
+    assert nn._get_groups(
         files=[
             P('a'),
             P('b'),
@@ -147,12 +161,39 @@ def test():
             R.SAME, # fg
             R.SAME, # gh
         ]
-    )
-    assert groups == [
+    )  == [
         [P('a'), P('b'), P('c')],
         [P('d'), P('e')],
         [P('f'), P('g'), P('h')],
     ]
+
+def test2():
+    P = Path
+    nn = Normaliser(
+        delete_dominated=False,
+        keep_both=True,
+    )
+    assert nn._get_deleted(
+        files=[
+            P('a'),
+            P('b'),
+            P('c'),
+            P('d'),
+            P('e'),
+            P('f'),
+            P('g'),
+            P('h'),
+        ],
+        results=[
+            R.DIFFERENT,
+            R.DOMINATES,
+            R.SAME,
+            R.SAME,
+            R.SAME,
+            R.DIFFERENT,
+            R.DOMINATES,
+        ]
+    ) == [P('d'), P('e')]
 
 
 
