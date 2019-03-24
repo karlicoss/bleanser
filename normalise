@@ -93,6 +93,7 @@ def cleanup() -> str:
         'can_assign_link_flair',
     ]
     # TODO shit. looks like query might be too long for jq...
+    # TODO careful about that one!!
     for q in range(0, len(ignore_keys), 10):
         aa = ignore_keys[q: q + 10]
         dq.append(d('.. | ({})'.format(', '.join('.' + a + '?' for a in aa))))

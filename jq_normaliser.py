@@ -73,6 +73,7 @@ class JqNormaliser:
         p.add_argument('--dry', action='store_true')
         p.add_argument('--all', action='store_true')
         p.add_argument('--print-diff', action='store_true')
+        p.add_argument('--extract', '-e', action='store_true')
         args = p.parse_args()
 
         self.print_diff = args.print_diff # meh
@@ -90,7 +91,8 @@ class JqNormaliser:
                 normalise_file = args.before
 
         if normalise_file is not None:
-            _jq(path=normalise_file, filt=self.extract(), fo=sys.stdout)
+            filt = self.extract() if args.extract else self.cleanup()
+            _jq(path=normalise_file, filt=filt, fo=sys.stdout)
 
         else:
             self.do(files=files, dry_run=args.dry)
@@ -147,7 +149,7 @@ class JqNormaliser:
                 sys.stderr.write(diff_extract.diff.decode('utf8'))
 
             if diff_cleanup.cmp != diff_extract.cmp:
-                err = f'while comparing {before} vs {after}: extraction gives {diff_cleanup.cmp} whereas cleanup gives {diff_extract.cmp}'
+                err = f'while comparing {before} vs {after}: cleanup gives {diff_cleanup.cmp} whereas extraction gives {diff_extract.cmp}'
                 self.logger.error(err)
                 self.errors.append(err)
         return diff_cleanup
@@ -328,5 +330,17 @@ def test2():
 
 
 
-def pipe(queries):
+def pipe(*queries):
     return ' | '.join(queries)
+
+def jdel(q):
+    return f'del({q})'
+
+def jq_del_all(*keys):
+    parts = []
+    for q in range(0, len(keys), 10):
+        kk = keys[q: q + 10]
+        parts.append(jdel('.. | ({})'.format(', '.join('.' + k + '?' for k in kk))))
+    return pipe(*parts)
+
+
