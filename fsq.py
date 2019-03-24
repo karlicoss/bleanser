@@ -14,8 +14,8 @@ def _normalise_coordinates():
 
 
 class FsqNormaliser(JqNormaliser):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, logger_tag='fsq-normaliser', delete_dominated=True, keep_both=False)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs, logger_tag='fsq-normaliser', delete_dominated=True, keep_both=False) # type: ignore
 
     # ok, this on only can delete items or do trivial rewrites
     # if we map we might lose data here!
