@@ -97,10 +97,10 @@ def cleanup() -> str:
         aa = ignore_keys[q: q + 10]
         dq.append(d('.. | ({})'.format(', '.join('.' + a + '?' for a in aa))))
     dq.extend([
-        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail)') for section in sections
+        d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created)') for section in sections
     ])
     dq.append(
-        d('.multireddits[] | .description_html')
+        d('.multireddits[] | (.description_html, .created)')
     )
     # del_preview = lambda s: ddel(f'.{s} | .[]')
     # dq.extend(del_preview(s) for s in sections)
@@ -109,20 +109,25 @@ def cleanup() -> str:
     # TODO not sure if it's necessary to sort.. | sort_by(.id) 
     # dq.append('.subreddits | map(del(.subscribers, .videostream_links_count, .description_html))') # ddel('(.subreddits) | .)') #  | del(.videostream_links_count) | del(.description_html)
     dq.extend([
-        d('.subreddits[] | (.subscribers, .description, .description_html, .videostream_links_count, .submit_text, .submit_text_html)'),
+        d('.subreddits[] | (.created, .subscribers, .description, .description_html, .videostream_links_count, .submit_text, .submit_text_html)'),
     ])
     return ' | '.join(dq)
 
 def extract():
     qs = [
         # TODO FIXME this should be assertive on field existence
-        '.comments     |= map({id, body})',
-        '.multireddits |= map({name, subreddits: .subreddits | map_values(.display_name) })',
-        '.saved        |= map({id, body})',
-        '.submissions  |= map({id, title, selftext})',
-        '.subreddits   |= map({id, display_name, public_description})',
-        '.upvoted      |= map({id, title, selftext})',
-        '.downvoted    |= map({id, title, selftext})',
+
+        # hmm, created changes all the time for some reason starting from 20181124201020
+        # https://www.reddit.com/r/redditdev/comments/29991t/whats_the_difference_between_created_and_created/ciiuk24/
+        # ok, it's broken
+
+        '.comments     |= map({id, created_utc, body})',
+        '.multireddits |= map({id, created_utc, name, subreddits: .subreddits | map_values(.display_name) })',
+        '.saved        |= map({id, created_utc, body})',
+        '.submissions  |= map({id, created_utc, title, selftext})',
+        '.subreddits   |= map({id, created_utc, title, display_name, public_description})',
+        '.upvoted      |= map({id, created_utc, title, selftext})',
+        '.downvoted    |= map({id, created_utc, title, selftext})',
 
         # '.comments     |= []',
         # '.multireddits |= []',

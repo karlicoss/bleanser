@@ -14,7 +14,12 @@ def different(p1: Path, p2: Path, extract: bool) -> bool:
     assert res.returncode <= 1
     return res.returncode == 1
 
-from_ = 858
+# TODO domination relationship can be tested via diff inclusion
+# TODO different normaliser for csv (e.g. lastfm)
+# TODO start erroring when there are enough of them, so it's not too annoying? 
+# TODO or, maybe only error if the last one triggered. tha
+
+from_ = 1644
 for i, before, after in islice(zip(range(10000000000000), paths, paths[1:]), from_, None):
     print(f'comparing {i} {before.name} vs {after.name}: ')
     extr_diff = different(before, after, extract=True)
