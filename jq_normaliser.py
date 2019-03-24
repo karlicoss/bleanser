@@ -78,13 +78,13 @@ class JqNormaliser:
         self.do(files=files, dry_run=args.dry, print_diff=args.print_diff)
 
     def extract(self) -> Filter:
-        raise NotImplementedError
+        return NotImplemented
 
     def cleanup(self) -> Filter:
         raise NotImplementedError
 
     def _compare(self, before: Path, after: Path, tdir: Path) -> Diff:
-        cmd = self.extract()
+        cmd = self.cleanup()
         norm_before = tdir.joinpath('before')
         norm_after = tdir.joinpath('after')
 
