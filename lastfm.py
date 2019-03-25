@@ -9,7 +9,7 @@ class LastfmNormaliser(JqNormaliser):
         super().__init__(*args, **kwargs, logger_tag='lastfm-normaliser', delete_dominated=True, keep_both=False) # type: ignore
 
     def cleanup(self) -> Filter:
-        return 'sort_by(.date) | map(map_values(ascii_downcase))'
+        return 'sort_by(.date) | map(map_values(ascii_downcase?))'
 
 
 def main():
