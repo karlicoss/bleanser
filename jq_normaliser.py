@@ -91,6 +91,7 @@ class JqNormaliser:
         p.add_argument('--all', type=Path, default=None)
         p.add_argument('--print-diff', action='store_true')
         p.add_argument('--extract', '-e', action='store_true')
+        p.add_argument('--continue', action='store_true') # TODO should it be default??
         args = p.parse_args()
 
         self.print_diff = args.print_diff # meh
@@ -98,7 +99,18 @@ class JqNormaliser:
         normalise_file = None
 
         if args.all is not None:
+            last_processed = None
+            start_from = None
+            if getattr(args, 'continue'):
+                processed = list(sorted(args.all.glob('*.bleanser')))
+                if len(processed) > 0:
+                    last_processed = processed[-1]
+                    start_from = last_processed.parent / last_processed.name[:-len('.bleanser')]
             files = list(sorted(args.all.glob(glob)))
+            if start_from is not None:
+                assert start_from is not None
+                self.logger.info('processed up to: %s. continuing', last_processed)
+                files = [f for f in files if f >= start_from]
         else:
             assert args.before is not None
 
