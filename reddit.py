@@ -14,9 +14,9 @@ class RedditNormaliser(JqNormaliser):
         ignore_keys = [
             'icon_img',
             'icon_size',
+            'icon_url',
 
             'thumbnail_height',
-            # TODO FIXME eh? ./jdiff --diff reddit/reddit-20190213191021.json reddit/reddit-20190213204024.json this is interesting, lots of created' changed. and then back??
 
             'crosspost_parent_list',
             'primary_color',
@@ -77,10 +77,12 @@ class RedditNormaliser(JqNormaliser):
             'emojis_custom_size',
 
             'gilded',
+            'gid_1',
             'gid_2',
             'gid_3',
             'media_metadata',
             'can_assign_link_flair',
+            'advertiser_category',
         ]
         dq.append(jq_del_all(*ignore_keys))
         sections = [
@@ -94,7 +96,7 @@ class RedditNormaliser(JqNormaliser):
             d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created)') for section in sections
         ])
         dq.append(
-            d('.multireddits[] | (.description_html, .created)')
+            d('.multireddits[] | (.description_html, .created, .owner, .num_subscribers)')
         )
         # del_preview = lambda s: ddel(f'.{s} | .[]')
         # dq.extend(del_preview(s) for s in sections)
@@ -119,7 +121,7 @@ class RedditNormaliser(JqNormaliser):
             '.multireddits |= map({id, created_utc, name, subreddits: .subreddits | map_values(.display_name) })',
             '.saved        |= map({id, created_utc, body})',
             '.submissions  |= map({id, created_utc, title, selftext})',
-            '.subreddits   |= map({id, created_utc, title, display_name, public_description})',
+            '.subreddits   |= map({id, created_utc, title, display_name, public_description, subreddit_type})',
             '.upvoted      |= map({id, created_utc, title, selftext})',
             '.downvoted    |= map({id, created_utc, title, selftext})',
 
