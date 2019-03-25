@@ -12,7 +12,7 @@ from kython import numbers
 from kython.klogging import setup_logzero
 from kython import kompress
 
-# TODO ok, it should only start with '>' I guess?
+from multiprocessing import Pool
 
 Filter = str
 
@@ -132,8 +132,12 @@ class JqNormaliser:
             norm_before = tdir.joinpath('before')
             norm_after = tdir.joinpath('after')
 
-            jq(path=before, filt=cmd, output=norm_before)
-            jq(path=after, filt=cmd, output=norm_after)
+            with Pool(2) as p:
+                # eh, weird, couldn't figureo ut how to use p.map so it unpacks tuples
+                r1 = p.apply_async(jq, (before, cmd, norm_before))
+                r2 = p.apply_async(jq, (after , cmd, norm_after))
+                r1.get()
+                r2.get()
 
             dres = run([
                 'diff', str(norm_before), str(norm_after)
@@ -246,6 +250,7 @@ class JqNormaliser:
                 self.logger.warning('removing: %s', pp.path)
                 pp.path.unlink()
 
+        # TODO would be nice to use multiprocessing here... 
         relations = self._iter_relations(files=files)
         for d in self._iter_deleted(relations):
             rm(d)
