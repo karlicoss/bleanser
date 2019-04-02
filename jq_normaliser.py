@@ -363,19 +363,6 @@ def test2():
     ))] == [P('b'), P('c'), P('d'), P('e'), P('g')]
 
 
-
-def pipe(*queries):
-    return ' | '.join(queries)
-
-def jdel(q):
-    return f'del({q})'
-
-def jq_del_all(*keys):
-    parts = []
-    # TODO shit. looks like query might be too long for jq...
-    for q in range(0, len(keys), 10):
-        kk = keys[q: q + 10]
-        parts.append(jdel('.. | ({})'.format(', '.join('.' + k + '?' for k in kk))))
-    return pipe(*parts)
+from kython.kjq import pipe, jdel, jq_del_all
 
 
