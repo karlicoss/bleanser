@@ -21,18 +21,10 @@ class FsqNormaliser(JqNormaliser):
     # if we map we might lose data here!
     def cleanup(self) -> Filter:
         return pipe(
-            # TODO remove venue stats
             d('.[] | (.meta, .notifications)'),
 
-            # TODO wtf? can I merge then in single one?
-            d('.. | .venue?'),
-            d('.. | .likes?'),
-            # d('.. | .venue? | .url '),
-            # d('.. | .venue? | .url '),
+            d('.[].response.checkins.items[] | (.isMayor, .venue, .likes, .sticker, .like, .ratedAt)'),
 
-            jq_del_all(
-                'sticker',
-            ),
             jq_del_all(
                 'contact',
             ),
@@ -43,8 +35,6 @@ class FsqNormaliser(JqNormaliser):
             ),
             *_normalise_coordinates(),
             # TODO shit. again, we want to assert...
-            # 'map(.response)',
-            # 'map(.checkins)',
         )
     # TODO shit. lat and lng jump randomly.. can we trim them?
         # return '.'
