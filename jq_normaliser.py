@@ -91,7 +91,7 @@ class JqNormaliser:
         p.add_argument('--all', type=Path, default=None)
         p.add_argument('--print-diff', action='store_true')
         p.add_argument('--extract', '-e', action='store_true')
-        p.add_argument('--continue', action='store_true') # TODO should it be default??
+        p.add_argument('--redo', action='store_false', dest='continue')
         args = p.parse_args()
 
         self.print_diff = args.print_diff # meh
