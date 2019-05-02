@@ -84,6 +84,14 @@ class RedditNormaliser(JqNormaliser):
             'media_metadata',
             'can_assign_link_flair',
             'advertiser_category',
+
+            'submit_link_label',
+            'submit_text_label',
+            'header_title',
+            # TODO reuse it in reddit backup script?
+
+            'secure_media',
+            'domain',
         ]
         dq.append(jq_del_all(*ignore_keys))
         sections = [
@@ -94,10 +102,13 @@ class RedditNormaliser(JqNormaliser):
             'submissions',
         ]
         dq.extend([
-            d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created)') for section in sections
+            d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created, .media)') for section in sections
         ])
         dq.append(
             d('.multireddits[] | (.description_html, .created, .owner, .num_subscribers)')
+        )
+        dq.append(
+            d('.profile | .created')
         )
         # del_preview = lambda s: ddel(f'.{s} | .[]')
         # dq.extend(del_preview(s) for s in sections)
@@ -118,6 +129,7 @@ class RedditNormaliser(JqNormaliser):
             # https://www.reddit.com/r/redditdev/comments/29991t/whats_the_difference_between_created_and_created/ciiuk24/
             # ok, it's broken
 
+            '.profile      |= {}', # profile is not very interesting I guess
             '.comments     |= map({id, created_utc, body})',
             '.multireddits |= map({id, created_utc, name, subreddits: .subreddits | map_values(.display_name) })',
             '.saved        |= map({id, created_utc, body})',
@@ -125,14 +137,6 @@ class RedditNormaliser(JqNormaliser):
             '.subreddits   |= map({id, created_utc, title, display_name, public_description, subreddit_type})',
             '.upvoted      |= map({id, created_utc, title, selftext})',
             '.downvoted    |= map({id, created_utc, title, selftext})',
-
-            # '.comments     |= []',
-            # '.multireddits |= []',
-            # '.profile      |= {}',
-            # '.saved        |= []',
-            # '.submissions  |= []',
-            # '.subreddits   |= []',
-            # '.upvoted      |= []',
         )
 
 # 2 styles of normalising:
