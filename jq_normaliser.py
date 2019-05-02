@@ -138,45 +138,45 @@ class JqNormaliser:
     def cleanup(self) -> Filter:
         raise NotImplementedError
 
-    def _compare(self, before: Path, after: Path, tdir: Path) -> Diff:
-        # TODO need to check that it agrees with extract about changes
-        def diff_with(cmd: Filter) -> Diff:
-            norm_before = tdir.joinpath('before')
-            norm_after = tdir.joinpath('after')
+    # TODO need to check that it agrees with extract about changes
+    def diff_with(self, before: Path, after: Path, cmd: Filter, tdir: Path) -> Diff:
+        norm_before = tdir.joinpath('before')
+        norm_after = tdir.joinpath('after')
 
-            with Pool(2) as p:
-                # eh, weird, couldn't figureo ut how to use p.map so it unpacks tuples
-                r1 = p.apply_async(jq, (before, cmd, norm_before))
-                r2 = p.apply_async(jq, (after , cmd, norm_after))
-                r1.get()
-                r2.get()
+        with Pool(2) as p:
+            # eh, weird, couldn't figureo ut how to use p.map so it unpacks tuples
+            r1 = p.apply_async(jq, (before, cmd, norm_before))
+            r2 = p.apply_async(jq, (after , cmd, norm_after))
+            r1.get()
+            r2.get()
 
-            dres = run([
-                'diff', str(norm_before), str(norm_after)
-            ], stdout=PIPE)
-            assert dres.returncode <= 1
-            diff = dres.stdout
-            diff_lines = diff.decode('utf8').splitlines()
-            removed: List[str] = []
-            for l in diff_lines:
-                if l.startswith('<'):
-                    removed.append(l)
+        dres = run([
+            'diff', str(norm_before), str(norm_after)
+        ], stdout=PIPE)
+        assert dres.returncode <= 1
+        diff = dres.stdout
+        diff_lines = diff.decode('utf8').splitlines()
+        removed: List[str] = []
+        for l in diff_lines:
+            if l.startswith('<'):
+                removed.append(l)
 
-            if len(removed) == 0:
-                if dres.returncode == 0:
-                    return Diff(CmpResult.SAME, diff)
-                else:
-                    return Diff(CmpResult.DOMINATES, diff)
+        if len(removed) == 0:
+            if dres.returncode == 0:
+                return Diff(CmpResult.SAME, diff)
             else:
-                return Diff(CmpResult.DIFFERENT, diff)
+                return Diff(CmpResult.DOMINATES, diff)
+        else:
+            return Diff(CmpResult.DIFFERENT, diff)
 
-        diff_cleanup = diff_with(self.cleanup())
+    def _compare(self, before: Path, after: Path, tdir: Path) -> Diff:
+        diff_cleanup = self.diff_with(before, after, self.cleanup(), tdir=tdir)
         if self.print_diff:
             self.logger.info('cleanup diff:')
             sys.stderr.write(diff_cleanup.diff.decode('utf8'))
         extr = self.extract()
         if extr is not NotImplemented:
-            diff_extract = diff_with(extr)
+            diff_extract = self.diff_with(before, after, extr, tdir=tdir)
             if self.print_diff:
                 self.logger.info('extract diff:')
                 sys.stderr.write(diff_extract.diff.decode('utf8'))

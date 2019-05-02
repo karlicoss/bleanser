@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from jq_normaliser import JqNormaliser, Filter, pipe, jdel as d, jq_del_all
+from jq_normaliser import CmpResult # eh, just to bring into scope for backup script
 
 
 class RedditNormaliser(JqNormaliser):
