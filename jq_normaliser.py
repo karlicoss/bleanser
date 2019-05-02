@@ -182,7 +182,7 @@ class JqNormaliser:
                 sys.stderr.write(diff_extract.diff.decode('utf8'))
 
             if diff_cleanup.cmp != diff_extract.cmp:
-                err = f'while comparing {before} vs {after}: cleanup gives {diff_cleanup.cmp} whereas extraction gives {diff_extract.cmp}'
+                err = f'while comparing {before} {after}: cleanup gives {diff_cleanup.cmp} whereas extraction gives {diff_extract.cmp}'
                 self.logger.error(err)
                 self.errors.append(err)
         return diff_cleanup

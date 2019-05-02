@@ -16,6 +16,7 @@ class RedditNormaliser(JqNormaliser):
             'icon_img',
             'icon_size',
             'icon_url',
+            'icon_name',
 
             'thumbnail_height',
 
@@ -26,6 +27,9 @@ class RedditNormaliser(JqNormaliser):
             'over_18',
             'over18',
             'allow_videos',
+            'allow_images',
+            'allow_videogifs',
+
             'comment_score_hide_mins',
             'wiki_enabled',
             'suggested_sort',
@@ -78,6 +82,7 @@ class RedditNormaliser(JqNormaliser):
             'emojis_custom_size',
 
             'gilded',
+            'gildings',
             'gid_1',
             'gid_2',
             'gid_3',
@@ -92,6 +97,26 @@ class RedditNormaliser(JqNormaliser):
 
             'secure_media',
             'domain',
+
+            'audience_target',
+            'free_form_reports',
+
+            'restrict_commenting',
+            'restrict_posting',
+            'show_media_preview',
+
+            'is_favorited',
+            'is_subscriber',
+
+            'oembed',
+            'media_embed',
+            'secure_media_embed',
+            'stickied',
+            'owner_id',
+
+            'all_awardings',
+
+            'total_awards_received',
         ]
         dq.append(jq_del_all(*ignore_keys))
         sections = [
@@ -102,13 +127,41 @@ class RedditNormaliser(JqNormaliser):
             'submissions',
         ]
         dq.extend([
-            d(f'.{section}[] | (.preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created, .media)') for section in sections
+            d(f'''.{section}[] | (
+            .preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created, .media,
+            .locked
+
+            )''') for section in sections
         ])
         dq.append(
             d('.multireddits[] | (.description_html, .created, .owner, .num_subscribers)')
         )
         dq.append(
-            d('.profile | .created')
+            d('''(.profile.subreddit, .subreddits[]) | (
+              .disable_contributor_requests
+            )''')
+        )
+        dq.append(
+            d('''.profile | (
+            .created,
+            .has_mail,
+            .inbox_count,
+            .can_create_subreddit,
+            .five_follower_send_message,
+            .features,
+            .has_gold_subscription,
+            .has_stripe_subscription,
+            .has_paypal_subscription,
+            .has_subscribed_to_premium,
+            .has_android_subscription,
+            .has_ios_subscription,
+            .next_coin_drip_date,
+            .seen_premium_ftux,
+            .seen_premium_adblock_modal,
+            .in_redesign_beta,
+            .gold_expiration,
+            .is_gold
+            )'''),
         )
         # del_preview = lambda s: ddel(f'.{s} | .[]')
         # dq.extend(del_preview(s) for s in sections)
@@ -128,11 +181,18 @@ class RedditNormaliser(JqNormaliser):
             # hmm, created changes all the time for some reason starting from 20181124201020
             # https://www.reddit.com/r/redditdev/comments/29991t/whats_the_difference_between_created_and_created/ciiuk24/
             # ok, it's broken
-
-            '.profile      |= {}', # profile is not very interesting I guess
+            '''.profile      |=     {
+                id,
+                created_utc,
+                name,
+                coins,
+                comment_karma,
+                link_karma,
+                subreddit: .subreddit | {subscribers}
+            }''',
             '.comments     |= map({id, created_utc, body})',
             '.multireddits |= map({id, created_utc, name, subreddits: .subreddits | map_values(.display_name) })',
-            '.saved        |= map({id, created_utc, body})',
+            '.saved        |= map({id, created_utc, body,  selftext})',
             '.submissions  |= map({id, created_utc, title, selftext})',
             '.subreddits   |= map({id, created_utc, title, display_name, public_description, subreddit_type})',
             '.upvoted      |= map({id, created_utc, title, selftext})',
