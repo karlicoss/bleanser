@@ -118,7 +118,7 @@ class RedditNormaliser(JqNormaliser):
 
             'total_awards_received',
         ]
-        dq.append(jq_del_all(*ignore_keys))
+        dq.append(jq_del_all(*ignore_keys, split_by=5)) # ugh.
         sections = [
             'saved',
             'comments',
