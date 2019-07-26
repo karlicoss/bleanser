@@ -33,6 +33,9 @@ class FsqNormaliser(JqNormaliser):
                 'prefix',
                 'consumerId',
             ),
+            jq_del_all(
+                'lastName',
+            ),
             *_normalise_coordinates(),
             # TODO shit. again, we want to assert...
         )
