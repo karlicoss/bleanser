@@ -41,6 +41,7 @@ class RedditNormaliser(JqNormaliser):
             'banner_background_image',
             'banner_img',
             'banner_size',
+            'mobile_banner_image',
 
             'community_icon',
             'no_follow',
@@ -89,6 +90,14 @@ class RedditNormaliser(JqNormaliser):
             'media_metadata',
             'can_assign_link_flair',
             'advertiser_category',
+            'can_gild',
+            'user_reports',
+            'author',
+            'author_fullname',
+            'report_reasons',
+            'discussion_type',
+            'allow_live_comments',
+            'score_hidden',
 
             'submit_link_label',
             'submit_text_label',
@@ -117,8 +126,15 @@ class RedditNormaliser(JqNormaliser):
             'all_awardings',
 
             'total_awards_received',
+
+            'likes',
+            'send_replies',
+            'is_self',
+
+            'url', # ugh. changed from www.reddit.... to link without reddit domain
         ]
         dq.append(jq_del_all(*ignore_keys, split_by=5)) # ugh.
+        dq.append(d('.saved[].link_url')) # weird, changes for no reason sometimes...
         sections = [
             'saved',
             'comments',
