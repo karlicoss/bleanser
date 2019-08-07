@@ -182,7 +182,7 @@ class JqNormaliser:
                 sys.stderr.write(diff_extract.diff.decode('utf8'))
 
             if diff_cleanup.cmp != diff_extract.cmp:
-                err = f'while comparing {before} {after}: cleanup gives {diff_cleanup.cmp} whereas extraction gives {diff_extract.cmp}'
+                err = f'while comparing {before} {after} : cleanup gives {diff_cleanup.cmp} whereas extraction gives {diff_extract.cmp}'
                 self.logger.error(err)
                 self.errors.append(err)
         return diff_cleanup
@@ -235,15 +235,23 @@ class JqNormaliser:
             yield from g[delete_start: -1]
 
     def _iter_relations(self, files) -> Iterator[Relation]:
-        for i, before, after in zip(range(len(files)), files, files[1:]):
-            self.logger.info('comparing %d: %s   %s', i, before, after)
-            res, diff = self.compare(before, after)
-            self.logger.info('result: %s', res)
-            yield Relation(
-                before=before,
-                diff=Diff(cmp=res, diff=diff),
-                after=after,
-            )
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor() as pool:
+            it = list(zip(range(len(files)), files, files[1:]))
+            futures = []
+            for i, before, after in it:
+                futures.append(pool.submit(self.compare, before, after))
+
+            for (i, before, after), f in zip(it, futures):
+                self.logger.info('comparing %d: %s   %s', i, before, after)
+                res, diff = f.result()
+                self.logger.info('result: %s', res)
+                yield Relation(
+                    before=before,
+                    diff=Diff(cmp=res, diff=diff),
+                    after=after,
+                )
 
     def do(self, files, dry_run=True) -> None:
         def rm(pp: XX):
