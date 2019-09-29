@@ -141,6 +141,7 @@ class RedditNormaliser(JqNormaliser):
             'upvoted',
             'downvoted',
             'submissions',
+            'inbox',
         ]
         dq.extend([
             d(f'''.{section}[] | (
@@ -213,6 +214,7 @@ class RedditNormaliser(JqNormaliser):
             '.subreddits   |= map({id, created_utc, title, display_name, public_description, subreddit_type})',
             '.upvoted      |= map({id, created_utc, title, selftext})',
             '.downvoted    |= map({id, created_utc, title, selftext})',
+            '.inbox        |= map({id, created_utc, title, selftext})',
         )
 
 # 2 styles of normalising:
