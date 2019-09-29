@@ -131,6 +131,12 @@ class RedditNormaliser(JqNormaliser):
             'is_self',
 
             'url', # ugh. changed from www.reddit.... to link without reddit domain
+            '_comments',
+
+            "user_flair_richtext",
+            "user_flair_template_id",
+            "user_flair_type",
+            "user_flair_text_color",
         ]
         dq = []
         dq.append('. + if has("inbox") then {} else {"inbox": []} end') # ugh. filling default value
@@ -178,7 +184,8 @@ class RedditNormaliser(JqNormaliser):
             .seen_premium_adblock_modal,
             .in_redesign_beta,
             .gold_expiration,
-            .is_gold
+            .is_gold,
+            .subreddit
             )'''),
         )
         # del_preview = lambda s: ddel(f'.{s} | .[]')
