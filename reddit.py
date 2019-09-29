@@ -11,7 +11,6 @@ class RedditNormaliser(JqNormaliser):
         # TODO wonder if there are many dominated ?
 
     def cleanup(self) -> Filter:
-        dq = []
         ignore_keys = [
             'icon_img',
             'icon_size',
@@ -133,6 +132,8 @@ class RedditNormaliser(JqNormaliser):
 
             'url', # ugh. changed from www.reddit.... to link without reddit domain
         ]
+        dq = []
+        dq.append('. + if has("inbox") then {} else {"inbox": []} end') # ugh. filling default value
         dq.append(jq_del_all(*ignore_keys, split_by=5)) # ugh.
         dq.append(d('.saved[].link_url')) # weird, changes for no reason sometimes...
         sections = [
@@ -214,6 +215,9 @@ class RedditNormaliser(JqNormaliser):
             '.subreddits   |= map({id, created_utc, title, display_name, public_description, subreddit_type})',
             '.upvoted      |= map({id, created_utc, title, selftext})',
             '.downvoted    |= map({id, created_utc, title, selftext})',
+
+            '. + if has("inbox") then {} else {"inbox": []} end', # ugh. filling default value
+
             '.inbox        |= map({id, created_utc, title, selftext})',
         )
 
