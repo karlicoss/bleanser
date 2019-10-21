@@ -140,7 +140,7 @@ class RedditNormaliser(JqNormaliser):
         ]
         dq = []
         dq.append('. + if has("inbox") then {} else {"inbox": []} end') # ugh. filling default value
-        dq.append(jq_del_all(*ignore_keys, split_by=5)) # ugh.
+        dq.append(jq_del_all(*ignore_keys, split_by=4)) # ugh.
         dq.append(d('.saved[].link_url')) # weird, changes for no reason sometimes...
         sections = [
             'saved',
