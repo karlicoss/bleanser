@@ -92,6 +92,7 @@ class JqNormaliser:
         p.add_argument('--print-diff', action='store_true')
         p.add_argument('--extract', '-e', action='store_true')
         p.add_argument('--redo', action='store_false', dest='continue')
+        p.add_argument('--cores', type=int, required=False)
         args = p.parse_args()
 
         self.print_diff = args.print_diff # meh
@@ -124,7 +125,7 @@ class JqNormaliser:
             _jq(path=normalise_file, filt=filt, fo=sys.stdout)
 
         else:
-            self.do(files=files, dry_run=args.dry)
+            self.do(files=files, dry_run=args.dry, cores=args.cores)
 
             if len(self.errors) > 0:
                 for e in self.errors:
@@ -139,11 +140,11 @@ class JqNormaliser:
         raise NotImplementedError
 
     # TODO need to check that it agrees with extract about changes
-    def diff_with(self, before: Path, after: Path, cmd: Filter, tdir: Path) -> Diff:
+    def diff_with(self, before: Path, after: Path, cmd: Filter, tdir: Path, *, cores=2) -> Diff:
         norm_before = tdir.joinpath('before')
         norm_after = tdir.joinpath('after')
 
-        with Pool(2) as p:
+        with Pool(cores) as p:
             # eh, weird, couldn't figureo ut how to use p.map so it unpacks tuples
             r1 = p.apply_async(jq, (before, cmd, norm_before))
             r2 = p.apply_async(jq, (after , cmd, norm_after))
@@ -169,14 +170,14 @@ class JqNormaliser:
         else:
             return Diff(CmpResult.DIFFERENT, diff)
 
-    def _compare(self, before: Path, after: Path, tdir: Path) -> Diff:
-        diff_cleanup = self.diff_with(before, after, self.cleanup(), tdir=tdir)
+    def _compare(self, before: Path, after: Path, cores:int, *, tdir: Path) -> Diff:
+        diff_cleanup = self.diff_with(before, after, self.cleanup(), tdir=tdir, cores=cores)
         if self.print_diff:
             self.logger.info('cleanup diff:')
             sys.stderr.write(diff_cleanup.diff.decode('utf8'))
         extr = self.extract()
         if extr is not NotImplemented:
-            diff_extract = self.diff_with(before, after, extr, tdir=tdir)
+            diff_extract = self.diff_with(before, after, extr, tdir=tdir, cores=cores)
             if self.print_diff:
                 self.logger.info('extract diff:')
                 sys.stderr.write(diff_extract.diff.decode('utf8'))
@@ -234,14 +235,15 @@ class JqNormaliser:
             delete_start = 1 if self.keep_both else 0
             yield from g[delete_start: -1]
 
-    def _iter_relations(self, files) -> Iterator[Relation]:
+    def _iter_relations(self, files, *, cores=None) -> Iterator[Relation]:
         from concurrent.futures import ProcessPoolExecutor
 
-        with ProcessPoolExecutor() as pool:
+        with ProcessPoolExecutor(cores) as pool:
             it = list(zip(range(len(files)), files, files[1:]))
             futures = []
             for i, before, after in it:
-                futures.append(pool.submit(self.compare, before, after))
+                CORES = 1
+                futures.append(pool.submit(self.compare, before, after, cores=CORES)) # TODO in multicore mode diff should only use one core...
 
             for (i, before, after), f in zip(it, futures):
                 self.logger.info('comparing %d: %s   %s', i, before, after)
@@ -253,7 +255,7 @@ class JqNormaliser:
                     after=after,
                 )
 
-    def do(self, files, dry_run=True) -> None:
+    def do(self, files, dry_run=True, cores=None) -> None:
         def rm(pp: XX):
             bfile = pp.path.parent.joinpath(pp.path.name + '.bleanser')
             rel = pp.rel_next
@@ -271,7 +273,7 @@ class JqNormaliser:
                 pp.path.unlink()
 
         # TODO would be nice to use multiprocessing here... 
-        relations = self._iter_relations(files=files)
+        relations = self._iter_relations(files=files, cores=cores)
         for d in self._iter_deleted(relations):
             rm(d)
 
