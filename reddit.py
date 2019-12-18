@@ -1,8 +1,28 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
-from jq_normaliser import JqNormaliser, Filter, pipe, jdel as d, jq_del_all
+from jq_normaliser import JqNormaliser, Filter, pipe, jdel as d
 from jq_normaliser import CmpResult # eh, just to bring into scope for backup script
+
+
+# https://stackoverflow.com/a/39420551/706389
+# TODO this jq_del_all should be in kython and tested...
+# TODO might be used by smth else??
+# TODO not sure if walk is available by default?
+def jq_del_all(*keys, split_by=None):
+    # ok, this is fucking unbearably slow...
+    # pred = 'any(index({keyss}); . != null)'.format(keyss=', '.join(f'"{k}"' for k in keys))
+
+    # regex is quite bit faster! jeez.
+    # like a 3x speedup over jdel(.. | ) thing
+    # TODO FIXME careful; might need escaping..
+    pred = 'test("^({keyss})$")'.format(keyss='|'.join(keys))
+    return '''walk(
+      if type == "object"
+        then with_entries(select( .key | {pred} | not))
+        else .
+      end)
+    '''.format(pred=pred)
 
 
 class RedditNormaliser(JqNormaliser):
@@ -137,10 +157,12 @@ class RedditNormaliser(JqNormaliser):
             "user_flair_template_id",
             "user_flair_type",
             "user_flair_text_color",
+            "associated_award",
         ]
         dq = []
         dq.append('. + if has("inbox") then {} else {"inbox": []} end') # ugh. filling default value
-        dq.append(jq_del_all(*ignore_keys, split_by=4)) # ugh.
+        # NOTE this step takes _really_ long....
+        dq.append(jq_del_all(*ignore_keys))
         dq.append(d('.saved[].link_url')) # weird, changes for no reason sometimes...
         sections = [
             'saved',
