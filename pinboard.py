@@ -10,13 +10,16 @@ class PinboardNormaliser(JqNormaliser):
         # hm, for pinboard might be useful to know when exactly we deleted the bookmark
 
     def cleanup(self) -> Filter:
-        return 'sort_by(.time)' #  | map(map_values(ascii_downcase))'
+        # TODO return hashes etc?
+        # return 'sort_by(.time)' #  | map(map_values(ascii_downcase))'
+        return '.'
 
     def extract(self) -> Filter:
         return pipe(
-            'sort_by(.time)',
-            'map({href})',
-        )
+            '.tags  |= .',
+            '.posts |= map({href, description, time, tags})', # TODO maybe just delete hash?
+            '.notes |= {notes: .notes | map({id, title, updated_at}), count}',  # TODO hhmm, it keeps length but not content?? odd.
+       )
 
 
 def main():
