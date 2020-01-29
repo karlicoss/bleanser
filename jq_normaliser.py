@@ -1,23 +1,39 @@
 #!/usr/bin/env python3
-import sys
 from argparse import ArgumentParser
+from enum import Enum, auto
+import json
 import logging
 from pathlib import Path
 from subprocess import check_output, check_call, PIPE, run, Popen
-from typing import Optional, List, Iterator, Iterable, Tuple, Optional
+import sys
+from typing import Optional, List, Iterator, Iterable, Tuple, Optional, Union, NamedTuple, Sequence
 from tempfile import TemporaryDirectory
 # make sure doesn't conain '<'
 
 from kython import numbers
-from kython.klogging import setup_logzero
-from kython import kompress
+
+from kython.kjq import Json, JsonFilter, del_all_kjson
+from kython.klogging2 import LazyLogger
 
 from multiprocessing import Pool
 
-Filter = str
+
+JqFilter = str
+
+Fields = Sequence[str]
+
+class Filter2(NamedTuple):
+    jq: JqFilter
+    # ugh!
+    extra_del_all: Optional[Fields] = None
+
+
+Filter = Union[JqFilter, Filter2]
+
+
 
 def _jq(path: Path, filt: Filter, fo):
-    cmd = ['jq', filt]
+    # TODO from kython import kompress
     # # TODO shit.  why kompress is unhappy??
     # with kompress.open(path, 'rb') as fi:
     #     # # import ipdb; ipdb.set_trace()  
@@ -33,7 +49,17 @@ def _jq(path: Path, filt: Filter, fo):
             out = check_output(['aunpack', '-c', str(path)])
             upath.write_bytes(out)
             path = upath
-        return check_call(cmd + [str(path)], stdout=fo)
+        if isinstance(filt, Filter2):
+            extra = filt.extra_del_all
+            if extra is not None:
+                jstr = path.read_text()
+                j = json.loads(jstr)
+                j = del_all_kjson(extra)(j)
+                path.write_text(json.dumps(j))
+            jq_cmd = ['jq', filt.jq]
+        else:
+            jq_cmd = ['jq', filt]
+        return check_call(jq_cmd + [str(path)], stdout=fo)
 
 
 def jq(path: Path, filt: Filter, output: Path):
@@ -42,7 +68,6 @@ def jq(path: Path, filt: Filter, output: Path):
 
 Result = List[Path]
 
-from enum import Enum, auto
 
 class CmpResult(Enum):
     DIFFERENT = 'different'
@@ -75,15 +100,13 @@ class JqNormaliser:
             delete_dominated=False,
             keep_both=True,
     ) -> None:
-        self.logger = logging.getLogger()
+        self.logger = LazyLogger(logger_tag, level='debug')
         self.delete_dominated = delete_dominated
         self.keep_both = keep_both
         self.errors: List[str] = []
         self.print_diff = False
 
     def main(self, glob: str='*.json'):
-        setup_logzero(self.logger, level=logging.DEBUG)
-
         p = ArgumentParser()
         p.add_argument('before', type=Path, nargs='?')
         p.add_argument('after', type=Path, nargs='?')
@@ -144,6 +167,8 @@ class JqNormaliser:
         norm_before = tdir.joinpath('before')
         norm_after = tdir.joinpath('after')
 
+        self.logger.debug('diffing: %s %s', before, after)
+
         with Pool(cores) as p:
             # eh, weird, couldn't figureo ut how to use p.map so it unpacks tuples
             r1 = p.apply_async(jq, (before, cmd, norm_before))
@@ -170,7 +195,7 @@ class JqNormaliser:
         else:
             return Diff(CmpResult.DIFFERENT, diff)
 
-    def _compare(self, before: Path, after: Path, cores:int, *, tdir: Path) -> Diff:
+    def _compare(self, before: Path, after: Path, cores: int, *, tdir: Path) -> Diff:
         diff_cleanup = self.diff_with(before, after, self.cleanup(), tdir=tdir, cores=cores)
         if self.print_diff:
             self.logger.info('cleanup diff:')
@@ -256,6 +281,7 @@ class JqNormaliser:
                 )
 
     def do(self, files, dry_run=True, cores=None) -> None:
+        self.logger.debug('running: dry: %s, cores: %s, files: %s', dry_run, cores, files)
         def rm(pp: XX):
             bfile = pp.path.parent.joinpath(pp.path.name + '.bleanser')
             rel = pp.rel_next

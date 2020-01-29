@@ -1,28 +1,10 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
-from jq_normaliser import JqNormaliser, Filter, pipe, jdel as d
+from jq_normaliser import JqNormaliser, Filter, pipe, jdel as d, Filter2
 from jq_normaliser import CmpResult # eh, just to bring into scope for backup script
 
-
-# https://stackoverflow.com/a/39420551/706389
-# TODO this jq_del_all should be in kython and tested...
-# TODO might be used by smth else??
-# TODO not sure if walk is available by default?
-def jq_del_all(*keys, split_by=None):
-    # ok, this is fucking unbearably slow...
-    # pred = 'any(index({keyss}); . != null)'.format(keyss=', '.join(f'"{k}"' for k in keys))
-
-    # regex is quite bit faster! jeez.
-    # like a 3x speedup over jdel(.. | ) thing
-    # TODO FIXME careful; might need escaping..
-    pred = 'test("^({keyss})$")'.format(keyss='|'.join(keys))
-    return '''walk(
-      if type == "object"
-        then with_entries(select( .key | {pred} | not))
-        else .
-      end)
-    '''.format(pred=pred)
+from kython.kjq import del_all_kjson
 
 
 class RedditNormaliser(JqNormaliser):
@@ -31,7 +13,7 @@ class RedditNormaliser(JqNormaliser):
         # TODO wonder if there are many dominated ?
 
     def cleanup(self) -> Filter:
-        ignore_keys = [
+        ignore_keys = (
             'icon_img',
             'icon_size',
             'icon_url',
@@ -158,11 +140,13 @@ class RedditNormaliser(JqNormaliser):
             "user_flair_type",
             "user_flair_text_color",
             "associated_award",
-        ]
+        )
+
+        # NOTE this step took _really_ long.... e.g. 20 secs vs 0.5 sec for the rest of steps
+        # dq.append(jq_del_all(*ignore_keys))
+
         dq = []
         dq.append('. + if has("inbox") then {} else {"inbox": []} end') # ugh. filling default value
-        # NOTE this step takes _really_ long....
-        dq.append(jq_del_all(*ignore_keys))
         dq.append(d('.saved[].link_url')) # weird, changes for no reason sometimes...
         sections = [
             'saved',
@@ -219,7 +203,10 @@ class RedditNormaliser(JqNormaliser):
         dq.extend([
             d('.subreddits[] | (.created, .subscribers, .description, .description_html, .videostream_links_count, .submit_text, .submit_text_html)'),
         ])
-        return pipe(*dq)
+        return Filter2(
+            jq=pipe(*dq),
+            extra_del_all=ignore_keys,
+        )
 
     def extract(self) -> Filter:
         return pipe(
