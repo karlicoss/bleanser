@@ -140,7 +140,13 @@ class RedditNormaliser(JqNormaliser):
             "user_flair_type",
             "user_flair_text_color",
             "associated_award",
+
+            'author_premium',
+            'new',
+            'awarders',
+            'hide_score',
         )
+        # TODO ugh, some issue with coins null vs 0??
 
         # NOTE this step took _really_ long.... e.g. 20 secs vs 0.5 sec for the rest of steps
         # dq.append(jq_del_all(*ignore_keys))
@@ -158,7 +164,7 @@ class RedditNormaliser(JqNormaliser):
         ]
         dq.extend([
             d(f'''.{section}[] | (
-            .preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created, .media,
+            .saved, .preview, .body_html, .score, .ups, .description_html, .subreddit_type, .subreddit_subscribers, .selftext_html, .num_comments, .num_crossposts, .thumbnail, .created, .media,
             .locked
 
             )''') for section in sections
@@ -190,8 +196,7 @@ class RedditNormaliser(JqNormaliser):
             .seen_premium_adblock_modal,
             .in_redesign_beta,
             .gold_expiration,
-            .is_gold,
-            .subreddit
+            .is_gold
             )'''),
         )
         # del_preview = lambda s: ddel(f'.{s} | .[]')

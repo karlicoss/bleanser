@@ -54,7 +54,7 @@ def _jq(path: Path, filt: Filter, fo):
             if extra is not None:
                 jstr = path.read_text()
                 j = json.loads(jstr)
-                j = del_all_kjson(extra)(j)
+                j = del_all_kjson(*extra)(j)
                 path.write_text(json.dumps(j))
             jq_cmd = ['jq', filt.jq]
         else:
