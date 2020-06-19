@@ -14,6 +14,12 @@ class RedditNormaliser(JqNormaliser):
 
     def cleanup(self) -> Filter:
         ignore_keys = (
+            'password_set',
+            'allow_polls',
+            'allow_chat_post_creation',
+            'is_chat_post_feature_enabled',
+            'linked_identities',
+            'upvote_ratio',
             'icon_img',
             'icon_size',
             'icon_url',
@@ -217,6 +223,9 @@ class RedditNormaliser(JqNormaliser):
         return pipe(
             # TODO FIXME this should be assertive on field existence
 
+            # TODO ehh. dunno about link/comment karma.. it's fuzzy anyway?
+            # maybe try removing it once and see the difference
+
             # hmm, created changes all the time for some reason starting from 20181124201020
             # https://www.reddit.com/r/redditdev/comments/29991t/whats_the_difference_between_created_and_created/ciiuk24/
             # ok, it's broken
@@ -239,7 +248,7 @@ class RedditNormaliser(JqNormaliser):
 
             '. + if has("inbox") then {} else {"inbox": []} end', # ugh. filling default value
 
-            '.inbox        |= map({id, created_utc, title, selftext})',
+            '.inbox        |= map({id, created_utc, title, selftext, body})',
         )
 
 # 2 styles of normalising:
