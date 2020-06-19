@@ -1,0 +1,6 @@
+#!/bin/bash -eux
+# TODO ugh. think about symlinks etc.. maybe need more granular permissions..
+exec docker run --rm \
+  -v ***REMOVED***:***REMOVED*** \
+  -v ***REMOVED***:***REMOVED*** \
+  bleanser "$@"
