@@ -14,6 +14,9 @@ class RedditNormaliser(JqNormaliser):
 
     def cleanup(self) -> Filter:
         ignore_keys = (
+            'accept_chats',
+            'accept_pms',
+            'treatment_tags',
             'password_set',
             'allow_polls',
             'allow_chat_post_creation',
