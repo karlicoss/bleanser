@@ -14,6 +14,19 @@ class RedditNormaliser(JqNormaliser):
 
     def cleanup(self) -> Filter:
         ignore_keys = (
+            'allow_discovery',
+            'event_start', 'event_end', 'event_is_live',
+            'allowed_galleries',
+            'top_awarded_type',
+            'treatment_tags',
+            # TODO 'edited'?
+            'collapsed', 'collapsed_reason', # todo potentially interesting?
+            'is_crosspostable_subreddit',
+            'og_description', 'og_title',
+            'pref_no_profanity', 'pref_geopopular', 'pref_top_karma_subreddits',
+            'steward_report',
+            'is_video',
+            'rte_mode',
             'accept_chats',
             'accept_pms',
             'treatment_tags',
