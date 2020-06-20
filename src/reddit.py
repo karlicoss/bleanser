@@ -256,7 +256,7 @@ class RedditNormaliser(JqNormaliser):
             }''',
             '.comments     |= map({id, created_utc, body})',
             '.multireddits |= map({id, created_utc, name, subreddits: .subreddits | map_values(.display_name) })',
-            '.saved        |= map({id, created_utc, body,  selftext})',
+            '.saved        |= map({id, created_utc, title, body,  selftext})',
             '.submissions  |= map({id, created_utc, title, selftext})',
             '.subreddits   |= map({id, created_utc, title, display_name, public_description, subreddit_type})',
             '.upvoted      |= map({id, created_utc, title, selftext})',
