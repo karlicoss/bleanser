@@ -1,0 +1,17 @@
+version: "3.7"
+services:
+  bleanser:
+    build: 
+      context: ../
+      dockerfile: docker/Dockerfile
+    user: "1000:1000"
+    volumes:
+      # todo hmm. mounting dockerfile itself is potentially dangerous???
+      # TODO I guess this is an argument for keeping src in subdir?
+      - type: bind
+        source: ../src
+        target: /bleanser
+        read_only: true
+      - type: bind
+        source: ***REMOVED***
+        target: ***REMOVED***
