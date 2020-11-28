@@ -281,6 +281,7 @@ class JqNormaliser:
                 )
 
     def do(self, files, dry_run=True, cores=None) -> None:
+        assert len(files) > 0
         self.logger.debug('running: dry: %s, cores: %s, files: %s', dry_run, cores, files)
         def rm(pp: XX):
             bfile = pp.path.parent.joinpath(pp.path.name + '.bleanser')
