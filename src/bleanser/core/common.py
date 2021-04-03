@@ -14,7 +14,14 @@ class Diff(NamedTuple):
     cmp: CmpResult
     diff: bytes
 
+
 class Relation(NamedTuple):
     before: Path
     diff: Diff
     after: Path
+
+
+
+# meh. get rid of this...
+from kython.klogging2 import LazyLogger
+logger = LazyLogger(__name__, level='debug')
