@@ -9,7 +9,7 @@ from typing import Sequence, List, Iterator, ContextManager
 from tempfile import TemporaryDirectory
 
 
-from bleanser.core.common import Relation, logger
+from bleanser.core.common import Relation, logger, relations_to_instructions
 from bleanser.core.sqlite import relations
 
 
@@ -85,21 +85,23 @@ class Normaliser:
 
 
 # todo uhh... again, useful to keep diff
-def process(paths: Sequence[Path]) -> Iterator[Relation]:
+def process(paths: Sequence[Path]) -> None:
     def cleanup(p: Path) -> ContextManager[Path]:
         n = Normaliser(p)
         return n.do_cleanup(p)
-    return relations(
+    rels = list(relations(
         paths=paths,
         cleanup=cleanup,
-    )
+    ))
+    instructions = relations_to_instructions(rels)
+    for i in instructions:
+        print(i)
+
 
 def _run(*, path: Path) -> None:
     # TODO collect all sqlite mimes?
     paths = list(sorted(path.rglob('*.db')))
-    for rel in process(paths):
-        # TODO this would need to be iterative as well?
-        print(rel)
+    process(paths)
 
 
 def run(*, path: Path) -> None:
