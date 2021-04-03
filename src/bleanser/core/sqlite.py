@@ -1,7 +1,9 @@
 """
 Helpers for processing sqlite databases
 """
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, ExitStack
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import sqlite3
@@ -14,6 +16,7 @@ from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Uni
 
 from .common import CmpResult, Diff, Relation, logger
 
+import more_itertools
 from plumbum import local # type: ignore
 
 
@@ -32,20 +35,50 @@ DELETE = 'DELETE'
 
 Input = Path
 Cleaned = Path
-XX = Tuple[Input, Union[Exception, Cleaned]]
+Cleaner = Callable[[Input], ContextManager[Cleaned]]
 
-XXX = Tuple[XX, XX]
+
+def relations(
+        paths: Sequence[Path],
+        *,
+        cleanup: Cleaner,
+        max_workers: Optional[int]=None,
+) -> Iterator[Relation]:
+    assert max_workers != 0  # FIXME handle it in serial mode then?
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        workers = getattr(pool, '_max_workers')
+        morkers = min(workers, len(paths))  # no point in using too many workers
+        logger.info('using %d workers', workers)
+
+        futures = []
+        for paths_chunk in  more_itertools.divide(workers, paths):
+            pp = list(paths_chunk)
+            if len(pp) > 0:
+                futures.append(pool.submit(
+                    # force iterator, otherwise it'll still be basically serial
+                    lambda *args, **kwargs: list(_relations_serial(*args, **kwargs)),
+                    paths=pp,
+                    cleanup=cleanup,
+                ))
+        for f in futures:
+            yield from f.result()
 
 
 # todo these are already normalized paths?
 # although then harder to handle exceptions... ugh
-def relations(
+def _relations_serial(
         paths: Sequence[Path],
         *,
-        cleanup: Callable[[Path], ContextManager[Path]],
+        cleanup: Cleaner,
 ) -> Iterator[Relation]:
-    # FIXME reconstruct course of actions form relations?
-    # TODO for multiprocessing, not sure what's the best way to do it...
+    assert len(paths) > 0
+    # fast track.. so we don't compute dumps
+    if len(paths) == 1:
+        return []
+
+    XX = Tuple[Input, Union[Exception, Cleaned]]
+    XXX = Tuple[XX, XX]
+
     def outputs() -> Iterator[XXX]:
         with ExitStack() as stack:
             last: Optional[XX] = None
@@ -126,14 +159,16 @@ def test_relations(tmp_path: Path) -> None:
     def ident(p: Path) -> Iterator[Path]:
         yield p
 
+
+    # set max_workers to 1,
+    func = lambda paths: relations(paths, cleanup=ident, max_workers=1)
+
+
     d: Dict[str, Any] = dict()
     ### just one file
     db1 = _dict2db(d, to=tmp_path / '1.db')
     # just one file.. should be empty
-    [] = relations(
-        [db1],
-        cleanup=ident,
-    )
+    [] = func([db1])
     ###
 
     ### simple 'dominates' test
@@ -144,10 +179,7 @@ def test_relations(tmp_path: Path) -> None:
     ]
     db2 = _dict2db(d, to=tmp_path / '2.db')
 
-    [r11] = relations(
-        [db1, db2],
-        cleanup=ident,
-    )
+    [r11] = func([db1, db2])
     assert r11.before == db1
     assert r11.after  == db2
     assert r11.diff.cmp == CR.DOMINATES
@@ -156,10 +188,7 @@ def test_relations(tmp_path: Path) -> None:
     ### test error handling
     db3 = tmp_path / '3.db'
     db3.write_text('BAD')
-    [r21, r22] = relations(
-        [db1, db2, db3],
-        cleanup=ident,
-    )
+    [r21, r22] = func([db1, db2, db3])
     assert r11 == r21
     assert r22.before == db2
     assert r22.after  == db3
@@ -171,10 +200,7 @@ def test_relations(tmp_path: Path) -> None:
     db4 = _dict2db(d, to=tmp_path / '4.db')
     db5 = _dict2db(d, to=tmp_path / '5.db')
 
-    [r31, r32, r33, r34] = relations(
-        [db1, db2, db3, db4, db5],
-        cleanup=ident,
-    )
+    [r31, r32, r33, r34] = func([db1, db2, db3, db4, db5])
     assert r32 == r22
     assert r33.diff.cmp == CR.ERROR
     assert r34.diff.cmp == CR.DOMINATES  # FIXME should be SAME later...
@@ -183,10 +209,7 @@ def test_relations(tmp_path: Path) -> None:
     ### test when stuff was removed
     del d['t1'][-1]
     db6 = _dict2db(d, to=tmp_path / '6.db')
-    [_, _, _, r44, r45] = relations(
-        [db1, db2, db3, db4, db5, db6],
-        cleanup=ident,
-    )
+    [_, _, _, r44, r45] = func([db1, db2, db3, db4, db5, db6])
     assert r44 == r34
     assert r45.diff.cmp == CR.DIFFERENT
     ###
