@@ -6,14 +6,15 @@ from contextlib import contextmanager, ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import shutil
 import sqlite3
 from sqlite3 import Connection
 import subprocess
 from subprocess import DEVNULL
-from tempfile import TemporaryDirectory
-from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager
+from tempfile import TemporaryDirectory, gettempdir
+from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Type
 
-from .common import CmpResult, Diff, Relation, logger
+from .common import CmpResult, Diff, Relation, logger, relations_to_instructions
 
 import more_itertools
 from plumbum import local # type: ignore
@@ -94,9 +95,6 @@ def _relations_serial(
         with ExitStack() as stack:
             last: Optional[XX] = None
             for cp in paths:
-                # TODO need to copy to tmp first??
-                assert str(cp).startswith('/tmp'), cp
-
                 td = stack.enter_context(TemporaryDirectory())
                 tdir = Path(td)
 
@@ -120,8 +118,7 @@ def _relations_serial(
 
     for [(p1, dump1), (p2, dump2)] in outputs():
         logger.info("cleanup: %s vs %s", p1, p2)
-        logger.debug("%s: %s", p1, dump1)
-        logger.debug("%s: %s", p2, dump2)
+        # todo would be nice to dump relation result?
         # TODO could also use sort + comm? not sure...
         # sorting might be a good idea actually... would work better with triples?
 
@@ -227,3 +224,66 @@ def test_relations(tmp_path: Path) -> None:
 
 
 # TODO add some tests for my own dbs? e.g. stashed
+
+class SqliteNormaliser:
+    DELETE_DOMINATED = False
+
+    @staticmethod
+    def checked(db: Path) -> Connection:
+        """common schema checks (for both cleanup/extract)"""
+        shm = db.parent / (db.name + '-shm')
+        wal = db.parent / (db.name + '-wal')
+        assert not shm.exists(), shm
+        assert not wal.exists(), wal
+
+        conn = sqlite3.connect(f'file:{db}?immutable=1', uri=True)
+        return conn
+
+    # TODO in principle we can get away with using only 'extract'?
+    # 'cleanup' is just a sanity check? so you don't cleanup too much by accident?
+    # guess it makes it easier to specify only one of them?
+    # - by default, cleanup doesn't do anything
+    # - by default, extract extracts everything
+    # TODO needs to return if they are same or dominated?
+    # for BM it's fine to delete dominated though..
+    # except... FIXME need to keep filenames? this could be useful info...
+    # need to decide where to log them...
+
+    @contextmanager
+    def do_cleanup(self, db: Path) -> Iterator[Path]:
+        with TemporaryDirectory() as tdir:
+            td = Path(tdir)
+            output = td / (db.name + '-clean')
+            shutil.copy(db, output)
+            with sqlite3.connect(output) as conn:
+                self.cleanup(conn)
+            yield output
+
+
+    def cleanup(self, c: Connection) -> None:
+        # todo could have default implementation??
+        raise NotImplementedError
+
+
+def sqlite_process(
+        paths: Sequence[Path],
+        *,
+        Normaliser: Type[SqliteNormaliser],
+        max_workers: Optional[int],
+) -> None:
+    def cleanup(p: Path) -> ContextManager[Path]:
+        n = Normaliser(p)  # type: ignore  # meh
+        return n.do_cleanup(p)
+
+    from .common import Keep, Delete, Config
+
+    rels = list(relations(
+        paths=paths,
+        cleanup=cleanup,
+        max_workers=max_workers,
+    ))
+    cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
+    instructions = relations_to_instructions(rels, config=cfg)
+    for i in instructions:
+        action = {Keep: 'keep', Delete: 'delete'}[type(i)]
+        print(i.path, ': ', action)
