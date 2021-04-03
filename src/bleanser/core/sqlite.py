@@ -108,13 +108,16 @@ def _relations_serial(
     XXX = Tuple[XX, XX]
 
     def outputs() -> Iterator[XXX]:
-        with ExitStack() as stack:
+        with ExitStack() as stack, TemporaryDirectory() as td:
+            tdir = Path(td)
             last: Optional[XX] = None
             for cp in paths:
-                td = stack.enter_context(TemporaryDirectory())
-                tdir = Path(td)
-
-                dump_file = tdir / 'dump.sql'
+                ## prepare a fake path for dump, just to preserve original file paths at least to some extent
+                assert cp.is_absolute(), cp
+                dump_file = tdir / Path(*cp.parts[1:])  # cut off '/' and use relative path
+                dump_file = dump_file.parent / f'{dump_file.name}-dump.sql'
+                dump_file.parent.mkdir(parents=True, exist_ok=True)  # meh
+                ##
                 next_: XX
                 try:
                     cp = checked_db(cp)
@@ -134,6 +137,7 @@ def _relations_serial(
                 if last is not None:
                     yield (last, next_)
                 last = next_
+            # TODO crap. need to release contexts earlier, because at this point all the old files (and databases!) are still present...
 
     for [(p1, dump1), (p2, dump2)] in outputs():
         logger.info("cleanup: %s vs %s", p1, p2)
@@ -141,8 +145,12 @@ def _relations_serial(
         # TODO could also use sort + comm? not sure...
         # sorting might be a good idea actually... would work better with triples?
 
+        def rel(*, before: Path, after: Path, diff: Diff) -> Relation:
+            logger.debug('%s vs %s: %s', before, after, diff.cmp)
+            return Relation(before=before, after=after, diff=diff)
+
         if isinstance(dump1, Exception) or isinstance(dump2, Exception):
-            yield Relation(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.ERROR))
+            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.ERROR))
             continue
 
         # just for mypy...
@@ -150,22 +158,22 @@ def _relations_serial(
         assert isinstance(dump2, Path), dump2
 
         # print(diff[dump1, dump2](retcode=(0, 1)))  # for debug
-
         # strip off 'creating' data in the database -- we're interested to spot whether it was deleted
         cmd = diff[dump1, dump2]  | grep['-vE', '> (INSERT INTO|CREATE TABLE) ']
         res = cmd(retcode=(0, 1))
         if len(res) > 10000:  # fast track to fail
             # TODO Meh
-            yield Relation(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
+            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
             continue
         rem = res.splitlines()
         # clean up diff crap like
         # 756587a756588,762590
         rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
         if len(rem) == 0:
-            yield Relation(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DOMINATES))
+            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DOMINATES))
         else:
-            yield Relation(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
+            # TODO maybe log verbose differences to a file?
+            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
 
 
 def _dict2db(d: Dict, *, to: Path) -> Path:
