@@ -14,15 +14,30 @@ from subprocess import DEVNULL
 from tempfile import TemporaryDirectory, gettempdir
 from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Type
 
+
 from .common import CmpResult, Diff, Relation, logger, relations_to_instructions
+from .utils import DummyExecutor
+
 
 import more_itertools
 from plumbum import local # type: ignore
 
 
-def check_db(p: Path) -> None:
+def checked_no_wal(db: Path) -> Path:
+    shm = db.parent / (db.name + '-shm')
+    wal = db.parent / (db.name + '-wal')
+    assert not shm.exists(), shm
+    assert not wal.exists(), wal
+    return db
+
+
+def checked_db(db: Path) -> Path:
     # integrity check
-    subprocess.check_call(['sqlite3', '-readonly', p, 'pragma schema_version;'], stdout=DEVNULL)
+    db = checked_no_wal(db)
+    with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
+        list(conn.execute('pragma schema_version;'))
+    db = checked_no_wal(db)
+    return db
 
 
 diff = local['diff']
@@ -40,8 +55,8 @@ def relations(
         cleanup: Cleaner,
         max_workers: Optional[int]=None,
 ) -> Iterator[Relation]:
-    assert max_workers != 0  # FIXME handle it in serial mode then?
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+    pool = DummyExecutor() if max_workers == 0 else ThreadPoolExecutor(max_workers=max_workers)
+    with pool:
         workers = getattr(pool, '_max_workers')
         morkers = min(workers, len(paths))  # no point in using too many workers
         logger.info('using %d workers', workers)
@@ -101,9 +116,9 @@ def _relations_serial(
                 dump_file = tdir / 'dump.sql'
                 next_: XX
                 try:
-                    check_db(cp)
+                    checked_db(cp)
                     cleaned_db = stack.enter_context(cleanup(cp))
-                    check_db(cleaned_db)
+                    checked_db(cleaned_db)
                 except Exception as e:
                     logger.exception(e)
                     next_ = (cp, e)
@@ -231,11 +246,7 @@ class SqliteNormaliser:
     @staticmethod
     def checked(db: Path) -> Connection:
         """common schema checks (for both cleanup/extract)"""
-        shm = db.parent / (db.name + '-shm')
-        wal = db.parent / (db.name + '-wal')
-        assert not shm.exists(), shm
-        assert not wal.exists(), wal
-
+        db = checked_db(db)
         conn = sqlite3.connect(f'file:{db}?immutable=1', uri=True)
         return conn
 
