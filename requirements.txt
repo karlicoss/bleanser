@@ -1,4 +1,0 @@
-git+https://github.com/karlicoss/kython
-typing_extensions
-pytest
-python-dateutil

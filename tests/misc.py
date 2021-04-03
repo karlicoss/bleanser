@@ -14,7 +14,7 @@ def sqldump(path, **kwargs):
 
 
 ### Bluemaestro
-from .paths import BM1, BM2
+from .paths import BM1, BM2  # type: ignore
 
 def test_bluemaestro_old_vs_new():
     sqldiff(BM1, BM2)
