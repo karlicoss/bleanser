@@ -43,7 +43,7 @@ class Normaliser:
         assert not shm.exists(), shm
         assert not wal.exists(), wal
 
-        conn = sqlite3.connect(db)
+        conn = sqlite3.connect(f'file:{db}?immutable=1', uri=True)
         return conn
 
 
