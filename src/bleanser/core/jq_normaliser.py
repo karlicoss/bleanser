@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from argparse import ArgumentParser
-from enum import Enum, auto
 import json
 import logging
 from pathlib import Path
@@ -9,6 +8,9 @@ import sys
 from typing import Optional, List, Iterator, Iterable, Tuple, Optional, Union, NamedTuple, Sequence
 from tempfile import TemporaryDirectory
 # make sure doesn't conain '<'
+
+from .common import CmpResult, Diff, Relation
+
 
 from kython import numbers
 
@@ -69,23 +71,7 @@ def jq(path: Path, filt: Filter, output: Path):
 Result = List[Path]
 
 
-class CmpResult(Enum):
-    DIFFERENT = 'different'
-    SAME = 'same'
-    DOMINATES = 'dominates'
 R = CmpResult
-
-from typing import NamedTuple
-
-
-class Diff(NamedTuple):
-    cmp: CmpResult
-    diff: bytes
-
-class Relation(NamedTuple):
-    before: Path
-    diff: Diff
-    after: Path
 
 
 class XX(NamedTuple):
