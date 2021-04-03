@@ -43,6 +43,7 @@ def checked_db(db: Path) -> Path:
 diff = local['diff']
 grep = local['grep']
 sqlite_cmd = local['sqlite3']
+cmp_cmd = local['cmp']
 
 
 Input = Path
@@ -157,6 +158,12 @@ def _relations_serial(
         assert isinstance(dump1, Path), dump1
         assert isinstance(dump2, Path), dump2
 
+        # first check if they are identical (should be super fast, stops at first byte difference)
+        (rc, _, _) = cmp_cmd['--silent', dump1, dump2].run(retcode=(0, 1))
+        if rc == 0:
+            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.SAME))
+            continue
+
         # print(diff[dump1, dump2](retcode=(0, 1)))  # for debug
         # strip off 'creating' data in the database -- we're interested to spot whether it was deleted
         cmd = diff[dump1, dump2]  | grep['-vE', '> (INSERT INTO|CREATE TABLE) ']
@@ -238,7 +245,7 @@ def test_relations(tmp_path: Path) -> None:
     [r31, r32, r33, r34] = func([db1, db2, db3, db4, db5])
     assert r32 == r22
     assert r33.diff.cmp == CR.ERROR
-    assert r34.diff.cmp == CR.DOMINATES  # FIXME should be SAME later...
+    assert r34.diff.cmp == CR.SAME
     ###
 
     ### test when stuff was removed
