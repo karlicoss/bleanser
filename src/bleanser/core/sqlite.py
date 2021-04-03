@@ -42,6 +42,7 @@ def checked_db(db: Path) -> Path:
 
 diff = local['diff']
 grep = local['grep']
+sqlite_cmd = local['sqlite3']
 
 
 Input = Path
@@ -116,15 +117,18 @@ def _relations_serial(
                 dump_file = tdir / 'dump.sql'
                 next_: XX
                 try:
-                    checked_db(cp)
+                    cp = checked_db(cp)
                     cleaned_db = stack.enter_context(cleanup(cp))
-                    checked_db(cleaned_db)
+                    cleaned_db = checked_db(cleaned_db)
                 except Exception as e:
                     logger.exception(e)
                     next_ = (cp, e)
                 else:
-                    with dump_file.open('w') as fo:
-                        subprocess.run(['sqlite3', '-readonly', cleaned_db, '.dump'], check=True, stdout=fo)
+                    dump_cmd = sqlite_cmd['-readonly', cleaned_db, '.dump']
+                    # can't filter it otherwise :( and can't drop it in filter
+                    filter_cmd = grep['-vE', '^INSERT INTO sqlite_sequence ']
+                    cmd = (dump_cmd | filter_cmd) > str(dump_file)
+                    cmd(retcode=(0, 1))
                     next_ = (cp, dump_file)
 
                 if last is not None:
@@ -267,6 +271,8 @@ class SqliteNormaliser:
             output = td / (db.name + '-clean')
             shutil.copy(db, output)
             with sqlite3.connect(output) as conn:
+                # prevent it from generating unnecessary wal files
+                conn.execute('PRAGMA journal_mode=MEMORY;')
                 self.cleanup(conn)
             yield output
 
