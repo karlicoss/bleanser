@@ -13,7 +13,6 @@ from subprocess import DEVNULL
 from tempfile import TemporaryDirectory
 from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager
 
-
 from .common import CmpResult, Diff, Relation, logger
 
 import more_itertools
@@ -27,10 +26,6 @@ def check_db(p: Path) -> None:
 
 diff = local['diff']
 grep = local['grep']
-
-
-KEEP = 'KEEP'
-DELETE = 'DELETE'
 
 
 Input = Path
@@ -50,18 +45,34 @@ def relations(
         morkers = min(workers, len(paths))  # no point in using too many workers
         logger.info('using %d workers', workers)
 
+        chunks = []
         futures = []
-        for paths_chunk in  more_itertools.divide(workers, paths):
+        for paths_chunk in more_itertools.divide(workers, paths):
             pp = list(paths_chunk)
-            if len(pp) > 0:
-                futures.append(pool.submit(
-                    # force iterator, otherwise it'll still be basically serial
-                    lambda *args, **kwargs: list(_relations_serial(*args, **kwargs)),
-                    paths=pp,
-                    cleanup=cleanup,
-                ))
-        for f in futures:
-            yield from f.result()
+            if len(pp) == 0:
+                continue
+            chunks.append(pp)
+            futures.append(pool.submit(
+                # force iterator, otherwise it'll still be basically serial
+                lambda *args, **kwargs: list(_relations_serial(*args, **kwargs)),
+                paths=pp,
+                cleanup=cleanup,
+            ))
+        emitted = 0
+        last: Optional[Path] = None
+        for chunk, f in zip(chunks, futures):
+            if last is not None:
+                # yield fake relation just to fill the gap between chunks...
+                # TODO kinda annying since it won't be idempotent...
+                emitted += 1
+                yield Relation(before=last, after=chunk[0], diff=Diff(cmp=CmpResult.DIFFERENT, diff=b''))
+            last = chunk[0]
+            rit = f.result()
+            for r in rit:
+                emitted += 1
+                yield r
+                last = r.after
+        assert emitted == len(paths) - 1, (paths, emitted)
 
 
 # todo these are already normalized paths?

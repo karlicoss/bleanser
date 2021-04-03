@@ -1,11 +1,11 @@
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Literal, Sequence, Set, List, Iterator, Tuple
+from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple
 
 from .utils import assert_never
 
 from more_itertools import pairwise
-
 
 
 # meh. get rid of this...
@@ -13,13 +13,11 @@ from kython.klogging2 import LazyLogger
 logger = LazyLogger(__name__, level='debug')
 
 
-
 class CmpResult(Enum):
     DIFFERENT = 'different'
-    SAME = 'same'
+    SAME      = 'same'
     DOMINATES = 'dominates'
-    ERROR = 'error'  # FIXME need to handle it?
-    # TODO ERROR is just 'different'?
+    ERROR     = 'error'
 
 
 class Diff(NamedTuple):
@@ -33,19 +31,26 @@ class Relation(NamedTuple):
     after: Path
 
 
-Action = Literal['keep', 'delete']
-
-class Instruction(NamedTuple):
+@dataclass
+class Instruction:
     path: Path
-    action: Action
     relation: Relation  # kind of 'reason'? not sure if useful..
+
+
+@dataclass
+class Delete(Instruction):
+    pass
+
+@dataclass
+class Keep(Instruction):
+    pass
 
 
 class Config(NamedTuple):
     delete_dominated: bool = False
 
 
-def relations_to_instructions(relations: Sequence[Relation], *, config: Config) -> Sequence[Instruction]:
+def relations_to_instructions(relations: Sequence[Relation], *, config: Config=Config()) -> Sequence[Instruction]:
     assert len(relations) > 0  # not sure...
     # NOTE: using Sequence, not Iterator to ensure more atomic behaviour/earlier sanity checks
 
@@ -57,8 +62,8 @@ def relations_to_instructions(relations: Sequence[Relation], *, config: Config) 
             nonlocal sames
             for i, s in enumerate(sames):
                 (path, relation) = s
-                action: Action = 'keep' if i == 0 or i == len(sames) - 1 else 'delete'
-                yield Instruction(path=path, action=action, relation=relation)
+                A = Keep if i == 0 or i == len(sames) - 1 else Delete
+                yield A(path=path, relation=relation)
             sames.clear()
 
         for r in relations:
@@ -75,6 +80,10 @@ def relations_to_instructions(relations: Sequence[Relation], *, config: Config) 
             res = r.diff.cmp
             if res == CmpResult.DOMINATES:
                 res = CmpResult.SAME if config.delete_dominated else CmpResult.DIFFERENT
+
+            if res == CmpResult.ERROR:
+                # error is useful to distinguish for debugging purposes.. but as far as bleanser concerned it's the same
+                res = CmpResult.DIFFERENT
 
             if   res is CmpResult.DIFFERENT:
                 # dump previous
@@ -104,7 +113,7 @@ def test_relations_to_instructions() -> None:
     def do(*pp, config=Config()):
         args = (Relation(before=b, after=a, diff=Diff(cmp=r, diff=b'')) for b, a, r in pp)
         res = relations_to_instructions(list(args), config=config)
-        return [(p.path, p.action) for p in res]
+        return [(p.path, {Keep: 'keep', Delete: 'delete'}[type(p)]) for p in res]
 
     CR = CmpResult
 
