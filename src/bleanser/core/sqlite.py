@@ -1,25 +1,19 @@
 """
 Helpers for processing sqlite databases
 """
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager, ExitStack
-from dataclasses import dataclass
+from contextlib import contextmanager
 from pathlib import Path
-import re
 import shutil
 import sqlite3
 from sqlite3 import Connection
-import subprocess
-from subprocess import DEVNULL
-from tempfile import TemporaryDirectory, gettempdir
-from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Type
+from tempfile import TemporaryDirectory
+from typing import Dict, Any, Iterator, Sequence, Optional, Callable, ContextManager, Type
 
 
 from .common import CmpResult, Diff, Relation, logger, relations_to_instructions
-from .utils import DummyExecutor
+from .processor import relations
 
 
-import more_itertools
 from plumbum import local # type: ignore
 
 
@@ -40,165 +34,13 @@ def checked_db(db: Path) -> Path:
     return db
 
 
-diff = local['diff']
 grep = local['grep']
 sqlite_cmd = local['sqlite3']
-cmp_cmd = local['cmp']
 
 
-Input = Path
-Cleaned = Path
-Cleaner = Callable[[Input], ContextManager[Cleaned]]
-
-
-def relations(
-        paths: Sequence[Path],
-        *,
-        cleanup: Cleaner,
-        max_workers: Optional[int]=None,
-        _wdir: Optional[Path]=None,
-) -> Iterator[Relation]:
-    # if wdir is passed will use this dir instead of a temporary
-    # messy but makes debugging a bit easier..
-    pool = DummyExecutor() if max_workers == 0 else ThreadPoolExecutor(max_workers=max_workers)
-    with pool:
-        workers = getattr(pool, '_max_workers')
-        morkers = min(workers, len(paths))  # no point in using too many workers
-        logger.info('using %d workers', workers)
-
-        chunks = []
-        futures = []
-        for paths_chunk in more_itertools.divide(workers, paths):
-            pp = list(paths_chunk)
-            if len(pp) == 0:
-                continue
-            chunks.append(pp)
-            futures.append(pool.submit(
-                # force iterator, otherwise it'll still be basically serial
-                lambda *args, **kwargs: list(_relations_serial(*args, **kwargs)),
-                paths=pp,
-                cleanup=cleanup,
-                _wdir=_wdir,
-            ))
-        emitted = 0
-        last: Optional[Path] = None
-        for chunk, f in zip(chunks, futures):
-            if last is not None:
-                # yield fake relation just to fill the gap between chunks...
-                # TODO kinda annying since it won't be idempotent...
-                emitted += 1
-                yield Relation(before=last, after=chunk[0], diff=Diff(cmp=CmpResult.DIFFERENT, diff=b''))
-            last = chunk[0]
-            rit = f.result()
-            for r in rit:
-                emitted += 1
-                yield r
-                last = r.after
-        assert emitted == len(paths) - 1, (paths, emitted)
-
-
-# todo these are already normalized paths?
-# although then harder to handle exceptions... ugh
-def _relations_serial(
-        paths: Sequence[Path],
-        *,
-        cleanup: Cleaner,
-        _wdir: Optional[Path],
-) -> Iterator[Relation]:
-    assert len(paths) > 0
-    # fast track.. so we don't compute dumps
-    if len(paths) == 1:
-        return []
-
-    XX = Tuple[Input, Union[Exception, Cleaned]]
-    XXX = Tuple[XX, XX]
-
-    def outputs() -> Iterator[XXX]:
-        with ExitStack() as stack:
-            wdir: Path
-            if _wdir is None:
-                wdir = Path(stack.enter_context(TemporaryDirectory()))
-            else:
-                wdir = _wdir
-
-            last: Optional[XX] = None
-            for cp in paths:
-                ## prepare a fake path for dump, just to preserve original file paths at least to some extent
-                assert cp.is_absolute(), cp
-                dump_file = wdir / Path(*cp.parts[1:])  # cut off '/' and use relative path
-                dump_file = dump_file.parent / f'{dump_file.name}-dump.sql'
-                dump_file.parent.mkdir(parents=True, exist_ok=True)  # meh
-                ##
-                next_: XX
-                try:
-                    cp = checked_db(cp)
-                    # TODO crap... this should use tmp dir as well..
-                    cleaned_db = stack.enter_context(cleanup(cp))
-                    cleaned_db = checked_db(cleaned_db)
-                except Exception as e:
-                    logger.exception(e)
-                    next_ = (cp, e)
-                else:
-                    dump_cmd = sqlite_cmd['-readonly', cleaned_db, '.dump']
-                    # can't filter it otherwise :( and can't drop it in filter
-                    filter_cmd = grep['-vE', '^INSERT INTO sqlite_sequence ']
-                    cmd = (dump_cmd | filter_cmd) > str(dump_file)
-                    cmd(retcode=(0, 1))
-                    next_ = (cp, dump_file)
-
-                if last is not None:
-                    yield (last, next_)
-                    last_res = last[1]
-                    if not isinstance(last_res, Exception):
-                        # meh. a bit manual, but bounds the filesystem use by two dumps
-                        last_res.unlink()  # todo no need to unlink in debug mode
-
-                last = next_
-
-    # TODO later, migrate core to use it?
-    # diffing/relation generation can be generic
-
-    for [(p1, dump1), (p2, dump2)] in outputs():
-        logger.info("cleanup: %s vs %s", p1, p2)
-        # todo would be nice to dump relation result?
-        # TODO could also use sort + comm? not sure...
-        # sorting might be a good idea actually... would work better with triples?
-
-        def rel(*, before: Path, after: Path, diff: Diff) -> Relation:
-            logger.debug('%s vs %s: %s', before, after, diff.cmp)
-            return Relation(before=before, after=after, diff=diff)
-
-        if isinstance(dump1, Exception) or isinstance(dump2, Exception):
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.ERROR))
-            continue
-
-        # just for mypy...
-        assert isinstance(dump1, Path), dump1
-        assert isinstance(dump2, Path), dump2
-
-        # first check if they are identical (should be super fast, stops at first byte difference)
-        (rc, _, _) = cmp_cmd['--silent', dump1, dump2].run(retcode=(0, 1))
-        if rc == 0:
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.SAME))
-            continue
-
-        # print(diff[dump1, dump2](retcode=(0, 1)))  # for debug
-        # strip off 'creating' data in the database -- we're interested to spot whether it was deleted
-        cmd = diff[dump1, dump2]  | grep['-vE', '> (INSERT INTO|CREATE TABLE) ']
-        res = cmd(retcode=(0, 1))
-        if len(res) > 10000:  # fast track to fail
-            # TODO Meh
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
-            continue
-        rem = res.splitlines()
-        # clean up diff crap like
-        # 756587a756588,762590
-        rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
-        if len(rem) == 0:
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DOMINATES))
-        else:
-            # TODO maybe log verbose differences to a file?
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
+# strip off 'creating' data in the database -- we're interested to spot whether it was deleted
+SQLITE_GREP_FILTER = '> (INSERT INTO|CREATE TABLE) '
+# FIXME need a test, i.e. with removing single line
 
 
 def _dict2db(d: Dict, *, to: Path) -> Path:
@@ -212,16 +54,16 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
     return to  # just for convenience
 
 
-def test_relations(tmp_path: Path) -> None:
+def test_db_relations(tmp_path: Path) -> None:
     # TODO this assumes they are already cleaned up?
     CR = CmpResult
-    @contextmanager
-    def ident(p: Path) -> Iterator[Path]:
-        yield p
+    def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
+        n = NoopSqliteNormaliser(path)
+        return n.do_cleanup(path=path, wdir=wdir)
 
 
     # use single thread for test purposes
-    func = lambda paths: relations(paths, cleanup=ident, max_workers=1)
+    func = lambda paths: relations(paths, cleanup=ident, grep_filter=SQLITE_GREP_FILTER, max_workers=1)
 
 
     d: Dict[str, Any] = dict()
@@ -275,43 +117,6 @@ def test_relations(tmp_path: Path) -> None:
     ###
 
 
-def test_relation_resources(tmp_path: Path) -> None:
-    """
-    Check that relation processing is iterative in terms of not using too much disk space for temporary files
-    """
-
-    one_mb = 1_000_000
-    d = {
-        't': [('colname', ), ('x' * one_mb, )],
-    }
-
-
-    dbdir = tmp_path / 'dbdir'
-    wdir  = tmp_path / 'wdir'
-    dbdir.mkdir()
-    wdir.mkdir()
-
-    # each dump would be approx 1mb in size
-    dbs = []
-    for i in range(10):
-        d['t'].append((str(i), ))
-        dbs.append(_dict2db(d, to=dbdir / f'{i}.db'))
-    ##
-
-    @contextmanager
-    def ident(p: Path) -> Iterator[Path]:
-        yield p
-
-    func = lambda paths: relations(paths, cleanup=ident, max_workers=1, _wdir=wdir)
-
-    from .utils import total_dir_size
-
-    for r in func(dbs):
-        ds = total_dir_size(wdir)
-        # at no point should use more than 2 dumps... + some leeway
-        assert ds < 3 * one_mb, ds
-
-
 # TODO add some tests for my own dbs? e.g. stashed
 
 class SqliteNormaliser:
@@ -335,21 +140,47 @@ class SqliteNormaliser:
     # need to decide where to log them...
 
     @contextmanager
-    def do_cleanup(self, db: Path) -> Iterator[Path]:
+    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        db = path
+        db = checked_db(db)
         with TemporaryDirectory() as tdir:
             td = Path(tdir)
-            output = td / (db.name + '-clean')
-            shutil.copy(db, output)
-            with sqlite3.connect(output) as conn:
+            # FIXME should just use wdir?
+            cleaned_db = td / (db.name + '-cleaned')
+            shutil.copy(db, cleaned_db)
+            with sqlite3.connect(cleaned_db) as conn:
                 # prevent it from generating unnecessary wal files
                 conn.execute('PRAGMA journal_mode=MEMORY;')
                 self.cleanup(conn)
-            yield output
+            cleaned_db = checked_db(cleaned_db)
+
+            ### dump to text file
+            ## prepare a fake path for dump, just to preserve original file paths at least to some extent
+            assert cleaned_db.is_absolute(), cleaned_db
+            dump_file = wdir / Path(*cleaned_db.parts[1:])  # cut off '/' and use relative path
+            dump_file = dump_file.parent / f'{dump_file.name}-dump.sql'
+            dump_file.parent.mkdir(parents=True, exist_ok=True)  # meh
+            #
+            dump_cmd = sqlite_cmd['-readonly', cleaned_db, '.dump']
+            # can't filter it otherwise :( and can't drop it in filter
+            filter_cmd = grep['-vE', '^INSERT INTO sqlite_sequence ']
+            cmd = (dump_cmd | filter_cmd) > str(dump_file)
+            cmd(retcode=(0, 1))
+            ###
+            yield dump_file
 
 
     def cleanup(self, c: Connection) -> None:
         # todo could have default implementation??
         raise NotImplementedError
+
+
+class NoopSqliteNormaliser(SqliteNormaliser):
+    def __init__(self, path: Path) -> None:
+        pass
+
+    def cleanup(self, c: Connection) -> None:
+        pass
 
 
 def sqlite_process(
@@ -358,15 +189,16 @@ def sqlite_process(
         Normaliser: Type[SqliteNormaliser],
         max_workers: Optional[int],
 ) -> None:
-    def cleanup(p: Path) -> ContextManager[Path]:
-        n = Normaliser(p)  # type: ignore  # meh
-        return n.do_cleanup(p)
-
     from .common import Keep, Delete, Config
+
+    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
+        n = Normaliser(p)  # type: ignore  # meh
+        return n.do_cleanup(path, wdir=wdir)
 
     rels = list(relations(
         paths=paths,
         cleanup=cleanup,
+        grep_filter=SQLITE_GREP_FILTER,
         max_workers=max_workers,
     ))
     cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
