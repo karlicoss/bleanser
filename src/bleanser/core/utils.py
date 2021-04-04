@@ -37,3 +37,8 @@ class DummyExecutor(Executor):
 
     def shutdown(self, wait: bool=True) -> None:
         self._shutdown = True
+
+
+from pathlib import Path
+def total_dir_size(d: Path) -> int:
+    return sum(f.stat().st_size for f in d.glob('**/*') if f.is_file())
