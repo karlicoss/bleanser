@@ -56,7 +56,10 @@ def relations(
         *,
         cleanup: Cleaner,
         max_workers: Optional[int]=None,
+        _wdir: Optional[Path]=None,
 ) -> Iterator[Relation]:
+    # if wdir is passed will use this dir instead of a temporary
+    # messy but makes debugging a bit easier..
     pool = DummyExecutor() if max_workers == 0 else ThreadPoolExecutor(max_workers=max_workers)
     with pool:
         workers = getattr(pool, '_max_workers')
@@ -75,6 +78,7 @@ def relations(
                 lambda *args, **kwargs: list(_relations_serial(*args, **kwargs)),
                 paths=pp,
                 cleanup=cleanup,
+                _wdir=_wdir,
             ))
         emitted = 0
         last: Optional[Path] = None
@@ -99,6 +103,7 @@ def _relations_serial(
         paths: Sequence[Path],
         *,
         cleanup: Cleaner,
+        _wdir: Optional[Path],
 ) -> Iterator[Relation]:
     assert len(paths) > 0
     # fast track.. so we don't compute dumps
@@ -109,19 +114,25 @@ def _relations_serial(
     XXX = Tuple[XX, XX]
 
     def outputs() -> Iterator[XXX]:
-        with ExitStack() as stack, TemporaryDirectory() as td:
-            tdir = Path(td)
+        with ExitStack() as stack:
+            wdir: Path
+            if _wdir is None:
+                wdir = Path(stack.enter_context(TemporaryDirectory()))
+            else:
+                wdir = _wdir
+
             last: Optional[XX] = None
             for cp in paths:
                 ## prepare a fake path for dump, just to preserve original file paths at least to some extent
                 assert cp.is_absolute(), cp
-                dump_file = tdir / Path(*cp.parts[1:])  # cut off '/' and use relative path
+                dump_file = wdir / Path(*cp.parts[1:])  # cut off '/' and use relative path
                 dump_file = dump_file.parent / f'{dump_file.name}-dump.sql'
                 dump_file.parent.mkdir(parents=True, exist_ok=True)  # meh
                 ##
                 next_: XX
                 try:
                     cp = checked_db(cp)
+                    # TODO crap... this should use tmp dir as well..
                     cleaned_db = stack.enter_context(cleanup(cp))
                     cleaned_db = checked_db(cleaned_db)
                 except Exception as e:
@@ -137,8 +148,15 @@ def _relations_serial(
 
                 if last is not None:
                     yield (last, next_)
+                    last_res = last[1]
+                    if not isinstance(last_res, Exception):
+                        # meh. a bit manual, but bounds the filesystem use by two dumps
+                        last_res.unlink()  # todo no need to unlink in debug mode
+
                 last = next_
-            # TODO crap. need to release contexts earlier, because at this point all the old files (and databases!) are still present...
+
+    # TODO later, migrate core to use it?
+    # diffing/relation generation can be generic
 
     for [(p1, dump1), (p2, dump2)] in outputs():
         logger.info("cleanup: %s vs %s", p1, p2)
@@ -202,7 +220,7 @@ def test_relations(tmp_path: Path) -> None:
         yield p
 
 
-    # set max_workers to 1,
+    # use single thread for test purposes
     func = lambda paths: relations(paths, cleanup=ident, max_workers=1)
 
 
@@ -255,6 +273,43 @@ def test_relations(tmp_path: Path) -> None:
     assert r44 == r34
     assert r45.diff.cmp == CR.DIFFERENT
     ###
+
+
+def test_relation_resources(tmp_path: Path) -> None:
+    """
+    Check that relation processing is iterative in terms of not using too much disk space for temporary files
+    """
+
+    one_mb = 1_000_000
+    d = {
+        't': [('colname', ), ('x' * one_mb, )],
+    }
+
+
+    dbdir = tmp_path / 'dbdir'
+    wdir  = tmp_path / 'wdir'
+    dbdir.mkdir()
+    wdir.mkdir()
+
+    # each dump would be approx 1mb in size
+    dbs = []
+    for i in range(10):
+        d['t'].append((str(i), ))
+        dbs.append(_dict2db(d, to=dbdir / f'{i}.db'))
+    ##
+
+    @contextmanager
+    def ident(p: Path) -> Iterator[Path]:
+        yield p
+
+    func = lambda paths: relations(paths, cleanup=ident, max_workers=1, _wdir=wdir)
+
+    from .utils import total_dir_size
+
+    for r in func(dbs):
+        ds = total_dir_size(wdir)
+        # at no point should use more than 2 dumps... + some leeway
+        assert ds < 3 * one_mb, ds
 
 
 # TODO add some tests for my own dbs? e.g. stashed
