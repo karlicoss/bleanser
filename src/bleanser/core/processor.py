@@ -4,10 +4,10 @@ from pathlib import Path
 import re
 from subprocess import DEVNULL
 from tempfile import TemporaryDirectory, gettempdir
-from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol
+from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List
 
 
-from .common import CmpResult, Diff, Relation, logger, relations_to_instructions
+from .common import CmpResult, Diff, Relation, logger, relations_to_instructions, Keep, Delete, Config
 from .utils import DummyExecutor
 
 
@@ -32,6 +32,7 @@ def relations(
         cleanup: Cleaner,
         max_workers: Optional[int]=None,
         grep_filter: str,
+        config: Config,
         _wdir: Optional[Path]=None,
 ) -> Iterator[Relation]:
     # if wdir is passed will use this dir instead of a temporary
@@ -55,6 +56,7 @@ def relations(
                 paths=pp,
                 cleanup=cleanup,
                 grep_filter=grep_filter,
+                config=config,
                 _wdir=_wdir,
             ))
         emitted = 0
@@ -86,6 +88,7 @@ def _relations_serial(
         *,
         cleanup: Cleaner,
         grep_filter: str,
+        config: Config,
         _wdir: Optional[Path],
 ) -> Iterator[Relation]:
     assert len(paths) > 0
@@ -170,7 +173,6 @@ def _relations_serial(
 
 # note: also some tests in sqlite.py
 
-# TODO move to processor
 def test_bounded_resources(tmp_path: Path) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
@@ -194,17 +196,106 @@ def test_bounded_resources(tmp_path: Path) -> None:
         inputs.append(ip)
     ##
 
-    # 'no-op' cleaner..
     @contextmanager
-    def ident(path: Path, *, wdir: Path) -> Iterator[Path]:
-        yield path
+    def dummy(path: Path, *, wdir: Path) -> Iterator[Path]:
+        tp = wdir / (path.name + '-dump')
+        tp.write_text(path.read_text())
+        yield tp
 
-    func = lambda paths: relations(paths, cleanup=ident, max_workers=1, grep_filter=GREP_FILTER, _wdir=wdir)
+    config = Config()
+    func = lambda paths: relations(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
 
     from .utils import total_dir_size
 
-    for r in func(inputs):
+    for i, r in enumerate(func(inputs)):
         ds = total_dir_size(wdir)
-        # at no point should use more than 2 dumps... + some leeway
-        assert ds < 3 * one_mb, ds
+        # at no point should use more than 3 dumps... + some leeway
+        assert ds < 4 * one_mb, ds
         assert r.diff.cmp == CmpResult.DOMINATES
+
+        if i > 3:
+            # in 'steady' mode should take some space? more of a sanity check..
+            assert ds > one_mb, ds
+
+
+@contextmanager
+def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
+    yield path
+
+
+def _prepare(tmp_path: Path):
+    sets = [
+        ['X'],
+        ['B'],
+        ['B', 'A'],
+        ['C', 'B', 'A'],
+        ['A', 'BB', 'C'],
+        ['B', 'A', 'E', 'Y'],
+    ]
+
+    paths = []
+    for i, s  in enumerate(sets):
+        o = tmp_path / f'{i}.txt'
+        # TODO ugh. how to get rid of \\ No newline at end of file ??
+        o.write_text('\n'.join(s) + '\n')
+        paths.append(o)
+    return paths
+
+
+def test_twoway(tmp_path: Path) -> None:
+    paths = _prepare(tmp_path)
+
+    config = Config(delete_dominated=True)
+    rels = list(relations(paths, cleanup=_noop, max_workers=0, config=config, grep_filter=GREP_FILTER))
+    instructions = relations_to_instructions(rels, config=config)
+    assert [type(i) for i in instructions] == [
+        Keep,
+        Keep,
+        Delete,  # dominated by the next set
+        Keep,
+        Keep,
+        Keep
+    ]
+
+    for p in paths:
+        assert p.exists(), p  # just in case
+
+
+def test_threeway(tmp_path: Path) -> None:
+    # TODO test three way against old bluemaestro dbs?
+    paths = _prepare(tmp_path)
+    for i, s in enumerate([
+            ['00', '11', '22'],
+            ['11', '22', '33', '44'],
+            ['22', '33', '44', '55'],
+            ['44', '55', '66'],
+            ['55', '66'],
+    ]):
+        p = tmp_path / f'extra_{i}.txt'
+        p.write_text('\n'.join(s) + '\n')
+        paths.append(p)
+
+    # TODO grep filter goes into the config?
+    config = Config(
+        delete_dominated=True,
+        threeway=True,
+    )
+    rels = list(relations(paths, cleanup=_noop, max_workers=0, grep_filter=GREP_FILTER, config=config))
+    instructions = relations_to_instructions(rels, config=config)
+
+    assert [type(i) for i in instructions] == [
+        Keep,
+        Keep,
+        Delete,  # same as two-way up to this point
+        Delete,  # dominated by neighbours
+        Keep,    # has a unique element (BB)
+        Keep,
+        # extra items now
+        Keep,
+        Delete,  # dominated by neighbours
+        Keep  ,  # in isolation, it's dominated by neighbours.. but if we delete it, we'll lose '33' permanently
+        Delete,  # dominated by neighbours
+        Keep  ,  # always keep last
+    ]
+    # for i in instructions:
+    #     print(i)

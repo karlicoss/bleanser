@@ -48,8 +48,10 @@ class Keep(Instruction):
 
 class Config(NamedTuple):
     delete_dominated: bool = False
+    threeway: bool = False
 
 
+# FIXME not sure if should have default config... too unsafe?
 def relations_to_instructions(relations: Sequence[Relation], *, config: Config=Config()) -> Sequence[Instruction]:
     assert len(relations) > 0  # not sure...
     # NOTE: using Sequence, not Iterator to ensure more atomic behaviour/earlier sanity checks

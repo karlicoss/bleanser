@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Any, Iterator, Sequence, Optional, Callable, ContextManager, Type
 
 
-from .common import CmpResult, Diff, Relation, logger, relations_to_instructions
+from .common import CmpResult, Diff, Relation, logger, relations_to_instructions, Config
 from .processor import relations
 
 
@@ -61,10 +61,14 @@ def test_db_relations(tmp_path: Path) -> None:
         n = NoopSqliteNormaliser(path)
         return n.do_cleanup(path=path, wdir=wdir)
 
-
+    config = Config()
     # use single thread for test purposes
-    func = lambda paths: relations(paths, cleanup=ident, grep_filter=SQLITE_GREP_FILTER, max_workers=1)
-
+    func = lambda paths: relations(
+        paths,
+        cleanup=ident,
+        grep_filter=SQLITE_GREP_FILTER, max_workers=1,
+        config=config,
+    )
 
     d: Dict[str, Any] = dict()
     ### just one file
@@ -189,19 +193,20 @@ def sqlite_process(
         Normaliser: Type[SqliteNormaliser],
         max_workers: Optional[int],
 ) -> None:
-    from .common import Keep, Delete, Config
+    from .common import Keep, Delete
 
     def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
         n = Normaliser(p)  # type: ignore  # meh
         return n.do_cleanup(path, wdir=wdir)
 
+    cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
     rels = list(relations(
         paths=paths,
         cleanup=cleanup,
         grep_filter=SQLITE_GREP_FILTER,
+        config=cfg,
         max_workers=max_workers,
     ))
-    cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
     instructions = relations_to_instructions(rels, config=cfg)
     for i in instructions:
         action = {Keep: 'keep', Delete: 'delete'}[type(i)]
