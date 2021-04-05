@@ -1,3 +1,4 @@
+# TODO later, migrate core to use it?
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, ExitStack
 from pathlib import Path
@@ -90,44 +91,6 @@ def _compute_groups_serial(
     assert len(paths) > 0
 
     CRes = Union[Exception, Cleaned]
-    XX = Tuple[Input, CRes]
-    XXX = Tuple[XX, XX, XX]
-
-    # FIXME ugh. need to make it properly iterative...
-    stack = ExitStack()
-
-    # TODO clear intermediate files? (later)
-    def xxx() -> Iterator[XX]:
-        # with ExitStack() as stack:
-        if True:
-            wdir: Path
-            if _wdir is None:
-                wdir = Path(stack.enter_context(TemporaryDirectory()))
-            else:
-                wdir = _wdir
-            for p in paths:
-                res: CRes
-                try:
-                    res = stack.enter_context(cleanup(p, wdir=wdir))
-                except Exception as e:
-                    logger.exception(e)
-                    res = e
-                # in theory, it's redundant, but let's tie them together for extra safety...
-                yield (p, res)
-
-
-    xxx_res = list(xxx())
-
-    assert len(xxx_res) == len(paths)
-    for ip, (ip2, cl) in zip(paths, xxx_res):
-        assert ip == ip2, (ip, ip2)
-
-    cleaned2orig = {c: i for i, c in xxx_res}
-    cleaned = list(cleaned2orig.keys())
-
-    # delete it so we don't try to use it later by accident
-    del paths
-
 
     # TODO extract & test separately?
     def _isfsubset(lefte: Sequence[CRes], righte: Sequence[CRes]) -> bool:
@@ -188,11 +151,51 @@ def _compute_groups_serial(
     def lunique(l: List[CRes]) -> List[CRes]:
         return list(more_itertools.unique_everseen(l))
 
-    left  = 0
-    while left < len(cleaned):
-        # TODO shit... error handling is harder...
 
-        items  = [cleaned[left]]
+    cleaned2orig = {}
+    cleaned = []
+
+
+    def iter_results() -> Iterator[CRes]:
+        with ExitStack() as stack:
+            wdir: Path
+            if _wdir is None:
+                wdir = Path(stack.enter_context(TemporaryDirectory()))
+            else:
+                wdir = _wdir
+            for p in paths:
+                res: CRes
+                try:
+                    res = stack.enter_context(cleanup(p, wdir=wdir))
+                except Exception as e:
+                    logger.exception(e)
+                    res = e
+                cleaned2orig[res] = p
+                cleaned.append(res)
+                yield res
+
+    # OMG. extremely hacky...
+    ires = more_itertools.peekable(iter_results())
+
+    total = len(paths)
+
+    def unlink_tmp_output(cleaned: Path) -> None:
+        # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
+        orig = cleaned2orig[cleaned]
+        if orig == cleaned:
+            # handle 'identity' cleanup -- shouldn't try to remove user files
+            return
+        # meh... just in case
+        assert str(cleaned).startswith(gettempdir()), cleaned
+        logger.warning('unlinking: %s', cleaned)
+        cleaned.unlink()  # todo no need to unlink in debug mode
+
+    left  = 0
+    while left < total:
+        # TODO I need a thing which represents a merged set of files?
+        # and automatically recycles it
+        # e.g. so I can add a file to it
+        items  = [ires[left]]
         lpivot = left
         rpivot = left
         # invaraint
@@ -204,30 +207,36 @@ def _compute_groups_serial(
 
         right = left + 1
         while True:
-            pivots = lunique([cleaned[lpivot], cleaned[rpivot]])
+            pivots = lunique([ires[lpivot], ires[rpivot]])
 
             def group() -> Group:
-                # TODO oof. need to map cleaned back to original...
-                return Group(
+                g =  Group(
                     items =[cleaned2orig[i] for i in items],
                     pivots=[cleaned2orig[i] for i in pivots],
                 )
+                # TODO ugh. still leaves garbage behind... but at least it's something
+                for i in items:
+                    if not isinstance(i, Exception) and i not in pivots:
+                        unlink_tmp_output(i)
+                    # TODO can recycle left pivot if it's not equal to right pivot
+                return g
 
-            if right == len(cleaned):
+            if right == total:
                 # end of sequence, so the whole tail is in the same group
                 yield group()
-                left = len(cleaned)
+                left = total
                 break
             else:
                 # try to advance right while maintaining invariants
-                nitems  = lunique(items + [cleaned[right - 1], cleaned[right]])
-                npivots = lunique([cleaned[lpivot], cleaned[right]])
+                # TODO here need to reuse items merged cache, pivots will be computed from scratch
+                nitems  = lunique(items + [ires[right - 1], ires[right]])
+                npivots = lunique([ires[lpivot], ires[right]])
                 dominated = isfsubset(nitems, npivots)
 
                 if not dominated:
                     # yield the last good result
                     yield group()
-                    # TODO eh. a bit crap, but seems that a special case is necessary
+                    # ugh. a bit crap, but seems that a special case is necessary
                     if len(pivots) == 2:
                         left = rpivot
                     else:
@@ -239,24 +248,10 @@ def _compute_groups_serial(
                     # lpivot is unchanged
                     rpivot = right
                     right += 1
-    stack.close()  # ugh. horrible
-    return
 
-    # old = cur[0]
-    # old_input, old_res = old
-    # if not isinstance(old_res, Exception):
-    #     # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
-    #     # handle 'identity' cleanup -- shouldn't try to remove user files
-    #     if old_res != old_input:
-    #         # meh... jus in case
-    #         assert str(old_res).startswith(gettempdir()), old_res
-    #         old_res.unlink()  # todo no need to unlink in debug mode
-
-    # TODO later, migrate core to use it?
-    # diffing/relation generation can be generic
-    #
-    # TODO outputs should go one by one... zipping should be separate perhaps?
-    # also we might want to retain intermediate... ugh. mindfield
+    # meh. hacky but sort of does the trick
+    cached = len(getattr(ires, '_cache'))
+    assert cached == total, 'Iterator should be fully processed!'
 
 
 # note: also some tests in sqlite.py
@@ -277,34 +272,50 @@ def test_bounded_resources(tmp_path: Path) -> None:
 
     # each file would be approx 1mb in size
     inputs = []
-    for i in range(10):
-        ip = idir / f'{i}.txt'
-        text += '\n' + str(i) + '\n'
-        ip.write_text(text)
+    for g in range(4): # 4 groups
+        for i in range(10): # 5 backups in each group
+            ip = idir / f'{g}_{i}.txt'
+            text += '\n' + str(i) + '\n'
+            ip.write_text(text)
+            inputs.append(ip)
+        ip = idir / f'{g}_sep.txt'
+        ip.write_text('GARBAGE')
         inputs.append(ip)
     ##
 
-    @contextmanager
-    def dummy(path: Path, *, wdir: Path) -> Iterator[Path]:
-        tp = wdir / (path.name + '-dump')
-        tp.write_text(path.read_text())
-        yield tp
-
-    config = Config()
-    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
-
-    from .utils import total_dir_size
-
-    for i, r in enumerate(func(inputs)):
+    idx = 0
+    def check_wdir_space() -> None:
+        nonlocal idx
+        from .utils import total_dir_size
+        logger.warning('ITERATION: %s', idx)
         ds = total_dir_size(wdir)
         # at no point should use more than 3 dumps... + some leeway
         assert ds < 4 * one_mb, ds
         # TODO!
         # assert r.diff.cmp == CmpResult.DOMINATES
 
-        if i > 3:
+        if idx > 3:
             # in 'steady' mode should take some space? more of a sanity check..
             assert ds > one_mb, ds
+        idx += 1
+
+
+    @contextmanager
+    def dummy(path: Path, *, wdir: Path) -> Iterator[Path]:
+        tp = wdir / (path.name + '-dump')
+        tp.write_text(path.read_text())
+        # ugh. it's the only place we can hook in to do frequent checks..
+        check_wdir_space()
+        yield tp
+
+    config = Config()
+    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
+
+    # force it to compute
+    groups = list(func(inputs))
+    # if all good, should remove all the intermediate ones? so will leave maybe 8-9 backups?
+    # if it goes bad, there will be error on each step
+    assert len(groups) < 10
 
 
 @contextmanager
