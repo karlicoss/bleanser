@@ -64,23 +64,12 @@ def compute_groups(
             ))
         emitted: Set[Path] = set()
         for chunk, f in zip(chunks, futures):
-            # TODO maybe not necessary?
-            # if last is not None:
-            #     # yield fake relation just to fill the gap between chunks...
-            #     # TODO kinda annying since it won't be idempotent...
-            #     emitted += 1
-            #     after = chunk[0]
-            #     yield Group(
-            #         items =(last, after),
-            #         pivots=(last, after),
-            #     )
             last = chunk[0]
             rit = f.result()
             for r in rit:
                 emitted |= set(r.items)
                 yield r
-             #    last = r.after
-    assert len(emitted) == len(paths), (paths, emitted)  # just in case
+    assert emitted == set(paths), (paths, emitted)  # just in case
 
 
 diff = local['diff']
@@ -104,30 +93,45 @@ def _compute_groups_serial(
     XX = Tuple[Input, CRes]
     XXX = Tuple[XX, XX, XX]
 
-    # TODO just use in-place sort etc?
+    # FIXME ugh. need to make it properly iterative...
+    stack = ExitStack()
+
     # TODO clear intermediate files? (later)
     def xxx() -> Iterator[XX]:
-        with ExitStack() as stack:
+        # with ExitStack() as stack:
+        if True:
             wdir: Path
             if _wdir is None:
                 wdir = Path(stack.enter_context(TemporaryDirectory()))
             else:
                 wdir = _wdir
-        for p in paths:
-            res: CRes
-            try:
-                res = stack.enter_context(cleanup(p, wdir=wdir))
-            except Exception as e:
-                logger.exception(e)
-                res = e
-            # in theory, it's redundant, but let's tie them together for extra safety...
-            yield (p, res)
+            for p in paths:
+                res: CRes
+                try:
+                    res = stack.enter_context(cleanup(p, wdir=wdir))
+                except Exception as e:
+                    logger.exception(e)
+                    res = e
+                # in theory, it's redundant, but let's tie them together for extra safety...
+                yield (p, res)
 
 
-    alls = list(xxx())
+    xxx_res = list(xxx())
 
-    # FIXME extract & test separately?
+    assert len(xxx_res) == len(paths)
+    for ip, (ip2, cl) in zip(paths, xxx_res):
+        assert ip == ip2, (ip, ip2)
+
+    cleaned2orig = {c: i for i, c in xxx_res}
+    cleaned = list(cleaned2orig.keys())
+
+    # delete it so we don't try to use it later by accident
+    del paths
+
+
+    # TODO extract & test separately?
     def _isfsubset(left: Sequence[Path], right: Sequence[Path]) -> bool:
+        # TODO just use in-place sort etc?
         cat = local['cat']
         sort = local['sort']
         # TODO short circuit if files are subsets as sets?
@@ -135,8 +139,6 @@ def _compute_groups_serial(
             tdir = Path(td)
             lfile = tdir / 'left'
             rfile = tdir / 'right'
-            # breakpoint()
-            # TODO I wonder if args really work as expected...
             (cat | sort['--unique'] > str(lfile))(*left)
             (cat | sort['--unique'] > str(rfile))(*right)
 
@@ -174,8 +176,10 @@ def _compute_groups_serial(
         return list(more_itertools.unique_everseen(l))
 
     left  = 0
-    while left < len(alls):
-        items  = [paths[left]]
+    while left < len(cleaned):
+        # TODO shit... error handling is harder...
+
+        items  = [cleaned[left]]
         lpivot = left
         rpivot = left
         # invaraint
@@ -187,29 +191,29 @@ def _compute_groups_serial(
 
         right = left + 1
         while True:
-            pivots = lunique([paths[lpivot], paths[rpivot]])
-            if right == len(alls):
-                # end of sequence, so the whole tail is in the same group
-                g = Group(
-                    items =items,
-                    pivots=pivots,
+            pivots = lunique([cleaned[lpivot], cleaned[rpivot]])
+
+            def group() -> Group:
+                # TODO oof. need to map cleaned back to original...
+                return Group(
+                    items =[cleaned2orig[i] for i in items],
+                    pivots=[cleaned2orig[i] for i in pivots],
                 )
-                yield g
-                left = len(alls)
+
+            if right == len(cleaned):
+                # end of sequence, so the whole tail is in the same group
+                yield group()
+                left = len(cleaned)
                 break
             else:
                 # try to advance right while maintaining invariants
-                nitems  = lunique(items + [paths[right - 1], paths[right]])
-                npivots = lunique([paths[lpivot], paths[right]])
+                nitems  = lunique(items + [cleaned[right - 1], cleaned[right]])
+                npivots = lunique([cleaned[lpivot], cleaned[right]])
                 dominated = isfsubset(nitems, npivots)
 
                 if not dominated:
                     # yield the last good result
-                    g = Group(
-                        items =items,
-                        pivots=pivots,
-                    )
-                    yield g
+                    yield group()
                     # TODO eh. a bit crap, but seems that a special case is necessary
                     if len(pivots) == 2:
                         left = rpivot
@@ -222,6 +226,7 @@ def _compute_groups_serial(
                     # lpivot is unchanged
                     rpivot = right
                     right += 1
+    stack.close()  # ugh. horrible
     return
 
     # FIXME need this code to cleanup old stuff!!
@@ -340,8 +345,10 @@ def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
 
 
 def test_simple(tmp_path: Path) -> None:
-    # FIXME explicit config..
-    config = Config()
+    config = Config(
+        delete_dominated=False,
+        multiway=False,
+    )
 
     p1 = tmp_path / 'p1'
     p2 = tmp_path / 'p2'
@@ -366,6 +373,44 @@ def test_simple(tmp_path: Path) -> None:
         ))
         instructions = groups_to_instructions(groups, config=config)
         assert [type(i) for i in instructions] == [Keep for _ in gg]
+
+
+def test_filter(tmp_path: Path) -> None:
+    config = Config(
+        delete_dominated=False,
+        multiway=False,
+    )
+
+    @contextmanager
+    def remove_all_except_a(path: Path, *, wdir: Path) -> Iterator[Path]:
+        clean = wdir / (path.name + '-clean')
+        with path.open('r') as fo, clean.open('w') as co:
+            for line in fo:
+                if line == 'A\n':
+                    co.write(line)
+        yield clean
+
+    p1 = tmp_path / 'p1'
+    p2 = tmp_path / 'p2'
+    p3 = tmp_path / 'p3'
+    p4 = tmp_path / 'p4'
+    paths = [p1, p2, p3, p4]
+
+    ## these files are same as long as the filter concerned
+    p1.write_text('b\nA\nc\n')
+    p2.write_text('A\nx\nA\nu\n')
+    p3.write_text('A\nd\n')
+    p4.write_text('x\ny\n')
+
+
+    groups = list(compute_groups(paths, cleanup=remove_all_except_a, max_workers=0, config=config, grep_filter=GREP_FILTER))
+    instructions = groups_to_instructions(groups, config=config)
+    assert [type(i) for i in instructions] == [
+        Keep,
+        Delete,  # should delete because after filtering only A there is no diference in files
+        Keep,
+        Keep
+    ]
 
 
 def _prepare(tmp_path: Path):
