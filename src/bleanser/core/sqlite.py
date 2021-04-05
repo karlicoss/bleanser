@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Any, Iterator, Sequence, Optional, Callable, ContextManager, Type
 
 
-from .common import CmpResult, Diff, Relation, logger, groups_to_instructions, Config
+from .common import CmpResult, Diff, logger, groups_to_instructions, Config, Instruction, Keep, Delete
 from .processor import compute_groups
 
 
@@ -54,14 +54,14 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
     return to  # just for convenience
 
 
-def test_db_groups(tmp_path: Path) -> None:
+def test_sqlite(tmp_path: Path) -> None:
     # TODO this assumes they are already cleaned up?
     CR = CmpResult
     def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
         n = NoopSqliteNormaliser(path)
         return n.do_cleanup(path=path, wdir=wdir)
 
-    config = Config()
+    config = Config(multiway=False)
     # use single thread for test purposes
     func = lambda paths: compute_groups(
         paths,
@@ -73,8 +73,9 @@ def test_db_groups(tmp_path: Path) -> None:
     d: Dict[str, Any] = dict()
     ### just one file
     db1 = _dict2db(d, to=tmp_path / '1.db')
-    # just one file.. should be empty
-    [] = func([db1])
+    [g11] = func([db1])
+    assert g11.items  == [db1]
+    assert g11.pivots == [db1]
     ###
 
     ### simple 'dominates' test
@@ -85,40 +86,78 @@ def test_db_groups(tmp_path: Path) -> None:
     ]
     db2 = _dict2db(d, to=tmp_path / '2.db')
 
-    [r11] = func([db1, db2])
-    assert r11.before == db1
-    assert r11.after  == db2
-    assert r11.diff.cmp == CR.DOMINATES
+    [g21, g22] = func([db1, db2])
+    assert g21 == g11
+    assert g22.items  == [db2]
+    assert g22.pivots == [db2]
     ###
 
     ### test error handling
     db3 = tmp_path / '3.db'
     db3.write_text('BAD')
-    [r21, r22] = func([db1, db2, db3])
-    assert r11 == r21
-    assert r22.before == db2
-    assert r22.after  == db3
-    assert r22.diff.cmp == CR.ERROR
+    [g31, g32, g33] = func([db1, db2, db3])
+    assert g31 == g21
+    assert g32 == g22
+    assert g33.items  == [db3]
+    assert g33.pivots == [db3]
+    # FIXME check error reason
     ###
-
 
     ### test 'same' handling
     db4 = _dict2db(d, to=tmp_path / '4.db')
     db5 = _dict2db(d, to=tmp_path / '5.db')
+    db6 = _dict2db(d, to=tmp_path / '6.db')
 
-    [r31, r32, r33, r34] = func([db1, db2, db3, db4, db5])
-    assert r32 == r22
-    assert r33.diff.cmp == CR.ERROR
-    assert r34.diff.cmp == CR.SAME
+    dbs = [db1, db2, db3, db4, db5, db6]
+    [g41, g42, g43, g44] = func(dbs)
+    assert g43 == g33
+    assert g44.items  == [db4, db5, db6]
+    assert g44.pivots == [db4, db6]
     ###
+
+    instrs = sqlite_process(
+        dbs,
+        Normaliser=NoopSqliteNormaliser,
+        max_workers=0
+    )
+    assert list(map(type, instrs)) == [
+        Keep,   # 1
+        Keep,   # 2
+        Keep,   # 3
+        Keep,   # 4, keep the boundary
+        Delete, # 5
+        Keep,   # 6, keep the boundary
+    ]
+
 
     ### test when stuff was removed
     del d['t1'][-1]
-    db6 = _dict2db(d, to=tmp_path / '6.db')
-    [_, _, _, r44, r45] = func([db1, db2, db3, db4, db5, db6])
-    assert r44 == r34
-    assert r45.diff.cmp == CR.DIFFERENT
+    db7 = _dict2db(d, to=tmp_path / '7.db')
+    dbs = [db1, db2, db3, db4, db5, db6, db7]
+    [_, _, _, g54, g55, g56] = func(dbs)
+    assert g54 == g44
+    # TODO ugh. this is confusing... why it emits more pivots?
+    assert g55.items  == [db6]
+    assert g55.pivots == [db6]
+    assert g56.items  == [db7]
+    assert g56.pivots == [db7]
     ###
+
+    instrs = sqlite_process(
+        dbs,
+        Normaliser=NoopSqliteNormaliser,
+        max_workers=0
+    )
+    assert list(map(type, instrs)) == [
+        Keep,   # 1
+        Keep,   # 2
+        Keep,   # 3
+        Keep,   # 4, keep the boundary
+        Delete, # 5
+        Keep,   # 6, keep the boundary
+        Keep,   # 7,
+    ]
+
 
 
 # TODO add some tests for my own dbs? e.g. stashed
@@ -192,7 +231,7 @@ def sqlite_process(
         *,
         Normaliser: Type[SqliteNormaliser],
         max_workers: Optional[int],
-) -> None:
+) -> Sequence[Instruction]:
     from .common import Keep, Delete
 
     def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
@@ -211,3 +250,4 @@ def sqlite_process(
     for i in instructions:
         action = {Keep: 'keep', Delete: 'delete'}[type(i)]
         print(i.path, ': ', action)
+    return instructions
