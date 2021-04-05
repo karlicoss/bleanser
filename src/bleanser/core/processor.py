@@ -126,26 +126,49 @@ def _compute_groups_serial(
 
     alls = list(xxx())
 
-    # TODO dominated here could tell apart proper subsets...
+    # FIXME extract & test separately?
+    def _isfsubset(left: Sequence[Path], right: Sequence[Path]) -> bool:
+        cat = local['cat']
+        sort = local['sort']
+        # TODO short circuit if files are subsets as sets?
+        with TemporaryDirectory() as td:
+            tdir = Path(td)
+            lfile = tdir / 'left'
+            rfile = tdir / 'right'
+            # breakpoint()
+            # TODO I wonder if args really work as expected...
+            (cat | sort['--unique'] > str(lfile))(*left)
+            (cat | sort['--unique'] > str(rfile))(*right)
+
+            # TODO tbh shoudl just use cmp for the rest... considering it's all sorted
+            # first check if they are identical (should be super fast, stops at the first byte difference)
+            (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
+            if rc == 0:
+                return True
+
+            dcmd = diff[lfile, rfile]  | grep['-vE', grep_filter]
+            dres = dcmd(retcode=(0, 1))
+            if len(dres) > 10000:
+                # fast track to fail? maybe should be configurable..
+                # TODO Meh
+                return False
+            rem = dres.splitlines()
+            # clean up diff crap like
+            # 756587a756588,762590
+            rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
+            # TODO maybe log verbose differences to a file?
+            return len(rem) == 0
+
+
     def isfsubset(left: Sequence[Path], right: Sequence[Path]) -> bool:
-        def toset(idxs: Sequence[Path]) -> Set[str]:
-            res = set()
-            for i in idxs:
-                res |= set(i.read_text().splitlines())
-            return res
         if config.multiway:
-            return toset(left) <= toset(right)
+            return _isfsubset(left, right)
         else:
             # TODO ugh. total crap
             for s1, s2 in zip(left, left[1:]):
-                if not toset([s1]) <= toset([s2]):
+                if not _isfsubset([s1], [s2]):
                     return False
             return True
-
-
-    def issubset(left: List[int], right: List[int]) -> bool:
-        return isfsubset([paths[i] for i in left], [paths[i] for i in right])
-
 
     def lunique(l: List[Path]) -> List[Path]:
         return list(more_itertools.unique_everseen(l))
@@ -245,9 +268,6 @@ def _compute_groups_serial(
     # also we might want to retain intermediate... ugh. mindfield
 
     for [(p1, dump1), (p2, dump2), (p3, dump3)] in outputs():
-        # ok, so two way comparison is like the three way one, but where the last file is always empty?
-        # so could
-
         logger.info("cleanup: %s vs %s", p1, p2)
         # todo would be nice to dump relation result?
         # TODO could also use sort + comm? not sure...
@@ -264,29 +284,6 @@ def _compute_groups_serial(
         # just for mypy...
         assert isinstance(dump1, Path), dump1
         assert isinstance(dump2, Path), dump2
-
-        # first check if they are identical (should be super fast, stops at first byte difference)
-        (rc, _, _) = cmp_cmd['--silent', dump1, dump2].run(retcode=(0, 1))
-        if rc == 0:
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.SAME))
-            continue
-
-        # print(diff[dump1, dump2](retcode=(0, 1)))  # for debug
-        cmd = diff[dump1, dump2]  | grep['-vE', grep_filter]
-        res = cmd(retcode=(0, 1))
-        if len(res) > 10000:  # fast track to fail
-            # TODO Meh
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
-            continue
-        rem = res.splitlines()
-        # clean up diff crap like
-        # 756587a756588,762590
-        rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
-        if len(rem) == 0:
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DOMINATES))
-        else:
-            # TODO maybe log verbose differences to a file?
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.DIFFERENT))
 
 
 # note: also some tests in sqlite.py
@@ -343,20 +340,25 @@ def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
 
 
 def test_simple(tmp_path: Path) -> None:
+    # FIXME explicit config..
     config = Config()
 
-    path1 = tmp_path / 'path1'
-    path2 = tmp_path / 'path2'
-    path3 = tmp_path / 'path3'
+    p1 = tmp_path / 'p1'
+    p2 = tmp_path / 'p2'
+    p3 = tmp_path / 'p3'
+    p4 = tmp_path / 'p4'
 
-    path1.write_text('A\n')
-    path2.write_text('B\n')
-    path3.write_text('C\n')
+    p1.write_text('A\n')
+    p2.write_text('B\n')
+    p3.write_text('C\n')
+    p4.write_text('C\nD\n')
+
 
     for gg in [
-            [path1],
-            [path1, path2],
-            [path1, path2, path3],
+            [p1],
+            [p1, p2],
+            [p1, p2, p3],
+            [p1, p2, p3, p4],
     ]:
         groups = list(compute_groups(
             gg,
