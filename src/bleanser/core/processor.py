@@ -130,7 +130,20 @@ def _compute_groups_serial(
 
 
     # TODO extract & test separately?
-    def _isfsubset(left: Sequence[Path], right: Sequence[Path]) -> bool:
+    def _isfsubset(lefte: Sequence[CRes], righte: Sequence[CRes]) -> bool:
+        lefts  = []
+        for i in lefte:
+            if isinstance(i, Exception):
+                return False
+            else:
+                lefts.append(i)
+        rights = []
+        for i in righte:
+            if isinstance(i, Exception):
+                return False
+            else:
+                rights.append(i)
+
         # TODO just use in-place sort etc?
         cat = local['cat']
         sort = local['sort']
@@ -139,10 +152,10 @@ def _compute_groups_serial(
             tdir = Path(td)
             lfile = tdir / 'left'
             rfile = tdir / 'right'
-            (cat | sort['--unique'] > str(lfile))(*left)
-            (cat | sort['--unique'] > str(rfile))(*right)
+            (cat | sort['--unique'] > str(lfile))(*lefts)
+            (cat | sort['--unique'] > str(rfile))(*rights)
 
-            # TODO tbh shoudl just use cmp for the rest... considering it's all sorted
+            # TODO tbh shoudl just use cmp/comm for the rest... considering it's all sorted
             # first check if they are identical (should be super fast, stops at the first byte difference)
             (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
             if rc == 0:
@@ -162,7 +175,7 @@ def _compute_groups_serial(
             return len(rem) == 0
 
 
-    def isfsubset(left: Sequence[Path], right: Sequence[Path]) -> bool:
+    def isfsubset(left: Sequence[CRes], right: Sequence[CRes]) -> bool:
         if config.multiway:
             return _isfsubset(left, right)
         else:
@@ -172,7 +185,7 @@ def _compute_groups_serial(
                     return False
             return True
 
-    def lunique(l: List[Path]) -> List[Path]:
+    def lunique(l: List[CRes]) -> List[CRes]:
         return list(more_itertools.unique_everseen(l))
 
     left  = 0
@@ -229,66 +242,21 @@ def _compute_groups_serial(
     stack.close()  # ugh. horrible
     return
 
-    # FIXME need this code to cleanup old stuff!!
-    def outputs() -> Iterator[XXX]:
-        with ExitStack() as stack:
-            wdir: Path
-            if _wdir is None:
-                wdir = Path(stack.enter_context(TemporaryDirectory()))
-            else:
-                wdir = _wdir
-
-            paths.append(Path('dummy'))  # TODO
-            cur: List[XX] = []
-            for cp in paths:
-                res: Union[Exception, Cleaned]
-                try:
-                    res = stack.enter_context(cleanup(cp, wdir=wdir))
-                except Exception as e:
-                    logger.exception(e)
-                    res = e
-                next_ = (cp, res)
-
-                assert len(cur) <= 3, cur  # just in case
-                if len(cur) == 3:
-                    old = cur[0]
-                    old_input, old_res = old
-                    if not isinstance(old_res, Exception):
-                        # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
-                        # handle 'identity' cleanup -- shouldn't try to remove user files
-                        if old_res != old_input:
-                            # meh... jus in case
-                            assert str(old_res).startswith(gettempdir()), old_res
-                            old_res.unlink()  # todo no need to unlink in debug mode
-                    cur = cur[1:]
-
-                cur.append(next_)
-                if len(cur) == 3:
-                    yield tuple(cur)  # type: ignore[misc]
+    # old = cur[0]
+    # old_input, old_res = old
+    # if not isinstance(old_res, Exception):
+    #     # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
+    #     # handle 'identity' cleanup -- shouldn't try to remove user files
+    #     if old_res != old_input:
+    #         # meh... jus in case
+    #         assert str(old_res).startswith(gettempdir()), old_res
+    #         old_res.unlink()  # todo no need to unlink in debug mode
 
     # TODO later, migrate core to use it?
     # diffing/relation generation can be generic
     #
     # TODO outputs should go one by one... zipping should be separate perhaps?
     # also we might want to retain intermediate... ugh. mindfield
-
-    for [(p1, dump1), (p2, dump2), (p3, dump3)] in outputs():
-        logger.info("cleanup: %s vs %s", p1, p2)
-        # todo would be nice to dump relation result?
-        # TODO could also use sort + comm? not sure...
-        # sorting might be a good idea actually... would work better with triples?
-
-        def rel(*, before: Path, after: Path, diff: Diff) -> Relation:
-            logger.debug('%s vs %s: %s', before, after, diff.cmp)
-            return Relation(before=before, after=after, diff=diff)
-
-        if isinstance(dump1, Exception) or isinstance(dump2, Exception):
-            yield rel(before=p1, after=p2, diff=Diff(diff=b'', cmp=CmpResult.ERROR))
-            continue
-
-        # just for mypy...
-        assert isinstance(dump1, Path), dump1
-        assert isinstance(dump2, Path), dump2
 
 
 # note: also some tests in sqlite.py

@@ -86,18 +86,27 @@ def test_sqlite(tmp_path: Path) -> None:
     ]
     db2 = _dict2db(d, to=tmp_path / '2.db')
 
-    [g21, g22] = func([db1, db2])
-    assert g21 == g11
-    assert g22.items  == [db2]
-    assert g22.pivots == [db2]
+    [g21] = func([db1, db2])
+    assert g21.items  == [db1, db2]
+    assert g21.pivots == [db1, db2]
     ###
 
     ### test error handling
     db3 = tmp_path / '3.db'
     db3.write_text('BAD')
+
+    # TODO wow it's really messy...
+    [x1, x2] = func([db3, db1, db2])
+    assert x1.items  == [db3]
+    assert x1.pivots == [db3]
+    assert x2.items  == [db1, db2]
+    assert x2.pivots == [db1, db2]
+
+
     [g31, g32, g33] = func([db1, db2, db3])
     assert g31 == g21
-    assert g32 == g22
+    assert g32.items  == [db2]
+    assert g32.pivots == [db2]
     assert g33.items  == [db3]
     assert g33.pivots == [db3]
     # FIXME check error reason
@@ -235,18 +244,18 @@ def sqlite_process(
     from .common import Keep, Delete
 
     def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = Normaliser(p)  # type: ignore  # meh
+        n = Normaliser(path)  # type: ignore  # meh
         return n.do_cleanup(path, wdir=wdir)
 
     cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
-    rels = list(compute_groups(
+    groups = list(compute_groups(
         paths=paths,
         cleanup=cleanup,
         grep_filter=SQLITE_GREP_FILTER,
         config=cfg,
         max_workers=max_workers,
     ))
-    instructions = groups_to_instructions(rels, config=cfg)
+    instructions = groups_to_instructions(groups, config=cfg)
     for i in instructions:
         action = {Keep: 'keep', Delete: 'delete'}[type(i)]
         print(i.path, ': ', action)
