@@ -1,13 +1,14 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, ExitStack
 from pathlib import Path
+from pprint import pprint
 import re
 from subprocess import DEVNULL
 from tempfile import TemporaryDirectory, gettempdir
-from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List
+from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set
 
 
-from .common import CmpResult, Diff, Relation, logger, relations_to_instructions, Keep, Delete, Config
+from .common import CmpResult, Diff, Relation, Group, logger, groups_to_instructions, Keep, Delete, Config
 from .utils import DummyExecutor
 
 
@@ -26,7 +27,7 @@ class Cleaner(Protocol):
         pass
 
 
-def relations(
+def compute_groups(
         paths: Sequence[Path],
         *,
         cleanup: Cleaner,
@@ -34,7 +35,9 @@ def relations(
         grep_filter: str,
         config: Config,
         _wdir: Optional[Path]=None,
-) -> Iterator[Relation]:
+) -> Iterator[Group]:
+    assert len(paths) == len(set(paths)), paths  # just in case
+
     # if wdir is passed will use this dir instead of a temporary
     # messy but makes debugging a bit easier..
     pool = DummyExecutor() if max_workers == 0 else ThreadPoolExecutor(max_workers=max_workers)
@@ -52,28 +55,32 @@ def relations(
             chunks.append(pp)
             futures.append(pool.submit(
                 # force iterator, otherwise it'll still be basically serial
-                lambda *args, **kwargs: list(_relations_serial(*args, **kwargs)),
+                lambda *args, **kwargs: list(_compute_groups_serial(*args, **kwargs)),
                 paths=pp,
                 cleanup=cleanup,
                 grep_filter=grep_filter,
                 config=config,
                 _wdir=_wdir,
             ))
-        emitted = 0
-        last: Optional[Path] = None
+        emitted: Set[Path] = set()
         for chunk, f in zip(chunks, futures):
-            if last is not None:
-                # yield fake relation just to fill the gap between chunks...
-                # TODO kinda annying since it won't be idempotent...
-                emitted += 1
-                yield Relation(before=last, after=chunk[0], diff=Diff(cmp=CmpResult.DIFFERENT, diff=b''))
+            # TODO maybe not necessary?
+            # if last is not None:
+            #     # yield fake relation just to fill the gap between chunks...
+            #     # TODO kinda annying since it won't be idempotent...
+            #     emitted += 1
+            #     after = chunk[0]
+            #     yield Group(
+            #         items =(last, after),
+            #         pivots=(last, after),
+            #     )
             last = chunk[0]
             rit = f.result()
             for r in rit:
-                emitted += 1
+                emitted |= set(r.items)
                 yield r
-                last = r.after
-        assert emitted == len(paths) - 1, (paths, emitted)
+             #    last = r.after
+    assert len(emitted) == len(paths), (paths, emitted)  # just in case
 
 
 diff = local['diff']
@@ -83,22 +90,106 @@ cmp_cmd = local['cmp']
 
 # todo these are already normalized paths?
 # although then harder to handle exceptions... ugh
-def _relations_serial(
+def _compute_groups_serial(
         paths: Sequence[Path],
         *,
         cleanup: Cleaner,
         grep_filter: str,
         config: Config,
         _wdir: Optional[Path],
-) -> Iterator[Relation]:
+) -> Iterator[Group]:
     assert len(paths) > 0
-    # fast track.. so we don't compute dumps
-    if len(paths) == 1:
-        return []
 
-    XX = Tuple[Input, Union[Exception, Cleaned]]
-    XXX = Tuple[XX, XX]
+    CRes = Union[Exception, Cleaned]
+    XX = Tuple[Input, CRes]
+    XXX = Tuple[XX, XX, XX]
 
+    # TODO just use in-place sort etc?
+    # TODO clear intermediate files? (later)
+    def xxx() -> Iterator[XX]:
+        with ExitStack() as stack:
+            wdir: Path
+            if _wdir is None:
+                wdir = Path(stack.enter_context(TemporaryDirectory()))
+            else:
+                wdir = _wdir
+        for p in paths:
+            res: CRes
+            try:
+                res = stack.enter_context(cleanup(p, wdir=wdir))
+            except Exception as e:
+                logger.exception(e)
+                res = e
+            # in theory, it's redundant, but let's tie them together for extra safety...
+            yield (p, res)
+
+
+    alls = list(xxx())
+
+    # TODO dominated here could tell apart proper subsets...
+    def isfsubset(left: Sequence[Path], right: Sequence[Path]) -> bool:
+        def toset(idxs: Sequence[Path]) -> Set[str]:
+            res = set()
+            for i in idxs:
+                res |= set(i.read_text().splitlines())
+            return res
+        return toset(left) <= toset(right)
+
+
+    def issubset(left: List[int], right: List[int]) -> bool:
+        return isfsubset([paths[i] for i in left], [paths[i] for i in right])
+
+
+    def lunique(l: List[Path]) -> List[Path]:
+        return list(more_itertools.unique_everseen(l))
+
+    left  = 0
+    while left < len(alls):
+        items  = [paths[left]]
+        lpivot = left
+        rpivot = left
+        # invaraint
+        # - items, lpivot, rpivot are all valid
+        # - sets corresponding to lpivot + rpivot contain all of 'items'
+        # next we attempt to
+        # - rpivot: hopefully advance as much as possible
+        # - items : expand to include as much as possible
+
+        right = left + 1
+        while True:
+            if right == len(alls):
+                # end of sequence, so the whole tail is in the same group
+                g = Group(
+                    items =items,
+                    pivots=lunique([paths[lpivot], paths[rpivot]]),
+                )
+                yield g
+                left = len(alls)
+                break
+            else:
+                # try to advance right while maintaining invariants
+                nitems  = lunique(items + [paths[right - 1], paths[right]])
+                npivots = lunique([paths[lpivot], paths[right]])
+                dominated = isfsubset(nitems, npivots)
+
+                if not dominated:
+                    # yield the last good result
+                    g = Group(
+                        items =list(items ),
+                        pivots=list({paths[lpivot], paths[rpivot]}),
+                    )
+                    yield g
+                    left = rpivot
+                    break
+                else:
+                    # advance it
+                    items  = nitems
+                    # lpivot is unchanged
+                    rpivot = right
+                    right += 1
+    return
+
+    # FIXME need this code to cleanup old stuff!!
     def outputs() -> Iterator[XXX]:
         with ExitStack() as stack:
             wdir: Path
@@ -107,7 +198,8 @@ def _relations_serial(
             else:
                 wdir = _wdir
 
-            last: Optional[XX] = None
+            paths.append(Path('dummy'))  # TODO
+            cur: List[XX] = []
             for cp in paths:
                 res: Union[Exception, Cleaned]
                 try:
@@ -117,19 +209,33 @@ def _relations_serial(
                     res = e
                 next_ = (cp, res)
 
-                if last is not None:
-                    yield (last, next_)
-                    last_res = last[1]
-                    if not isinstance(last_res, Exception):
-                        # meh. a bit manual, but bounds the filesystem use by two dumps
-                        last_res.unlink()  # todo no need to unlink in debug mode
+                assert len(cur) <= 3, cur  # just in case
+                if len(cur) == 3:
+                    old = cur[0]
+                    old_input, old_res = old
+                    if not isinstance(old_res, Exception):
+                        # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
+                        # handle 'identity' cleanup -- shouldn't try to remove user files
+                        if old_res != old_input:
+                            # meh... jus in case
+                            assert str(old_res).startswith(gettempdir()), old_res
+                            old_res.unlink()  # todo no need to unlink in debug mode
+                    cur = cur[1:]
 
-                last = next_
+                cur.append(next_)
+                if len(cur) == 3:
+                    yield tuple(cur)  # type: ignore[misc]
 
     # TODO later, migrate core to use it?
     # diffing/relation generation can be generic
+    #
+    # TODO outputs should go one by one... zipping should be separate perhaps?
+    # also we might want to retain intermediate... ugh. mindfield
 
-    for [(p1, dump1), (p2, dump2)] in outputs():
+    for [(p1, dump1), (p2, dump2), (p3, dump3)] in outputs():
+        # ok, so two way comparison is like the three way one, but where the last file is always empty?
+        # so could
+
         logger.info("cleanup: %s vs %s", p1, p2)
         # todo would be nice to dump relation result?
         # TODO could also use sort + comm? not sure...
@@ -203,7 +309,7 @@ def test_bounded_resources(tmp_path: Path) -> None:
         yield tp
 
     config = Config()
-    func = lambda paths: relations(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
+    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
 
     from .utils import total_dir_size
 
@@ -211,7 +317,8 @@ def test_bounded_resources(tmp_path: Path) -> None:
         ds = total_dir_size(wdir)
         # at no point should use more than 3 dumps... + some leeway
         assert ds < 4 * one_mb, ds
-        assert r.diff.cmp == CmpResult.DOMINATES
+        # TODO!
+        # assert r.diff.cmp == CmpResult.DOMINATES
 
         if i > 3:
             # in 'steady' mode should take some space? more of a sanity check..
@@ -223,14 +330,38 @@ def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
     yield path
 
 
+def test_simple(tmp_path: Path) -> None:
+    config = Config()
+
+    path1 = tmp_path / 'path1'
+    path2 = tmp_path / 'path2'
+    path3 = tmp_path / 'path3'
+
+    path1.write_text('A\n')
+    path2.write_text('B\n')
+    path3.write_text('C\n')
+
+    for gg in [
+            [path1],
+            [path1, path2],
+            [path1, path2, path3],
+    ]:
+        groups = list(compute_groups(
+            gg,
+            cleanup=_noop, max_workers=0, config=config, grep_filter=GREP_FILTER,
+        ))
+        instructions = groups_to_instructions(groups, config=config)
+        assert [type(i) for i in instructions] == [Keep for _ in gg]
+
+
 def _prepare(tmp_path: Path):
     sets = [
-        ['X'],
-        ['B'],
-        ['B', 'A'],
-        ['C', 'B', 'A'],
-        ['A', 'BB', 'C'],
-        ['B', 'A', 'E', 'Y'],
+        ['X'],                # keep
+        ['B'],                # delete
+        ['B', 'A'],           # delete
+        ['C', 'B', 'A'],      # keep
+        ['A', 'BB', 'C'],     # keep
+        ['B', 'A', 'E', 'Y'], # keep
     ]
 
     paths = []
@@ -246,8 +377,8 @@ def test_twoway(tmp_path: Path) -> None:
     paths = _prepare(tmp_path)
 
     config = Config(delete_dominated=True)
-    rels = list(relations(paths, cleanup=_noop, max_workers=0, config=config, grep_filter=GREP_FILTER))
-    instructions = relations_to_instructions(rels, config=config)
+    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, config=config, grep_filter=GREP_FILTER))
+    instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,
         Keep,
@@ -261,8 +392,8 @@ def test_twoway(tmp_path: Path) -> None:
         assert p.exists(), p  # just in case
 
 
-def test_threeway(tmp_path: Path) -> None:
-    # TODO test three way against old bluemaestro dbs?
+def test_multiway(tmp_path: Path) -> None:
+    # TODO test multi way against old bluemaestro dbs?
     paths = _prepare(tmp_path)
     for i, s in enumerate([
             ['00', '11', '22'],
@@ -278,24 +409,27 @@ def test_threeway(tmp_path: Path) -> None:
     # TODO grep filter goes into the config?
     config = Config(
         delete_dominated=True,
-        threeway=True,
+        multiway=True,
     )
-    rels = list(relations(paths, cleanup=_noop, max_workers=0, grep_filter=GREP_FILTER, config=config))
-    instructions = relations_to_instructions(rels, config=config)
+    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, grep_filter=GREP_FILTER, config=config))
+    instructions = groups_to_instructions(groups, config=config)
 
     assert [type(i) for i in instructions] == [
-        Keep,
-        Keep,
-        Delete,  # same as two-way up to this point
-        Delete,  # dominated by neighbours
-        Keep,    # has a unique element (BB)
-        Keep,
+        Keep,    # X
+        Delete,  # B  in CBA
+        Delete,  # BA in CBA
+        Keep,    # keep CBA
+        Keep,    # keep because of BB
+        Keep,    # Keep because of E,Y
         # extra items now
         Keep,
-        Delete,  # dominated by neighbours
+        Delete,  #
         Keep  ,  # in isolation, it's dominated by neighbours.. but if we delete it, we'll lose '33' permanently
         Delete,  # dominated by neighbours
         Keep  ,  # always keep last
     ]
     # for i in instructions:
     #     print(i)
+
+
+# two way -- if we have a sequence of increasing things, then it's just a single partition?

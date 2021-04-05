@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple
+from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple, Dict
 
 from .utils import assert_never
 
@@ -32,9 +32,43 @@ class Relation(NamedTuple):
 
 
 @dataclass
+class Group:
+    items: Sequence[Path]
+    """
+    All items in group are tied via 'domination' relationship
+    Which might be either exact equality, or some sort of 'inclusion' relationship
+    """
+
+    pivots: Sequence[Path]
+    """
+    Pivots are the elements that 'define' group.
+    In general the pivots contain all other elements in the group
+    Sometimes pivots might be redundant, e.g. if we want to keep both boundaries of the group
+    """
+
+    # TODO attach diff or something
+    # cmp: CmpResult
+
+    def __post_init__(self) -> None:
+        sp = set(self.pivots)
+        si = set(self.items)
+        if len(self.items) != len(si):
+            raise RuntimeError(f'duplicate items: {self}')
+        if len(self.pivots) != len(sp):
+            raise RuntimeError(f'duplicate pivots: {self}')
+        # in theory could have more pivots, but shouldn't happen for now
+        assert 1 <= len(sp) <= 2, sp
+        if not (sp <= si):
+            raise RuntimeError(f"pivots aren't fully contained in items: {self}")
+
+
+@dataclass
 class Instruction:
     path: Path
-    relation: Relation  # kind of 'reason'? not sure if useful..
+    group: Group
+    """
+    'Reason' why the path got a certain instruction
+    """
 
 
 @dataclass
@@ -48,89 +82,68 @@ class Keep(Instruction):
 
 class Config(NamedTuple):
     delete_dominated: bool = False
-    threeway: bool = False
+    multiway: bool = False
 
 
-# FIXME not sure if should have default config... too unsafe?
-def relations_to_instructions(relations: Sequence[Relation], *, config: Config=Config()) -> Sequence[Instruction]:
-    assert len(relations) > 0  # not sure...
+# TODO config is unused here?? not sure
+def groups_to_instructions(groups: Sequence[Group], *, config: Config) -> Sequence[Instruction]:
+    assert len(groups) > 0  # not sure...
     # NOTE: using Sequence, not Iterator to ensure more atomic behaviour/earlier sanity checks
 
     def it() -> Iterator[Instruction]:
-        ## sanity pre-check
-        seq: List[Path] = []
-        sames: List[Tuple[Path, Relation]] = []
-        def dump_group() -> Iterator[Instruction]:
-            nonlocal sames
-            for i, s in enumerate(sames):
-                (path, relation) = s
-                A = Keep if i == 0 or i == len(sames) - 1 else Delete
-                yield A(path=path, relation=relation)
-            sames.clear()
+        done: Dict[Path, Instruction] = {}
 
-        for r in relations:
-            if len(seq) == 0:
-                seq.append(r.before)  # first item
-            prev = seq[-1]
-            assert prev == r.before
-            if r.after in seq:
-                raise RuntimeError(f'duplicate path {r.after}')
-            seq.append(r.after)
+        for group in groups:
+            # TODO groups can overlap on their pivots.. but nothing else
 
-            sames.append((prev, r))
+            # TODO add split method??
+            for i in group.items:
+                if i in group.pivots:
+                    # pivots might be already emitted py the previous groups
+                    pi = done.get(i)
+                    if pi is None:
+                        keep = Keep(path=i, group=group)
+                        yield keep
+                        done[i] = keep
+                    else:
+                        if not isinstance(pi, Keep):
+                            raise RuntimeError('{i}: used both as pivot and non-pivot')
+                else:
+                    if i in done:
+                        raise RuntimeError(f'{i}: occurs in multiple groups')
+                    assert i not in done, (i, done)
+                    deli = Delete(path=i, group=group)
+                    yield deli
+                    done[i] = deli
 
-            res = r.diff.cmp
-            if res == CmpResult.DOMINATES:
-                res = CmpResult.SAME if config.delete_dominated else CmpResult.DIFFERENT
-
-            if res == CmpResult.ERROR:
-                # error is useful to distinguish for debugging purposes.. but as far as bleanser concerned it's the same
-                res = CmpResult.DIFFERENT
-
-            if   res is CmpResult.DIFFERENT:
-                # dump previous
-                yield from dump_group()
-            elif res is CmpResult.SAME:
-                # no-op, just add to the group
-                pass
-            elif res is CmpResult.ERROR or res is CmpResult.DOMINATES:
-                raise RuntimeError(f"shouldn't happen {res}")
-            else:
-                assert_never(res)
-        last = seq[-1]
-        sames.append((last, r))  # fixme reusing relation...
-        yield from dump_group()
-
-        # always keep last one?
-        # on the other hand might be beneficial to keep the first one instead if they all are same... more cache friendly
-        # yield Instruction(path=last, action='keep', relation=r)
-
-    res = list(it())
-    # breakpoint()
-    assert len(res) == len(relations) + 1, (relations, res)
-    return  res
+    return list(it())
 
 
-def test_relations_to_instructions() -> None:
-    def do(*pp, config=Config()):
-        args = (Relation(before=b, after=a, diff=Diff(cmp=r, diff=b'')) for b, a, r in pp)
-        res = relations_to_instructions(list(args), config=config)
-        return [(p.path, {Keep: 'keep', Delete: 'delete'}[type(p)]) for p in res]
+def test_groups_to_instructions() -> None:
+    def do(*pp: Sequence[str], config=Config()):
+        ppp = [list(map(Path, s)) for s in pp]
+        # for this test we assume pivots are just at the edges
+        grit = (
+            Group(
+                items=p,
+                pivots=(p[0], p[-1]),
+            ) for p in ppp
+        )
+        res = groups_to_instructions(list(grit), config=config)
+        return [(str(p.path), {Keep: 'keep', Delete: 'delete'}[type(p)]) for p in res]
 
     CR = CmpResult
 
     assert do(
-        ('a', 'b', CR.DIFFERENT),
+        ('a', 'b'),
     ) == [
         ('a', 'keep'),
         ('b', 'keep'),
     ]
 
     assert do(
-        ('0', 'a', CR.DIFFERENT),
-        ('a', 'b', CR.SAME     ),
-        ('b', 'c', CR.SAME     ),
-        ('c', 'd', CR.SAME     ),
+        ('0', 'a'          ),
+        ('a', 'b', 'c', 'd'),
     ) == [
         ('0', 'keep'  ),
         ('a', 'keep'  ),
@@ -140,54 +153,69 @@ def test_relations_to_instructions() -> None:
     ]
 
 
-    inputs = [
-        ('a', 'b', CR.SAME     ),
-        ('b', 'c', CR.DIFFERENT),
-        ('c', 'd', CR.DOMINATES),
-        ('d', 'e', CR.SAME     ),
-        ('e', 'f', CR.DOMINATES),
-        ('f', 'g', CR.DIFFERENT),
-        ('g', 'h', CR.SAME     ),
-    ]
-
-    assert do(*inputs) == [
-        ('a', 'keep'  ),
-        ('b', 'keep'  ),
-        ('c', 'keep'  ),
-        ('d', 'keep'  ),
-        ('e', 'keep'  ),
-        ('f', 'keep'  ),
-        ('g', 'keep'  ),
-        ('h', 'keep'  ),
-    ]
-
-    assert do(*inputs, config=Config(delete_dominated=True)) == [
-        ('a', 'keep'  ),
-        ('b', 'keep'  ),
-        ('c', 'keep'  ),
-        ('d', 'delete'),
-        ('e', 'delete'),
-        ('f', 'keep'  ),
-        ('g', 'keep'  ),
-        ('h', 'keep'  ),
-    ]
+    # TODO shit. how to test this now?
+    # maybe it's the config -- delete both pivots or not? not sure
+   #inputs = [
+   #    ('a', 'b', CR.SAME     ),
+   #    ('b', 'c', CR.DIFFERENT),
+   #    ('c', 'd', CR.DOMINATES),
+   #    ('d', 'e', CR.SAME     ),
+   #    ('e', 'f', CR.DOMINATES),
+   #    ('f', 'g', CR.DIFFERENT),
+   #    ('g', 'h', CR.SAME     ),
+   #]
+   #
+   #assert do(*inputs) == [
+   #    ('a', 'keep'  ),
+   #    ('b', 'keep'  ),
+   #    ('c', 'keep'  ),
+   #    ('d', 'keep'  ),
+   #    ('e', 'keep'  ),
+   #    ('f', 'keep'  ),
+   #    ('g', 'keep'  ),
+   #    ('h', 'keep'  ),
+   #]
+   #
+   #assert do(*inputs, config=Config(delete_dominated=True)) == [
+   #    ('a', 'keep'  ),
+   #    ('b', 'keep'  ),
+   #    ('c', 'keep'  ),
+   #    ('d', 'delete'),
+   #    ('e', 'delete'),
+   #    ('f', 'keep'  ),
+   #    ('g', 'keep'  ),
+   #    ('h', 'keep'  ),
+   #]
 
     import pytest  # type: ignore
-    with pytest.raises(RuntimeError, match='duplicate'):
+
+    with pytest.raises(RuntimeError, match='duplicate items'):
+        # x appears twice in the same group
         do(
-            ('a', 'b', CR.DIFFERENT),
-            ('b', 'a', CR.DIFFERENT),
+            ('a', 'b'),
+            ('b', 'x', 'y', 'x', 'd'),
+            ('d', 'e'),
         )
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(RuntimeError, match='multiple groups'):
+        # b is duplicate
         do(
-            ('a', 'b', CR.DIFFERENT),
-            ('c', 'd', CR.DIFFERENT),
+            ('a', 'b', 'c'),
+            ('c', 'x', 'y', 'b', 'e'),
         )
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(RuntimeError, match='pivot and non-pivot'):
+        # b is uses both a pivot and non-pivot
         do(
-            ('a', 'b', CR.DIFFERENT),
-            ('c', 'c', CR.DIFFERENT),
-            ('d', 'e', CR.DIFFERENT),
+            ('x', 'y', 'a'),
+            ('a', 'b', 'c'),
+            ('b', 'a'),
         )
+
+
+    # # TODO not sure if should raise... no pivot overlap?
+    # with pytest.raises(AssertionError):
+    #     do(
+    #         ('a', 'b'),
+    #         ('c', 'd'),
+    #     )

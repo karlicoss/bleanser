@@ -10,8 +10,8 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Any, Iterator, Sequence, Optional, Callable, ContextManager, Type
 
 
-from .common import CmpResult, Diff, Relation, logger, relations_to_instructions, Config
-from .processor import relations
+from .common import CmpResult, Diff, Relation, logger, groups_to_instructions, Config
+from .processor import compute_groups
 
 
 from plumbum import local # type: ignore
@@ -54,7 +54,7 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
     return to  # just for convenience
 
 
-def test_db_relations(tmp_path: Path) -> None:
+def test_db_groups(tmp_path: Path) -> None:
     # TODO this assumes they are already cleaned up?
     CR = CmpResult
     def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
@@ -63,7 +63,7 @@ def test_db_relations(tmp_path: Path) -> None:
 
     config = Config()
     # use single thread for test purposes
-    func = lambda paths: relations(
+    func = lambda paths: compute_groups(
         paths,
         cleanup=ident,
         grep_filter=SQLITE_GREP_FILTER, max_workers=1,
@@ -200,14 +200,14 @@ def sqlite_process(
         return n.do_cleanup(path, wdir=wdir)
 
     cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
-    rels = list(relations(
+    rels = list(compute_groups(
         paths=paths,
         cleanup=cleanup,
         grep_filter=SQLITE_GREP_FILTER,
         config=cfg,
         max_workers=max_workers,
     ))
-    instructions = relations_to_instructions(rels, config=cfg)
+    instructions = groups_to_instructions(rels, config=cfg)
     for i in instructions:
         action = {Keep: 'keep', Delete: 'delete'}[type(i)]
         print(i.path, ': ', action)
