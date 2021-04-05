@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         platform: [ubuntu-latest, macos-latest] # TODO windows-latest??
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.8, 3.9] # todo eh, maybe support 3.7 later.. mypy fails because of Protocol
 
     runs-on: ${{ matrix.platform }}
 
@@ -44,8 +44,8 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: .mypy-coverage_${{ matrix.platform }}_${{ matrix.python-version }}
-        path: .mypy-coverage/
+        name: .coverage.mypy_${{ matrix.platform }}_${{ matrix.python-version }}
+        path: .coverage.mypy/
 
 
  # later?
