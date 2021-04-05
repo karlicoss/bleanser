@@ -110,7 +110,7 @@ def groups_to_instructions(groups: Sequence[Group], *, config: Config) -> Sequen
                             raise RuntimeError('{i}: used both as pivot and non-pivot')
                 else:
                     if i in done:
-                        raise RuntimeError(f'{i}: occurs in multiple groups')
+                        raise RuntimeError(f'{i}: occurs in multiple groups: {group} AND {done[i]}')
                     assert i not in done, (i, done)
                     deli = Delete(path=i, group=group)
                     yield deli

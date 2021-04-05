@@ -133,7 +133,14 @@ def _compute_groups_serial(
             for i in idxs:
                 res |= set(i.read_text().splitlines())
             return res
-        return toset(left) <= toset(right)
+        if config.multiway:
+            return toset(left) <= toset(right)
+        else:
+            # TODO ugh. total crap
+            for s1, s2 in zip(left, left[1:]):
+                if not toset([s1]) <= toset([s2]):
+                    return False
+            return True
 
 
     def issubset(left: List[int], right: List[int]) -> bool:
@@ -157,11 +164,12 @@ def _compute_groups_serial(
 
         right = left + 1
         while True:
+            pivots = lunique([paths[lpivot], paths[rpivot]])
             if right == len(alls):
                 # end of sequence, so the whole tail is in the same group
                 g = Group(
                     items =items,
-                    pivots=lunique([paths[lpivot], paths[rpivot]]),
+                    pivots=pivots,
                 )
                 yield g
                 left = len(alls)
@@ -175,11 +183,15 @@ def _compute_groups_serial(
                 if not dominated:
                     # yield the last good result
                     g = Group(
-                        items =list(items ),
-                        pivots=list({paths[lpivot], paths[rpivot]}),
+                        items =items,
+                        pivots=pivots,
                     )
                     yield g
-                    left = rpivot
+                    # TODO eh. a bit crap, but seems that a special case is necessary
+                    if len(pivots) == 2:
+                        left = rpivot
+                    else:
+                        left = rpivot + 1
                     break
                 else:
                     # advance it
@@ -376,7 +388,7 @@ def _prepare(tmp_path: Path):
 def test_twoway(tmp_path: Path) -> None:
     paths = _prepare(tmp_path)
 
-    config = Config(delete_dominated=True)
+    config = Config(delete_dominated=True, multiway=False)
     groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, config=config, grep_filter=GREP_FILTER))
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
