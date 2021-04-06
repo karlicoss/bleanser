@@ -228,7 +228,7 @@ def _compute_groups_serial(
 
     # TODO ok -- when we're doing two way, we're basically just checking if a chain of things is
     # could do that in fileset?.... eeeeh.
-    def fset(paths: List[Path]) -> FileSet:
+    def fset(*paths: Path) -> FileSet:
         return FileSet(paths, wdir=wdir)
 
     # OMG. extremely hacky...
@@ -249,14 +249,23 @@ def _compute_groups_serial(
 
     left  = 0
     while left < total:
-        # TODO I need a thing which represents a merged set of files?
-        # and automatically recycles it
-        # e.g. so I can add a file to it
-        lfile = ires[left]; assert not isinstance(lfile, Exception)
-        # FIXME ugh. error handling again..
-        items = fset([lfile])
+        lfile = ires[left]
+
+        if isinstance(lfile, Exception):
+            yield Group(
+                items =[cleaned2orig[lfile]],
+                pivots=[cleaned2orig[lfile]],
+            )
+            left += 1
+            continue
+
+        items = fset(lfile)
+
         lpivot = left
+        lpfile = lfile
+
         rpivot = left
+        rpfile = lfile
         # invaraint
         # - items, lpivot, rpivot are all valid
         # - sets corresponding to lpivot + rpivot contain all of 'items'
@@ -266,9 +275,7 @@ def _compute_groups_serial(
 
         right = left + 1
         while True:
-            lpfile = ires[lpivot]; assert not isinstance(lpfile, Exception)
-            rpfile = ires[rpivot]; assert not isinstance(rpfile, Exception)
-            pivots = fset([lpfile, rpfile])
+            pivots = fset(lpfile, rpfile)
 
             def group() -> Group:
                 g =  Group(
@@ -289,36 +296,45 @@ def _compute_groups_serial(
                 yield group()
                 left = total
                 break
+
+            # else try to advance right while maintaining invariants
+            right_res = ires[right]
+
+            next_state: Optional[Tuple[FileSet, Path]]
+            if isinstance(right_res, Exception):
+                # short circuit... error itself will be handled when right_res is the leftmost element
+                next_state = None
             else:
-                # try to advance right while maintaining invariants
-                # FIXME do I need right - 1 here?? why?
-                # maybe delete after I fix sqlite db test
-                nitems  = items.union(ires[right - 1], ires[right])
-                npivots = fset([ires[lpivot], ires[right]])
+                nitems  = items.union(right_res)
+                npivots = fset(lpfile, right_res)
 
                 if config.multiway:
                     # in multiway mode we check if the boundaries (pivots) contain the rest
                     dominated = nitems.issubset(npivots, diff_filter=grep_filter)
                 else:
                     # in two-way mode we check if successive paths include each other
-                    dominated = fset([ires[right - 1]]).issubset(fset([ires[right]]), diff_filter=grep_filter)
+                    before_right = nitems.items[-2]
+                    dominated = fset(before_right).issubset(fset(right_res), diff_filter=grep_filter)
 
-                if not dominated:
-                    # yield the last good result
-                    yield group()
-                    # ugh. a bit crap, but seems that a special case is necessary
-                    # otherwise left won't ever get advanced?
-                    if len(pivots.items) == 2:
-                        left = rpivot
-                    else:
-                        left = rpivot + 1
-                    break
+                next_state = (nitems, right_res) if dominated else None
+
+            if next_state is None:
+                # yield the last good result
+                yield group()
+                # ugh. a bit crap, but seems that a special case is necessary
+                # otherwise left won't ever get advanced?
+                if len(pivots.items) == 2:
+                    left = rpivot
                 else:
-                    # advance it
-                    items  = nitems
-                    # lpivot is unchanged
-                    rpivot = right
-                    right += 1
+                    left = rpivot + 1
+                break
+
+            # else advance it, keeping lpivot unchanged
+            (nitems, rres) = next_state
+            items = nitems
+            rpivot = right
+            rpfile = rres
+            right += 1
 
     # meh. hacky but sort of does the trick
     cached = len(getattr(ires, '_cache'))
