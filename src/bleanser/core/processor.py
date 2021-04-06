@@ -4,12 +4,13 @@ from contextlib import contextmanager, ExitStack
 from pathlib import Path
 from pprint import pprint
 import re
+import shutil
 from subprocess import DEVNULL
-from tempfile import TemporaryDirectory, gettempdir
+from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
 from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set
 
 
-from .common import CmpResult, Diff, Relation, Group, logger, groups_to_instructions, Keep, Delete, Config
+from .common import CmpResult, Diff, Relation, Group, logger, groups_to_instructions, Keep, Delete, Config, parametrize
 from .utils import DummyExecutor
 
 
@@ -76,6 +77,116 @@ def compute_groups(
 diff = local['diff']
 grep = local['grep']
 cmp_cmd = local['cmp']
+
+
+
+# TODO shit. it has to own tmp dir...
+# we do need a temporary copy after all?
+class FileSet:
+    def __init__(self, items: Sequence[Path]=(), *, wdir: Path) -> None:
+        self.wdir = wdir
+        self.items: List[Path] = []
+        tfile = NamedTemporaryFile(dir=wdir, delete=False)
+        self.merged: Path = Path(tfile.name)
+        self.merged.write_text('') # meh
+        self._union(*items)
+
+    def _copy(self) -> 'FileSet':
+        fs = FileSet(wdir=self.wdir)
+        fs.items = list(self.items)
+        shutil.copy(str(self.merged), str(fs.merged))
+        return fs
+
+    def union(self, *paths: Path) -> 'FileSet':
+        u = self._copy()
+        u._union(*paths)
+        return u
+
+    def _union(self, *paths: Path) -> None:
+        extra = [p for p in paths if p not in self.items]
+        extra = list(more_itertools.unique_everseen(extra))
+
+        if len(extra) == 0:
+            # short circuit
+            return
+
+        cat = local['cat']
+        sort = local['sort']
+
+        # FIXME cat first.. then sort
+        merged2 = self.wdir / 'merged2'
+        (cat | sort['--unique'] > str(merged2))(self.merged, *extra)
+        import shutil
+        shutil.move(str(merged2), str(self.merged))
+        self.items.extend(extra)
+
+    def issubset(self, other: 'FileSet', *, grep_filter: str) -> bool:
+        lfile = self.merged
+        rfile = other.merged
+
+        # TODO tbh shoudl just use cmp/comm for the rest... considering it's all sorted
+        # first check if they are identical (should be super fast, stops at the first byte difference)
+        (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
+        if rc == 0:
+            return True
+
+        # if it's empty gonna strip away everything... too unsafe
+        assert grep_filter.strip() != '', grep_filter
+
+        dcmd = diff[lfile, rfile]  | grep['-vE', grep_filter]
+        dres = dcmd(retcode=(0, 1))
+        if len(dres) > 10000:
+            # fast track to fail? maybe should be configurable..
+            # TODO Meh
+            return False
+        rem = dres.splitlines()
+        # clean up diff crap like
+        # 756587a756588,762590
+        rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
+        # TODO maybe log verbose differences to a file?
+        return len(rem) == 0
+        # TODO could return diff...
+
+    def __repr__(self) -> str:
+        return repr((self.items, self.merged))
+
+
+def test_fileset(tmp_path: Path) -> None:
+    wdir = tmp_path / 'wdir'
+    wdir.mkdir()
+
+    FS = lambda *paths: FileSet(paths, wdir=wdir)
+
+    fid = 0
+    def lines(ss) -> Path:
+        nonlocal fid
+        f = tmp_path / str(fid)
+        f.write_text(''.join(s + '\n' for s in ss))
+        fid += 1
+        return f
+
+    f1 = lines([])
+    fs_ = FS(f1)
+    f2 = lines([])
+    assert FS(f1).issubset(FS(f2), grep_filter=GREP_FILTER)
+
+    fac = lines(['a', 'c'])
+    fsac = FS(fac)
+    assert     fs_ .issubset(fsac, grep_filter=GREP_FILTER)
+    assert not fsac.issubset(fs_ , grep_filter=GREP_FILTER)
+    assert     fsac.issubset(fs_ , grep_filter='.*')
+
+    fc = lines(['c'])
+    fe = lines(['e'])
+    fsce = FS(fc, fe)
+    assert not fsce.issubset(fsac, grep_filter=GREP_FILTER)
+    assert not fsac.issubset(fsce, grep_filter=GREP_FILTER)
+
+
+    fa = lines(['a'])
+    fscea = fsce.union(fa)
+    assert fsce.issubset(fscea, grep_filter=GREP_FILTER)
+
 
 
 # todo these are already normalized paths?
@@ -147,18 +258,18 @@ def _compute_groups_serial(
                 if not _isfsubset([s1], [s2]):
                     return False
             return True
-
-    def lunique(l: List[CRes]) -> List[CRes]:
-        return list(more_itertools.unique_everseen(l))
+    assert config.multiway, config  # FIXME shit.
 
 
     cleaned2orig = {}
     cleaned = []
 
+    wdir: Path
 
     def iter_results() -> Iterator[CRes]:
         with ExitStack() as stack:
-            wdir: Path
+            # oh god..
+            nonlocal wdir
             if _wdir is None:
                 wdir = Path(stack.enter_context(TemporaryDirectory()))
             else:
@@ -195,7 +306,9 @@ def _compute_groups_serial(
         # TODO I need a thing which represents a merged set of files?
         # and automatically recycles it
         # e.g. so I can add a file to it
-        items  = [ires[left]]
+        lfile = ires[left]; assert not isinstance(lfile, Exception)
+        # FIXME ugh. error handling again..
+        items = FileSet([lfile], wdir=wdir)
         lpivot = left
         rpivot = left
         # invaraint
@@ -207,18 +320,22 @@ def _compute_groups_serial(
 
         right = left + 1
         while True:
-            pivots = lunique([ires[lpivot], ires[rpivot]])
+            lpfile = ires[lpivot]; assert not isinstance(lpfile, Exception)
+            rpfile = ires[rpivot]; assert not isinstance(rpfile, Exception)
+            pivots = FileSet([lpfile, rpfile], wdir=wdir)
 
             def group() -> Group:
                 g =  Group(
-                    items =[cleaned2orig[i] for i in items],
-                    pivots=[cleaned2orig[i] for i in pivots],
+                    items =[cleaned2orig[i] for i in items.items],
+                    pivots=[cleaned2orig[i] for i in pivots.items],
                 )
+                # FIXME release pivots/items?
                 # TODO ugh. still leaves garbage behind... but at least it's something
-                for i in items:
-                    if not isinstance(i, Exception) and i not in pivots:
-                        unlink_tmp_output(i)
-                    # TODO can recycle left pivot if it's not equal to right pivot
+                # FIXME later
+                # for i in items:
+                #     if not isinstance(i, Exception) and i not in pivots:
+                #         unlink_tmp_output(i)
+                #     # TODO can recycle left pivot if it's not equal to right pivot
                 return g
 
             if right == total:
@@ -228,16 +345,17 @@ def _compute_groups_serial(
                 break
             else:
                 # try to advance right while maintaining invariants
-                # TODO here need to reuse items merged cache, pivots will be computed from scratch
-                nitems  = lunique(items + [ires[right - 1], ires[right]])
-                npivots = lunique([ires[lpivot], ires[right]])
-                dominated = isfsubset(nitems, npivots)
+                nitems  = items.union(ires[right - 1], ires[right])
+                npivots = FileSet([ires[lpivot], ires[right]], wdir=wdir)
+                assert len(npivots.items) <= 2, npivots.items
+                dominated = nitems.issubset(npivots, grep_filter=grep_filter)
 
                 if not dominated:
                     # yield the last good result
                     yield group()
                     # ugh. a bit crap, but seems that a special case is necessary
-                    if len(pivots) == 2:
+                    # otherwise left won't ever get advanced?
+                    if len(pivots.items) == 2:
                         left = rpivot
                     else:
                         left = rpivot + 1
@@ -339,7 +457,7 @@ def test_simple(multiway: bool, tmp_path: Path) -> None:
     p1.write_text('A\n')
     p2.write_text('B\n')
     p3.write_text('C\n')
-    p4.write_text('C\nD\n')
+    p4.write_text('D\n')
 
 
     for gg in [
@@ -468,8 +586,4 @@ def test_multiway(tmp_path: Path) -> None:
         Delete,  # dominated by neighbours
         Keep  ,  # always keep last
     ]
-    # for i in instructions:
-    #     print(i)
 
-
-# two way -- if we have a sequence of increasing things, then it's just a single partition?
