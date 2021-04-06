@@ -42,3 +42,11 @@ class DummyExecutor(Executor):
 from pathlib import Path
 def total_dir_size(d: Path) -> int:
     return sum(f.stat().st_size for f in d.glob('**/*') if f.is_file())
+
+
+import sys
+under_pytest = 'pytest' in sys.modules
+### ugh. pretty horrible... but
+# 'PYTEST_CURRENT_TEST' in os.environ
+# doesn't work before we're actually inside the test.. and it might be late for decorators, for instance
+###

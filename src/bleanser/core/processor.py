@@ -308,6 +308,7 @@ def test_bounded_resources(tmp_path: Path) -> None:
         check_wdir_space()
         yield tp
 
+    # FIXME test both two and threeway
     config = Config()
     func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
 
@@ -323,10 +324,11 @@ def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
     yield path
 
 
-def test_simple(tmp_path: Path) -> None:
+@parametrize('multiway', [False, True])
+def test_simple(multiway: bool, tmp_path: Path) -> None:
     config = Config(
         delete_dominated=False,
-        multiway=False,
+        multiway=multiway,
     )
 
     p1 = tmp_path / 'p1'

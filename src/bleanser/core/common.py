@@ -85,6 +85,16 @@ class Config(NamedTuple):
     multiway: bool = False
 
 
+### helper to define paramertized tests in function's body
+from .utils import under_pytest
+if under_pytest:
+    import pytest  # type: ignore
+    parametrize = pytest.mark.parametrize
+else:
+    parametrize = lambda *args,**kwargs: (lambda f: f)  # type: ignore
+###
+
+
 # TODO config is unused here?? not sure
 def groups_to_instructions(groups: Sequence[Group], *, config: Config) -> Sequence[Instruction]:
     assert len(groups) > 0  # not sure...
@@ -107,7 +117,7 @@ def groups_to_instructions(groups: Sequence[Group], *, config: Config) -> Sequen
                         done[i] = keep
                     else:
                         if not isinstance(pi, Keep):
-                            raise RuntimeError('{i}: used both as pivot and non-pivot')
+                            raise RuntimeError(f'{i}: used both as pivot and non-pivot: {group} AND {pi}')
                 else:
                     if i in done:
                         raise RuntimeError(f'{i}: occurs in multiple groups: {group} AND {done[i]}')
