@@ -120,7 +120,7 @@ class FileSet:
         shutil.move(str(merged2), str(self.merged))
         self.items.extend(extra)
 
-    def issubset(self, other: 'FileSet', *, grep_filter: str) -> bool:
+    def issubset(self, other: 'FileSet', *, diff_filter: str) -> bool:
         lfile = self.merged
         rfile = other.merged
 
@@ -131,9 +131,9 @@ class FileSet:
             return True
 
         # if it's empty gonna strip away everything... too unsafe
-        assert grep_filter.strip() != '', grep_filter
+        assert diff_filter.strip() != '', diff_filter
 
-        dcmd = diff[lfile, rfile]  | grep['-vE', grep_filter]
+        dcmd = diff[lfile, rfile]  | grep['-vE', diff_filter]
         dres = dcmd(retcode=(0, 1))
         if len(dres) > 10000:
             # fast track to fail? maybe should be configurable..
@@ -168,25 +168,24 @@ def test_fileset(tmp_path: Path) -> None:
     f1 = lines([])
     fs_ = FS(f1)
     f2 = lines([])
-    assert FS(f1).issubset(FS(f2), grep_filter=GREP_FILTER)
+    assert FS(f1).issubset(FS(f2), diff_filter=GREP_FILTER)
 
     fac = lines(['a', 'c'])
     fsac = FS(fac)
-    assert     fs_ .issubset(fsac, grep_filter=GREP_FILTER)
-    assert not fsac.issubset(fs_ , grep_filter=GREP_FILTER)
-    assert     fsac.issubset(fs_ , grep_filter='.*')
+    assert     fs_ .issubset(fsac, diff_filter=GREP_FILTER)
+    assert not fsac.issubset(fs_ , diff_filter=GREP_FILTER)
+    assert     fsac.issubset(fs_ , diff_filter='.*')
 
     fc = lines(['c'])
     fe = lines(['e'])
     fsce = FS(fc, fe)
-    assert not fsce.issubset(fsac, grep_filter=GREP_FILTER)
-    assert not fsac.issubset(fsce, grep_filter=GREP_FILTER)
+    assert not fsce.issubset(fsac, diff_filter=GREP_FILTER)
+    assert not fsac.issubset(fsce, diff_filter=GREP_FILTER)
 
 
     fa = lines(['a'])
     fscea = fsce.union(fa)
-    assert fsce.issubset(fscea, grep_filter=GREP_FILTER)
-
+    assert fsce.issubset(fscea, diff_filter=GREP_FILTER)
 
 
 # todo these are already normalized paths?
@@ -202,64 +201,6 @@ def _compute_groups_serial(
     assert len(paths) > 0
 
     CRes = Union[Exception, Cleaned]
-
-    # TODO extract & test separately?
-    def _isfsubset(lefte: Sequence[CRes], righte: Sequence[CRes]) -> bool:
-        lefts  = []
-        for i in lefte:
-            if isinstance(i, Exception):
-                return False
-            else:
-                lefts.append(i)
-        rights = []
-        for i in righte:
-            if isinstance(i, Exception):
-                return False
-            else:
-                rights.append(i)
-
-        # TODO just use in-place sort etc?
-        cat = local['cat']
-        sort = local['sort']
-        # TODO short circuit if files are subsets as sets?
-        with TemporaryDirectory() as td:
-            tdir = Path(td)
-            lfile = tdir / 'left'
-            rfile = tdir / 'right'
-            (cat | sort['--unique'] > str(lfile))(*lefts)
-            (cat | sort['--unique'] > str(rfile))(*rights)
-
-            # TODO tbh shoudl just use cmp/comm for the rest... considering it's all sorted
-            # first check if they are identical (should be super fast, stops at the first byte difference)
-            (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
-            if rc == 0:
-                return True
-
-            dcmd = diff[lfile, rfile]  | grep['-vE', grep_filter]
-            dres = dcmd(retcode=(0, 1))
-            if len(dres) > 10000:
-                # fast track to fail? maybe should be configurable..
-                # TODO Meh
-                return False
-            rem = dres.splitlines()
-            # clean up diff crap like
-            # 756587a756588,762590
-            rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
-            # TODO maybe log verbose differences to a file?
-            return len(rem) == 0
-
-
-    def isfsubset(left: Sequence[CRes], right: Sequence[CRes]) -> bool:
-        if config.multiway:
-            return _isfsubset(left, right)
-        else:
-            # TODO ugh. total crap
-            for s1, s2 in zip(left, left[1:]):
-                if not _isfsubset([s1], [s2]):
-                    return False
-            return True
-    assert config.multiway, config  # FIXME shit.
-
 
     cleaned2orig = {}
     cleaned = []
@@ -285,6 +226,11 @@ def _compute_groups_serial(
                 cleaned.append(res)
                 yield res
 
+    # TODO ok -- when we're doing two way, we're basically just checking if a chain of things is
+    # could do that in fileset?.... eeeeh.
+    def fset(paths: List[Path]) -> FileSet:
+        return FileSet(paths, wdir=wdir)
+
     # OMG. extremely hacky...
     ires = more_itertools.peekable(iter_results())
 
@@ -308,7 +254,7 @@ def _compute_groups_serial(
         # e.g. so I can add a file to it
         lfile = ires[left]; assert not isinstance(lfile, Exception)
         # FIXME ugh. error handling again..
-        items = FileSet([lfile], wdir=wdir)
+        items = fset([lfile])
         lpivot = left
         rpivot = left
         # invaraint
@@ -322,7 +268,7 @@ def _compute_groups_serial(
         while True:
             lpfile = ires[lpivot]; assert not isinstance(lpfile, Exception)
             rpfile = ires[rpivot]; assert not isinstance(rpfile, Exception)
-            pivots = FileSet([lpfile, rpfile], wdir=wdir)
+            pivots = fset([lpfile, rpfile])
 
             def group() -> Group:
                 g =  Group(
@@ -345,10 +291,17 @@ def _compute_groups_serial(
                 break
             else:
                 # try to advance right while maintaining invariants
+                # FIXME do I need right - 1 here?? why?
+                # maybe delete after I fix sqlite db test
                 nitems  = items.union(ires[right - 1], ires[right])
-                npivots = FileSet([ires[lpivot], ires[right]], wdir=wdir)
-                assert len(npivots.items) <= 2, npivots.items
-                dominated = nitems.issubset(npivots, grep_filter=grep_filter)
+                npivots = fset([ires[lpivot], ires[right]])
+
+                if config.multiway:
+                    # in multiway mode we check if the boundaries (pivots) contain the rest
+                    dominated = nitems.issubset(npivots, diff_filter=grep_filter)
+                else:
+                    # in two-way mode we check if successive paths include each other
+                    dominated = fset([ires[right - 1]]).issubset(fset([ires[right]]), diff_filter=grep_filter)
 
                 if not dominated:
                     # yield the last good result
