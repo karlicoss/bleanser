@@ -200,14 +200,14 @@ def _compute_groups_serial(
 ) -> Iterator[Group]:
     assert len(paths) > 0
 
-    CRes = Union[Exception, Cleaned]
-
     cleaned2orig = {}
     cleaned = []
 
     wdir: Path
+    wdir2: Path
 
-    def iter_results() -> Iterator[CRes]:
+    IRes = Union[Exception, Cleaned]
+    def iter_results() -> Iterator[IRes]:
         with ExitStack() as stack:
             # oh god..
             nonlocal wdir
@@ -215,8 +215,11 @@ def _compute_groups_serial(
                 wdir = Path(stack.enter_context(TemporaryDirectory()))
             else:
                 wdir = _wdir
+            nonlocal wdir2
+            # FIXME better use the same wdir...
+            wdir2 = Path(stack.enter_context(TemporaryDirectory()))
             for p in paths:
-                res: CRes
+                res: IRes
                 try:
                     res = stack.enter_context(cleanup(p, wdir=wdir))
                 except Exception as e:
@@ -226,10 +229,11 @@ def _compute_groups_serial(
                 cleaned.append(res)
                 yield res
 
+
     # TODO ok -- when we're doing two way, we're basically just checking if a chain of things is
     # could do that in fileset?.... eeeeh.
     def fset(*paths: Path) -> FileSet:
-        return FileSet(paths, wdir=wdir)
+        return FileSet(paths, wdir=wdir2)
 
     # OMG. extremely hacky...
     ires = more_itertools.peekable(iter_results())
@@ -244,8 +248,10 @@ def _compute_groups_serial(
             return
         # meh... just in case
         assert str(cleaned).startswith(gettempdir()), cleaned
-        logger.warning('unlinking: %s', cleaned)
-        cleaned.unlink()  # todo no need to unlink in debug mode
+        if cleaned.exists(): # todo maybe get rid of this warning...
+            logger.warning('unlinking: %s', cleaned)
+        # todo no need to unlink in debug mode
+        cleaned.unlink(missing_ok=True)
 
     left  = 0
     while left < total:
@@ -277,24 +283,21 @@ def _compute_groups_serial(
         while True:
             pivots = fset(lpfile, rpfile)
 
-            def group() -> Group:
+            def group(rm_last: bool) -> Group:
+                gitems = items.items
                 g =  Group(
-                    items =[cleaned2orig[i] for i in items.items],
+                    items =[cleaned2orig[i] for i in gitems],
                     pivots=[cleaned2orig[i] for i in pivots.items],
                 )
-                # FIXME release pivots/items?
-                # TODO ugh. still leaves garbage behind... but at least it's something
-                # FIXME later
-                # for i in items:
-                #     if not isinstance(i, Exception) and i not in pivots:
-                #         unlink_tmp_output(i)
-                #     # TODO can recycle left pivot if it's not equal to right pivot
+                to_unlink = gitems[: len(gitems) if rm_last else -1]
+                for i in to_unlink:
+                    unlink_tmp_output(i)
                 return g
 
             if right == total:
                 # end of sequence, so the whole tail is in the same group
-                yield group()
                 left = total
+                yield group(rm_last=True)
                 break
 
             # else try to advance right while maintaining invariants
@@ -319,14 +322,15 @@ def _compute_groups_serial(
                 next_state = (nitems, right_res) if dominated else None
 
             if next_state is None:
-                # yield the last good result
-                yield group()
                 # ugh. a bit crap, but seems that a special case is necessary
                 # otherwise left won't ever get advanced?
                 if len(pivots.items) == 2:
                     left = rpivot
+                    rm_last = False
                 else:
                     left = rpivot + 1
+                    rm_last = True
+                yield group(rm_last=rm_last)
                 break
 
             # else advance it, keeping lpivot unchanged
@@ -334,6 +338,12 @@ def _compute_groups_serial(
             items = nitems
             rpivot = right
             rpfile = rres
+            # right will not be read anymore?
+
+            # intermediate files won't be used anymore
+            for i in items.items[1: -1]:
+                unlink_tmp_output(i)
+
             right += 1
 
     # meh. hacky but sort of does the trick
@@ -343,7 +353,9 @@ def _compute_groups_serial(
 
 # note: also some tests in sqlite.py
 
-def test_bounded_resources(tmp_path: Path) -> None:
+
+@parametrize('multiway', [False, True])
+def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
     """
@@ -360,9 +372,9 @@ def test_bounded_resources(tmp_path: Path) -> None:
     # each file would be approx 1mb in size
     inputs = []
     for g in range(4): # 4 groups
-        for i in range(10): # 5 backups in each group
+        for i in range(10): # 10 backups in each group
             ip = idir / f'{g}_{i}.txt'
-            text += '\n' + str(i) + '\n'
+            text += str(i) + '\n'
             ip.write_text(text)
             inputs.append(ip)
         ip = idir / f'{g}_sep.txt'
@@ -395,15 +407,18 @@ def test_bounded_resources(tmp_path: Path) -> None:
         check_wdir_space()
         yield tp
 
-    # FIXME test both two and threeway
-    config = Config()
+    config = Config(multiway=multiway)
     func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
 
     # force it to compute
     groups = list(func(inputs))
-    # if all good, should remove all the intermediate ones? so will leave maybe 8-9 backups?
+    # if all good, should remove all the intermediate ones?
+    # so
+    # - in twoway   mode: 4 seps + 2 boundary files in each group = 12 groups
+    # - in multiway mode: seps end up as part of groups, so it's just 8 groups
     # if it goes bad, there will be error on each step
-    assert len(groups) < 10
+    expected = 8 if multiway else 12
+    assert len(groups) == expected
 
 
 @contextmanager
