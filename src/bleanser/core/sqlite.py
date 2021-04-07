@@ -173,6 +173,7 @@ def test_sqlite(tmp_path: Path) -> None:
 
 class SqliteNormaliser:
     DELETE_DOMINATED = False
+    MULTIWAY = False
 
     @staticmethod
     def checked(db: Path) -> Connection:
@@ -245,7 +246,10 @@ def sqlite_instructions(
         n = Normaliser(path)  # type: ignore  # meh
         return n.do_cleanup(path, wdir=wdir)
 
-    cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
+    cfg = Config(
+        delete_dominated=Normaliser.DELETE_DOMINATED,
+        multiway=Normaliser.MULTIWAY,
+    )
     groups: Iterable[Group] = compute_groups(
         paths=paths,
         cleanup=cleanup,
@@ -254,9 +258,9 @@ def sqlite_instructions(
         max_workers=max_workers,
     )
     instructions: Iterable[Instruction] = groups_to_instructions(groups, config=cfg)
-    yielded = 0
-    for i in instructions:
-        logger.debug('%s: %s', i.path, type(i))
-        yield i
-        yielded += 1
-    assert yielded == len(paths)  # just in case
+    total = len(paths)
+    # TODO eh. could at least dump dry mode stats here...
+    for i, ins in enumerate(instructions):
+        logger.debug(f'{i:<3}/{total:<3} %s: %s', ins.path, type(ins))
+        yield ins
+    assert i == len(paths)  # just in case
