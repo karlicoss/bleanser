@@ -260,7 +260,9 @@ def sqlite_instructions(
     instructions: Iterable[Instruction] = groups_to_instructions(groups, config=cfg)
     total = len(paths)
     # TODO eh. could at least dump dry mode stats here...
+    done = 0
     for i, ins in enumerate(instructions):
         logger.debug(f'{i:<3}/{total:<3} %s: %s', ins.path, type(ins))
         yield ins
-    assert i == len(paths)  # just in case
+        done += 1
+    assert done == len(paths)  # just in case

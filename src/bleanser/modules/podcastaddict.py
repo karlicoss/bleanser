@@ -10,6 +10,9 @@ from bleanser.core.sqlite import SqliteNormaliser
 
 class Normaliser(SqliteNormaliser):
     DELETE_DOMINATED = True
+    # TODO hmm.. unclear why is multiway quite a bit beter for it?
+    # cleaned 95/137 files vs 40/137
+    # MULTIWAY = True
 
     def __init__(self, db: Path) -> None:
         # todo not sure about this?.. also makes sense to run checked for cleanup/extract?
