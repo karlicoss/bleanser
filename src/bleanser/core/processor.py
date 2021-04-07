@@ -40,6 +40,7 @@ def compute_groups(
         _wdir: Optional[Path]=None,
 ) -> Iterator[Group]:
     assert len(paths) == len(set(paths)), paths  # just in case
+    assert len(paths) > 0 # just in case
 
     # if wdir is passed will use this dir instead of a temporary
     # messy but makes debugging a bit easier..
@@ -227,8 +228,10 @@ def _compute_groups_serial(
                 ds = total_dir_size(wdir)
                 logger.debug('total wdir(%s) size: %s', wdir, ds)
                 before = time()
+                # pass it a unique dir so they don't mess up each other
+                pwdir = Path(stack.enter_context(TemporaryDirectory()))
                 try:
-                    res = stack.enter_context(cleanup(p, wdir=wdir))
+                    res = stack.enter_context(cleanup(p, wdir=pwdir))
                 except Exception as e:
                     logger.exception(e)
                     res = e
