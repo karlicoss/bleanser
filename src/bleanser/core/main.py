@@ -2,7 +2,8 @@
 from pathlib import Path
 from typing import Optional
 
-from .sqlite import sqlite_process
+from .common import logger, apply_instructions
+from .sqlite import sqlite_instructions
 
 import click
 
@@ -20,7 +21,7 @@ def main(*, Normaliser, glob: str):
         # FIXME allow taking glob as option?
         # TODO collect all sqlite mimes?
         paths = list(sorted(path.rglob(glob)))
-        # TODO support dry later
-        sqlite_process(paths, Normaliser=Normaliser, max_workers=max_workers)
+        instructions = sqlite_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
+        apply_instructions(instructions, dry=dry)
     mf = make_main()
     mf()

@@ -46,7 +46,7 @@ def compute_groups(
     pool = DummyExecutor() if max_workers == 0 else ThreadPoolExecutor(max_workers=max_workers)
     with pool:
         workers = getattr(pool, '_max_workers')
-        morkers = min(workers, len(paths))  # no point in using too many workers
+        workers = min(workers, len(paths))  # no point in using too many workers
         logger.info('using %d workers', workers)
 
         chunks = []
@@ -56,9 +56,11 @@ def compute_groups(
             if len(pp) == 0:
                 continue
             chunks.append(pp)
+            # force iterator if we're using more than one thread
+            # otherwise it'll still be basically serial execution
+            mforce = list if workers > 1 else lambda x: x
             futures.append(pool.submit(
-                # force iterator, otherwise it'll still be basically serial
-                lambda *args, **kwargs: list(_compute_groups_serial(*args, **kwargs)),
+                lambda *args, **kwargs: mforce(_compute_groups_serial(*args, **kwargs)),
                 paths=pp,
                 cleanup=cleanup,
                 grep_filter=grep_filter,
@@ -304,7 +306,7 @@ def _compute_groups_serial(
                     items =citems,
                     pivots=cpivots,
                 )
-                logger.info('emitting group pivoted on %s, size %d', list(map(str, cpivots)), len(citems))
+                logger.debug('emitting group pivoted on %s, size %d', list(map(str, cpivots)), len(citems))
                 to_unlink = gitems[: len(gitems) if rm_last else -1]
                 for i in to_unlink:
                     unlink_tmp_output(i)
@@ -427,7 +429,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
     idx = 0
     def check_wdir_space() -> None:
         nonlocal idx
-        logger.warning('ITERATION: %s', idx)
+        # logger.warning('ITERATION: %s', idx)
         ds = total_dir_size(wdir)
 
         # 7 is a bit much... but currently it is what it is, can be tighter later

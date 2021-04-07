@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple, Dict
+from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple, Dict, Iterable
 
 from .utils import assert_never
 
@@ -96,37 +96,31 @@ else:
 
 
 # TODO config is unused here?? not sure
-def groups_to_instructions(groups: Sequence[Group], *, config: Config) -> Sequence[Instruction]:
-    assert len(groups) > 0  # not sure...
-    # NOTE: using Sequence, not Iterator to ensure more atomic behaviour/earlier sanity checks
+def groups_to_instructions(groups: Iterable[Group], *, config: Config) -> Iterator[Instruction]:
+    done: Dict[Path, Instruction] = {}
 
-    def it() -> Iterator[Instruction]:
-        done: Dict[Path, Instruction] = {}
+    for group in groups:
+        # TODO groups can overlap on their pivots.. but nothing else
 
-        for group in groups:
-            # TODO groups can overlap on their pivots.. but nothing else
-
-            # TODO add split method??
-            for i in group.items:
-                if i in group.pivots:
-                    # pivots might be already emitted py the previous groups
-                    pi = done.get(i)
-                    if pi is None:
-                        keep = Keep(path=i, group=group)
-                        yield keep
-                        done[i] = keep
-                    else:
-                        if not isinstance(pi, Keep):
-                            raise RuntimeError(f'{i}: used both as pivot and non-pivot: {group} AND {pi}')
+        # TODO add split method??
+        for i in group.items:
+            if i in group.pivots:
+                # pivots might be already emitted py the previous groups
+                pi = done.get(i)
+                if pi is None:
+                    keep = Keep(path=i, group=group)
+                    yield keep
+                    done[i] = keep
                 else:
-                    if i in done:
-                        raise RuntimeError(f'{i}: occurs in multiple groups: {group} AND {done[i]}')
-                    assert i not in done, (i, done)
-                    deli = Delete(path=i, group=group)
-                    yield deli
-                    done[i] = deli
-
-    return list(it())
+                    if not isinstance(pi, Keep):
+                        raise RuntimeError(f'{i}: used both as pivot and non-pivot: {group} AND {pi}')
+            else:
+                if i in done:
+                    raise RuntimeError(f'{i}: occurs in multiple groups: {group} AND {done[i]}')
+                assert i not in done, (i, done)
+                deli = Delete(path=i, group=group)
+                yield deli
+                done[i] = deli
 
 
 def test_groups_to_instructions() -> None:
@@ -229,3 +223,43 @@ def test_groups_to_instructions() -> None:
     #         ('a', 'b'),
     #         ('c', 'd'),
     #     )
+
+
+def apply_instructions(instructions: Iterable[Instruction], *, dry: bool=True):
+    assert dry
+    totals: str
+    if not dry:
+        # force for safety
+        instructions = list(instructions)
+        totals = f'{len(instructions):>3}'
+    else:
+        totals = '???'
+
+    tot_files = 0
+    rem_files = 0
+    tot_bytes = 0
+    rem_bytes = 0
+
+    def stat() -> str:
+        tmb = tot_bytes / 2 ** 20
+        rmb = rem_bytes / 2 ** 20
+        return f'total deleted -- {int(rmb):>4} Mb /{int(tmb):>4} Mb -- {rem_files:>3} /{tot_files:>3} files'
+
+    for idx, ins in enumerate(instructions):
+        ip = ins.path
+        sz = ip.stat().st_size
+        tot_bytes += sz
+        tot_files += 1
+        action: str
+        if   isinstance(ins, Keep):
+            action = 'keeping '
+        elif isinstance(ins, Delete):
+            action = 'DELETING'
+            rem_bytes += sz
+            rem_files += 1
+            # TODO actually rm in non-dry mode
+        else:
+            raise RuntimeError(ins)
+        logger.info(f'{idx:3d}/{totals:>3} %s: %s  ; %s', ip, action, stat())
+
+    logger.info('SUMMARY: %s', stat())

@@ -7,10 +7,10 @@ import shutil
 import sqlite3
 from sqlite3 import Connection
 from tempfile import TemporaryDirectory
-from typing import Dict, Any, Iterator, Sequence, Optional, Callable, ContextManager, Type
+from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, Type
 
 
-from .common import CmpResult, Diff, logger, groups_to_instructions, Config, Instruction, Keep, Delete
+from .common import CmpResult, Diff, logger, groups_to_instructions, Config, Instruction, Keep, Delete, Group
 from .processor import compute_groups
 
 
@@ -124,7 +124,7 @@ def test_sqlite(tmp_path: Path) -> None:
     assert g44.pivots == [db4, db6]
     ###
 
-    instrs = sqlite_process(
+    instrs = sqlite_instructions(
         dbs,
         Normaliser=NoopSqliteNormaliser,
         max_workers=0
@@ -152,7 +152,7 @@ def test_sqlite(tmp_path: Path) -> None:
     assert g56.pivots == [db7]
     ###
 
-    instrs = sqlite_process(
+    instrs = sqlite_instructions(
         dbs,
         Normaliser=NoopSqliteNormaliser,
         max_workers=0
@@ -234,29 +234,29 @@ class NoopSqliteNormaliser(SqliteNormaliser):
         pass
 
 
-def sqlite_process(
+# TODO probably this function shouldn't delete...
+def sqlite_instructions(
         paths: Sequence[Path],
         *,
         Normaliser: Type[SqliteNormaliser],
         max_workers: Optional[int],
-) -> Sequence[Instruction]:
-    from .common import Keep, Delete
-
+) -> Iterator[Instruction]:
     def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
         n = Normaliser(path)  # type: ignore  # meh
         return n.do_cleanup(path, wdir=wdir)
 
     cfg = Config(delete_dominated=Normaliser.DELETE_DOMINATED)
-    groups = list(compute_groups(
+    groups: Iterable[Group] = compute_groups(
         paths=paths,
         cleanup=cleanup,
         grep_filter=SQLITE_GREP_FILTER,
         config=cfg,
         max_workers=max_workers,
-    ))
-    # TODO in dry mode could print instructions iteratively?
-    instructions = groups_to_instructions(groups, config=cfg)
+    )
+    instructions: Iterable[Instruction] = groups_to_instructions(groups, config=cfg)
+    yielded = 0
     for i in instructions:
-        action = {Keep: 'keep', Delete: 'delete'}[type(i)]
-        print(i.path, ': ', action)
-    return instructions
+        logger.debug('%s: %s', i.path, type(i))
+        yield i
+        yielded += 1
+    assert yielded == len(paths)  # just in case
