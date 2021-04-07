@@ -10,6 +10,7 @@ from bleanser.core.sqlite import SqliteNormaliser
 
 class Normaliser(SqliteNormaliser):
     DELETE_DOMINATED = True
+    MULTIWAY = True
 
     def __init__(self, db: Path) -> None:
         # todo not sure about this?.. also makes sense to run checked for cleanup/extract?
