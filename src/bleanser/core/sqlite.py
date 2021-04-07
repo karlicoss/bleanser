@@ -255,6 +255,7 @@ def sqlite_process(
         config=cfg,
         max_workers=max_workers,
     ))
+    # TODO in dry mode could print instructions iteratively?
     instructions = groups_to_instructions(groups, config=cfg)
     for i in instructions:
         action = {Keep: 'keep', Delete: 'delete'}[type(i)]
