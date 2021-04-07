@@ -7,6 +7,8 @@ from .sqlite import sqlite_process
 import click
 
 
+# TODO use context and default_map
+# https://click.palletsprojects.com/en/7.x/commands/#overriding-defaults
 def main(*, Normaliser, glob: str):
     @click.command()
     @click.argument('path', type=Path)

@@ -195,31 +195,30 @@ class SqliteNormaliser:
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
         db = path
         db = checked_db(db)
-        with TemporaryDirectory() as tdir:
-            td = Path(tdir)
-            # FIXME should just use wdir?
-            cleaned_db = td / (db.name + '-cleaned')
-            shutil.copy(db, cleaned_db)
-            with sqlite3.connect(cleaned_db) as conn:
-                # prevent it from generating unnecessary wal files
-                conn.execute('PRAGMA journal_mode=MEMORY;')
-                self.cleanup(conn)
-            cleaned_db = checked_db(cleaned_db)
+        cleaned_db = wdir / (db.name + '-cleaned')
+        shutil.copy(db, cleaned_db)
+        with sqlite3.connect(cleaned_db) as conn:
+            # prevent it from generating unnecessary wal files
+            conn.execute('PRAGMA journal_mode=MEMORY;')
+            self.cleanup(conn)
+        cleaned_db = checked_db(cleaned_db)
 
-            ### dump to text file
-            ## prepare a fake path for dump, just to preserve original file paths at least to some extent
-            assert cleaned_db.is_absolute(), cleaned_db
-            dump_file = wdir / Path(*cleaned_db.parts[1:])  # cut off '/' and use relative path
-            dump_file = dump_file.parent / f'{dump_file.name}-dump.sql'
-            dump_file.parent.mkdir(parents=True, exist_ok=True)  # meh
-            #
-            dump_cmd = sqlite_cmd['-readonly', cleaned_db, '.dump']
-            # can't filter it otherwise :( and can't drop it in filter
-            filter_cmd = grep['-vE', '^INSERT INTO sqlite_sequence ']
-            cmd = (dump_cmd | filter_cmd) > str(dump_file)
-            cmd(retcode=(0, 1))
-            ###
-            yield dump_file
+        ### dump to text file
+        ## prepare a fake path for dump, just to preserve original file paths at least to some extent
+        assert cleaned_db.is_absolute(), cleaned_db
+        dump_file = wdir / Path(*cleaned_db.parts[1:])  # cut off '/' and use relative path
+        dump_file = dump_file.parent / f'{dump_file.name}-dump.sql'
+        dump_file.parent.mkdir(parents=True, exist_ok=True)  # meh
+        #
+        dump_cmd = sqlite_cmd['-readonly', cleaned_db, '.dump']
+        # can't filter it otherwise :( and can't drop it in filter
+        filter_cmd = grep['-vE', '^INSERT INTO sqlite_sequence ']
+        cmd = (dump_cmd | filter_cmd) > str(dump_file)
+        cmd(retcode=(0, 1))
+
+        cleaned_db.unlink()
+        ###
+        yield dump_file
 
 
     def cleanup(self, c: Connection) -> None:
