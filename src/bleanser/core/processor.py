@@ -77,6 +77,7 @@ def compute_groups(
 diff = local['diff']
 grep = local['grep']
 cmp_cmd = local['cmp']
+sort = local['sort']
 
 
 
@@ -110,14 +111,15 @@ class FileSet:
             # short circuit
             return
 
-        cat = local['cat']
-        sort = local['sort']
+        # todo so we could also sort individual dumps... then could use sort -m to just merge...
+        # not sure what's better?
+        #
+        # note:
+        # safe to reuse the same file as input & output
+        # 'This file can be the same as one of the input files.'
+        # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/sort.html
+        (sort['--unique'])(self.merged, *extra, '-o', self.merged)
 
-        # FIXME cat first.. then sort
-        merged2 = self.wdir / 'merged2'
-        (cat | sort['--unique'] > str(merged2))(self.merged, *extra)
-        import shutil
-        shutil.move(str(merged2), str(self.merged))
         self.items.extend(extra)
 
     def issubset(self, other: 'FileSet', *, diff_filter: str) -> bool:
@@ -126,6 +128,7 @@ class FileSet:
 
         # TODO tbh shoudl just use cmp/comm for the rest... considering it's all sorted
         # first check if they are identical (should be super fast, stops at the first byte difference)
+        # TODO this is more or less usefless ATM.. because files in fileset are always differnet
         (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
         if rc == 0:
             return True
@@ -149,6 +152,9 @@ class FileSet:
 
     def __repr__(self) -> str:
         return repr((self.items, self.merged))
+
+    def cleanup(self) -> None:
+        self.merged.unlink(missing_ok=True)
 
 
 def test_fileset(tmp_path: Path) -> None:
@@ -203,21 +209,16 @@ def _compute_groups_serial(
     cleaned2orig = {}
     cleaned = []
 
-    wdir: Path
-    wdir2: Path
+    # TODO eh. messy.
+    stack = ExitStack()
+    if _wdir is None:
+        wdir = Path(stack.enter_context(TemporaryDirectory()))
+    else:
+        wdir = _wdir
 
     IRes = Union[Exception, Cleaned]
     def iter_results() -> Iterator[IRes]:
-        with ExitStack() as stack:
-            # oh god..
-            nonlocal wdir
-            if _wdir is None:
-                wdir = Path(stack.enter_context(TemporaryDirectory()))
-            else:
-                wdir = _wdir
-            nonlocal wdir2
-            # FIXME better use the same wdir...
-            wdir2 = Path(stack.enter_context(TemporaryDirectory()))
+        with stack:
             for p in paths:
                 res: IRes
                 try:
@@ -230,10 +231,8 @@ def _compute_groups_serial(
                 yield res
 
 
-    # TODO ok -- when we're doing two way, we're basically just checking if a chain of things is
-    # could do that in fileset?.... eeeeh.
     def fset(*paths: Path) -> FileSet:
-        return FileSet(paths, wdir=wdir2)
+        return FileSet(paths, wdir=wdir)
 
     # OMG. extremely hacky...
     ires = more_itertools.peekable(iter_results())
@@ -254,8 +253,12 @@ def _compute_groups_serial(
         cleaned.unlink(missing_ok=True)
 
     left  = 0
+    # empty fileset is easier than optional
+    items = fset()
     while left < total:
         lfile = ires[left]
+
+        items.cleanup()
 
         if isinstance(lfile, Exception):
             yield Group(
@@ -279,8 +282,11 @@ def _compute_groups_serial(
         # - rpivot: hopefully advance as much as possible
         # - items : expand to include as much as possible
 
+        # eh. empty fileset is easier than optional
+        pivots = fset()
         right = left + 1
         while True:
+            pivots.cleanup()
             pivots = fset(lpfile, rpfile)
 
             def group(rm_last: bool) -> Group:
@@ -309,17 +315,27 @@ def _compute_groups_serial(
                 next_state = None
             else:
                 nitems  = items.union(right_res)
-                npivots = fset(lpfile, right_res)
 
                 if config.multiway:
                     # in multiway mode we check if the boundaries (pivots) contain the rest
+                    npivots = fset(lpfile, right_res)
                     dominated = nitems.issubset(npivots, diff_filter=grep_filter)
+                    npivots.cleanup()
                 else:
                     # in two-way mode we check if successive paths include each other
                     before_right = nitems.items[-2]
-                    dominated = fset(before_right).issubset(fset(right_res), diff_filter=grep_filter)
+                    # TODO ugh. crappy sets... really need to make lazier somehow...
+                    s1 = fset(before_right)
+                    s2 = fset(right_res)
+                    dominated = s1.issubset(s2, diff_filter=grep_filter)
+                    s1.cleanup()
+                    s2.cleanup()
 
-                next_state = (nitems, right_res) if dominated else None
+                if dominated:
+                    next_state = (nitems, right_res)
+                else:
+                    next_state = None
+                    nitems.cleanup()
 
             if next_state is None:
                 # ugh. a bit crap, but seems that a special case is necessary
@@ -335,6 +351,7 @@ def _compute_groups_serial(
 
             # else advance it, keeping lpivot unchanged
             (nitems, rres) = next_state
+            items.cleanup()
             items = nitems
             rpivot = right
             rpfile = rres
@@ -345,6 +362,11 @@ def _compute_groups_serial(
                 unlink_tmp_output(i)
 
             right += 1
+        pivots.cleanup()
+
+    # FIXME use ctx managers for this stuff... somehow
+    pivots.cleanup()
+    items.cleanup()
 
     # meh. hacky but sort of does the trick
     cached = len(getattr(ires, '_cache'))
@@ -354,12 +376,13 @@ def _compute_groups_serial(
 # note: also some tests in sqlite.py
 
 
-@parametrize('multiway', [False, True])
+@parametrize('multiway', [True, False])
 def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
     """
 
+    # max size of each file
     one_mb = 1_000_000
     text = 'x' * one_mb + '\n'
 
@@ -372,7 +395,7 @@ def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
     # each file would be approx 1mb in size
     inputs = []
     for g in range(4): # 4 groups
-        for i in range(10): # 10 backups in each group
+        for i in range(20): # 20 backups in each group
             ip = idir / f'{g}_{i}.txt'
             text += str(i) + '\n'
             ip.write_text(text)
@@ -388,8 +411,17 @@ def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
         from .utils import total_dir_size
         logger.warning('ITERATION: %s', idx)
         ds = total_dir_size(wdir)
-        # at no point should use more than 3 dumps... + some leeway
-        assert ds < 4 * one_mb, ds
+
+        # 7 is a bit much... but currently it is what it is, can be tighter later
+        # basically
+        # - at every point we keep both pivots (2 x 1mb)
+        # - we keep the merged bit (about 1mb in this specific test cause of overlap)
+        # - we keep one next file (1mb)
+        # - we might need to copy the merged bit at some point as well to test it as a candidate for next
+        threshold = 7 * one_mb
+        # from subprocess import check_call
+        # check_call(['ls', '-al', wdir])
+        assert ds < threshold, ds
         # TODO!
         # assert r.diff.cmp == CmpResult.DOMINATES
 
