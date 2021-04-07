@@ -5,13 +5,14 @@ from pathlib import Path
 from pprint import pprint
 import re
 import shutil
-from subprocess import DEVNULL
+from subprocess import DEVNULL, check_call
 from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
+from time import time
 from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set
 
 
 from .common import CmpResult, Diff, Relation, Group, logger, groups_to_instructions, Keep, Delete, Config, parametrize
-from .utils import DummyExecutor
+from .utils import DummyExecutor, total_dir_size
 
 
 import more_itertools
@@ -221,11 +222,16 @@ def _compute_groups_serial(
         with stack:
             for p in paths:
                 res: IRes
+                ds = total_dir_size(wdir)
+                logger.debug('total wdir(%s) size: %s', wdir, ds)
+                before = time()
                 try:
                     res = stack.enter_context(cleanup(p, wdir=wdir))
                 except Exception as e:
                     logger.exception(e)
                     res = e
+                after = time()
+                logger.debug('cleanup(%s): took %.1f seconds', p, after - before)
                 cleaned2orig[res] = p
                 cleaned.append(res)
                 yield res
@@ -248,13 +254,14 @@ def _compute_groups_serial(
         # meh... just in case
         assert str(cleaned).startswith(gettempdir()), cleaned
         if cleaned.exists(): # todo maybe get rid of this warning...
-            logger.warning('unlinking: %s', cleaned)
+            logger.debug('unlinking: %s', cleaned)
         # todo no need to unlink in debug mode
         cleaned.unlink(missing_ok=True)
 
     left  = 0
     # empty fileset is easier than optional
     items = fset()
+    pivots = fset() # in case total = 0 -- just for cleanup...
     while left < total:
         lfile = ires[left]
 
@@ -291,10 +298,13 @@ def _compute_groups_serial(
 
             def group(rm_last: bool) -> Group:
                 gitems = items.items
+                citems = [cleaned2orig[i] for i in gitems]
+                cpivots = [cleaned2orig[i] for i in pivots.items]
                 g =  Group(
-                    items =[cleaned2orig[i] for i in gitems],
-                    pivots=[cleaned2orig[i] for i in pivots.items],
+                    items =citems,
+                    pivots=cpivots,
                 )
+                logger.info('emitting group pivoted on %s, size %d', list(map(str, cpivots)), len(citems))
                 to_unlink = gitems[: len(gitems) if rm_last else -1]
                 for i in to_unlink:
                     unlink_tmp_output(i)
@@ -376,8 +386,13 @@ def _compute_groups_serial(
 # note: also some tests in sqlite.py
 
 
-@parametrize('multiway', [True, False])
-def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
+@parametrize('multiway,randomize', [
+    (False, False),
+    (True , False),
+    (True , True ),
+    (False, True ),
+])
+def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
     """
@@ -392,13 +407,17 @@ def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
     idir.mkdir()
     wdir.mkdir()
 
+    from random import Random
+    import string
+    r = Random(0)
     # each file would be approx 1mb in size
     inputs = []
     for g in range(4): # 4 groups
         for i in range(20): # 20 backups in each group
             ip = idir / f'{g}_{i}.txt'
             text += str(i) + '\n'
-            ip.write_text(text)
+            extra = r.choice(string.printable) + '\n' if randomize else ''
+            ip.write_text(text + extra)
             inputs.append(ip)
         ip = idir / f'{g}_sep.txt'
         ip.write_text('GARBAGE')
@@ -408,7 +427,6 @@ def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
     idx = 0
     def check_wdir_space() -> None:
         nonlocal idx
-        from .utils import total_dir_size
         logger.warning('ITERATION: %s', idx)
         ds = total_dir_size(wdir)
 
@@ -419,15 +437,19 @@ def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
         # - we keep one next file (1mb)
         # - we might need to copy the merged bit at some point as well to test it as a candidate for next
         threshold = 7 * one_mb
-        # from subprocess import check_call
         # check_call(['ls', '-al', wdir])
-        assert ds < threshold, ds
+
+        # raise baseexception, so it propagates all the way up and doesn't trigget defensive logic
+        if ds > threshold:
+            raise BaseException("working dir takes too much space")
+
         # TODO!
         # assert r.diff.cmp == CmpResult.DOMINATES
 
         if idx > 3:
             # in 'steady' mode should take some space? more of a sanity check..
-            assert ds > one_mb, ds
+            if ds <= one_mb:
+                raise BaseException("working dir takes too little space")
         idx += 1
 
 
@@ -449,8 +471,11 @@ def test_bounded_resources(multiway: bool, tmp_path: Path) -> None:
     # - in twoway   mode: 4 seps + 2 boundary files in each group = 12 groups
     # - in multiway mode: seps end up as part of groups, so it's just 8 groups
     # if it goes bad, there will be error on each step
-    expected = 8 if multiway else 12
-    assert len(groups) == expected
+    if randomize:
+        assert len(groups) > 40
+    else:
+        expected = 8 if multiway else 12
+        assert len(groups) == expected
 
 
 @contextmanager
