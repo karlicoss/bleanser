@@ -5,7 +5,7 @@ from sqlite3 import Connection
 
 from bleanser.core import logger
 from bleanser.core.utils import get_tables
-from bleanser.core.sqlite import SqliteNormaliser
+from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
@@ -22,30 +22,28 @@ class Normaliser(SqliteNormaliser):
         assert 'episodes' in self.tables, self.tables
 
     def cleanup(self, c: Connection) -> None:
+        tool = Tool(c)
         ## often changing
-        c.execute('UPDATE episodes SET thumbnail_id=-1')
-        c.execute('UPDATE podcasts SET update_date=-1,episodesNb=-1,thumbnail_id=-1,subscribers=-1')
+        tool.drop_cols(table='episodes', cols=['thumbnail_id'])
+        tool.drop_cols(table='podcasts', cols=['update_date', 'episodesNb', 'thumbnail_id', 'subscribers'])
         ##
 
-        def drop(name: str) -> None:
-            c.execute(f'DROP TABLE IF EXISTS {name}')
-
-        drop('ordered_list')  # just some random numbers, always changing
-        drop('sqlite_stat1')  # ???
+        tool.drop('ordered_list')  # just some random numbers, always changing
+        tool.drop('sqlite_stat1')  # ???
         ## changing often an likely not interesting
-        drop('blocking_services')
-        drop('ad_campaign')
-        drop('bitmaps')
-        drop('fts_virtual_episode_docsize')
-        drop('fts_virtual_episode_segments')
-        drop('fts_virtual_episode_segdir')
+        tool.drop('blocking_services')
+        tool.drop('ad_campaign')
+        tool.drop('bitmaps')
+        tool.drop('fts_virtual_episode_docsize')
+        tool.drop('fts_virtual_episode_segments')
+        tool.drop('fts_virtual_episode_segdir')
         ## probably unnecessary?
-        drop('chapters')
-        drop('teams')
-        drop('topics')
-        drop('radio_search_results')
-        drop('relatedPodcasts')
-        drop('content_policy_violation')  # lol
+        tool.drop('chapters')
+        tool.drop('teams')
+        tool.drop('topics')
+        tool.drop('radio_search_results')
+        tool.drop('relatedPodcasts')
+        tool.drop('content_policy_violation')  # lol
         ##
 
 
