@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 from sqlite3 import Connection
+from typing import List
 
 
 from bleanser.core import logger
@@ -23,6 +24,7 @@ class Normaliser(SqliteNormaliser):
         # moz_annos -- apparently, downloads?
 
     def cleanup(self, c: Connection) -> None:
+        # FIXME quoting
         def drop(table: str) -> None:
             c.execute(f'DROP TABLE IF EXISTS {table}')
 
@@ -30,20 +32,29 @@ class Normaliser(SqliteNormaliser):
             kws = ', '.join(f'{k}=?' for k, v in kwargs.items())
             c.execute(f'UPDATE {table} set {kws}', list(kwargs.values()))
 
-        update(
-            'moz_places',
-            # aggregates, changing all the time
-            frecency=-1,
-            last_visit_date=-1,
-            visit_count=-1,
-            # ugh... sometimes changes because of notifications, e.g. twitter/youtube?, or during page load
-            title='',
-            description='',
-            preview_image_url='',
+        def drop_cols(*, table: str, cols: List[str]) -> None:
+            update(table, **{col: '' for col in cols})
+            # TODO crap. https://stackoverflow.com/a/66399224/706389
+            # alter table is since march 2021... so won't be in sqlite for a while
+            # for col in cols:
+            #     c.execute(f'ALTER TABLE {table} DROP COLUMN {col}')
+
+        drop_cols(
+            table='moz_places',
+            cols=[
+                # aggregates, changing all the time
+                'frecency',
+                'last_visit_date',
+                'visit_count',
+                # ugh... sometimes changes because of notifications, e.g. twitter/youtube?, or during page load
+                'title',
+                'description',
+                'preview_image_url',
+            ]
         )
-        update(
-            'moz_bookmarks',
-            lastModified=-1,  # changing all the time for no reason?
+        drop_cols(
+            table='moz_bookmarks',
+            cols=['lastModified'],  # changing all the time for no reason?
         )
         drop('moz_meta')
         drop('moz_origins')  # prefix/host/frequency -- not interesting
