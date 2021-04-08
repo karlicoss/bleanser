@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 from pathlib import Path
 from sqlite3 import Connection
-from typing import List
 
 
 from bleanser.core import logger
 from bleanser.core.utils import get_tables
-from bleanser.core.sqlite import SqliteNormaliser
+from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
@@ -24,22 +23,8 @@ class Normaliser(SqliteNormaliser):
         # moz_annos -- apparently, downloads?
 
     def cleanup(self, c: Connection) -> None:
-        # FIXME quoting
-        def drop(table: str) -> None:
-            c.execute(f'DROP TABLE IF EXISTS {table}')
-
-        def update(table: str, **kwargs) -> None:
-            kws = ', '.join(f'{k}=?' for k, v in kwargs.items())
-            c.execute(f'UPDATE {table} set {kws}', list(kwargs.values()))
-
-        def drop_cols(*, table: str, cols: List[str]) -> None:
-            update(table, **{col: '' for col in cols})
-            # TODO crap. https://stackoverflow.com/a/66399224/706389
-            # alter table is since march 2021... so won't be in sqlite for a while
-            # for col in cols:
-            #     c.execute(f'ALTER TABLE {table} DROP COLUMN {col}')
-
-        drop_cols(
+        tool = Tool(c)
+        tool.drop_cols(
             table='moz_places',
             cols=[
                 # aggregates, changing all the time
@@ -52,14 +37,14 @@ class Normaliser(SqliteNormaliser):
                 'preview_image_url',
             ]
         )
-        drop_cols(
+        tool.drop_cols(
             table='moz_bookmarks',
             cols=['lastModified'],  # changing all the time for no reason?
         )
-        drop('moz_meta')
-        drop('moz_origins')  # prefix/host/frequency -- not interesting
+        tool.drop('moz_meta')
+        tool.drop('moz_origins')  # prefix/host/frequency -- not interesting
         # todo not sure...
-        drop('moz_inputhistory')
+        tool.drop('moz_inputhistory')
 
 
 if __name__ == '__main__':

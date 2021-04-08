@@ -272,3 +272,24 @@ def sqlite_instructions(
         yield ins
         done += 1
     assert done == len(paths)  # just in case
+
+
+class Tool:
+    def __init__(self, connection: Connection) -> None:
+        self.connection = connection
+
+    # FIXME quoting
+    def drop(self, table: str) -> None:
+        self.connection.execute(f'DROP TABLE IF EXISTS {table}')
+
+    def update(self, table: str, **kwargs) -> None:
+        kws = ', '.join(f'{k}=?' for k, v in kwargs.items())
+        self.connection.execute(f'UPDATE {table} set {kws}', list(kwargs.values()))
+
+    def drop_cols(self, *, table: str, cols: Sequence[str]) -> None:
+        # for the purposes of comparison this is same as dropping
+        self.update(table, **{col: '' for col in cols})
+        # TODO crap. https://stackoverflow.com/a/66399224/706389
+        # alter table is since march 2021... so won't be in sqlite for a while
+        # for col in cols:
+        #     c.execute(f'ALTER TABLE {table} DROP COLUMN {col}')

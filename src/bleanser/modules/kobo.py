@@ -4,7 +4,7 @@ from sqlite3 import Connection
 
 from bleanser.core import logger
 from bleanser.core.utils import get_tables
-from bleanser.core.sqlite import SqliteNormaliser
+from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
@@ -21,13 +21,11 @@ class Normaliser(SqliteNormaliser):
         check_table('BookAuthors')
 
     def cleanup(self, c: Connection) -> None:
-        def drop(name: str) -> None:
-            c.execute(f'DROP TABLE IF EXISTS {name}')
-
-        drop('content') # some cached book data? so not very interesting when it changes..
-        drop('content_keys')  # just some image meta
-        drop('volume_shortcovers')  # just some hashes
-        drop('volume_tabs')  # some hashes
+        tool = Tool(c)
+        tool.drop('content') # some cached book data? so not very interesting when it changes..
+        tool.drop('content_keys')  # just some image meta
+        tool.drop('volume_shortcovers')  # just some hashes
+        tool.drop('volume_tabs')  # some hashes
         # ## often changing
         # c.execute('UPDATE episodes SET thumbnail_id=-1')
         # c.execute('UPDATE podcasts SET update_date=-1,episodesNb=-1,thumbnail_id=-1,subscribers=-1')
