@@ -29,6 +29,7 @@ def main():
             'more-itertools',
             'click',
             'plumbum',
+            'python-magic', # better mimetype decetion
 
             'kython @ git+https://github.com/karlicoss/kython',  # TODO meh.
             'typing-extensions', # todo meh. needed by kython
