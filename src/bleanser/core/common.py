@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple, Dict, Iterable
+from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple, Dict, Iterable, Optional, Union
 
 from .utils import assert_never
 
+import click  # type: ignore
 from more_itertools import pairwise
 
 
@@ -225,15 +226,41 @@ def test_groups_to_instructions() -> None:
     #     )
 
 
-def apply_instructions(instructions: Iterable[Instruction], *, dry: bool=True):
-    assert dry
+@dataclass
+class BaseMode:
+    pass
+
+@dataclass
+class Dry(BaseMode):
+    pass
+
+@dataclass
+class Move(BaseMode):
+    path: Path
+
+@dataclass
+class Remove(BaseMode):
+    pass
+
+
+Mode = Union[Dry, Move, Remove]
+
+
+
+def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry()):
     totals: str
-    if not dry:
+    if not isinstance(mode, Dry):
         # force for safety
         instructions = list(instructions)
         totals = f'{len(instructions):>3}'
     else:
         totals = '???'
+
+    rm_action = {
+        Dry   : 'REMOVE (dry mode)',
+        Move  : 'MOVE             ',
+        Remove: 'REMOVE           ',
+    }[type(mode)]
 
     tot_files = 0
     rem_files = 0
@@ -243,8 +270,9 @@ def apply_instructions(instructions: Iterable[Instruction], *, dry: bool=True):
     def stat() -> str:
         tmb = tot_bytes / 2 ** 20
         rmb = rem_bytes / 2 ** 20
-        return f'total deleted -- {int(rmb):>4} Mb /{int(tmb):>4} Mb -- {rem_files:>3} /{tot_files:>3} files'
+        return f'total cleaned -- {int(rmb):>4} Mb /{int(tmb):>4} Mb -- {rem_files:>3} /{tot_files:>3} files'
 
+    to_delete = []
     for idx, ins in enumerate(instructions):
         ip = ins.path
         sz = ip.stat().st_size
@@ -252,14 +280,47 @@ def apply_instructions(instructions: Iterable[Instruction], *, dry: bool=True):
         tot_files += 1
         action: str
         if   isinstance(ins, Keep):
-            action = 'keeping '
+            action = 'will keep        '
         elif isinstance(ins, Delete):
-            action = 'DELETING'
+            action = rm_action
             rem_bytes += sz
             rem_files += 1
-            # TODO actually rm in non-dry mode
+            to_delete.append(ins.path)
         else:
             raise RuntimeError(ins)
         logger.info(f'{idx:3d}/{totals:>3} %s: %s  ; %s', ip, action, stat())
 
     logger.info('SUMMARY: %s', stat())
+
+    if isinstance(mode, Dry):
+        logger.info('dry mode! not touching anything')
+        return
+
+    if len(to_delete) == 0:
+        logger.info('no files to cleanup!')
+        return
+
+    if not click.confirm(f'Ready to {rm_action.strip().lower()} {len(to_delete)} files?', abort=True):
+        return
+
+    move_to: Optional[Path] = None
+    if   isinstance(mode, Move):
+        move_to = mode.path
+        # just in case
+        assert move_to.is_absolute(), move_to
+    elif isinstance(mode, Remove):
+        pass
+    else:
+        raise RuntimeError(mode, type(mode))
+
+    import shutil
+    for p in to_delete:
+        assert p.is_absolute(), p  # just in case
+        if move_to is not None:
+            tgt = move_to / Path(*p.parts[1:])
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            logger.info('mv %s %s', p, tgt)
+            shutil.move(str(p), str(tgt))
+        else:
+            logger.info('rm %s', p)
+            p.unlink()
