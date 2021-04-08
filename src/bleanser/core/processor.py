@@ -163,6 +163,16 @@ class FileSet:
         # clean up diff crap like
         # 756587a756588,762590
         rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
+
+        # TODO not sure what's the best way to provide some quick debug means...
+        # need grep -C or something like that...
+        if len(rem) > 0:
+            logger.debug(f'diff %s %s', lfile, rfile)
+            logger.debug('vvvvvvvvvvvvv DIFF vvvvvvvvvvvvv')
+            for line in rem:
+                logger.debug(line)
+            logger.debug('^^^^^^^^^^^^^ DIFF ^^^^^^^^^^^^^')
+
         # TODO maybe log verbose differences to a file?
         return len(rem) == 0
         # TODO could return diff...
