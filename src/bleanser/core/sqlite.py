@@ -199,12 +199,20 @@ class SqliteNormaliser:
 
         # ugh. in principle could use :memory: database here...
         # but then dumping it via iterdump() takes much more time then sqlite3 .dump command..
-        cleaned_db = wdir / (db.name + '-cleaned')
+        assert path.is_absolute(), path
+        cleaned_db = wdir / Path(*path.parts[1:]) / (db.name + '-cleaned')
+        cleaned_db.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(db, cleaned_db)
         with sqlite3.connect(cleaned_db) as conn:
             # prevent it from generating unnecessary wal files
             conn.execute('PRAGMA journal_mode=MEMORY;')
-            # this might take a bit of time, especially with UPDATE statemens
+            # we don't care about constraints in cleanup stage
+            conn.execute('PRAGMA foreign_keys = OFF;')
+            # FIXME
+            # need to drop all constraints, foreign keys and uniqueness stuff
+            # can't do this in sqlite though... only via temporary table?
+
+            # cleanup might take a bit of time, especially with UPDATE statemens
             # but probably unavoidable?
             self.cleanup(conn)
         cleaned_db = checked_db(cleaned_db)
@@ -281,6 +289,12 @@ class Tool:
     # FIXME quoting
     def drop(self, table: str) -> None:
         self.connection.execute(f'DROP TABLE IF EXISTS {table}')
+
+    def drop_view(self, view: str) -> None:
+        self.connection.execute(f'DROP VIEW IF EXISTS {view}')
+
+    def drop_index(self, index: str) -> None:
+        self.connection.execute(f'DROP INDEX IF EXISTS {index}')
 
     def update(self, table: str, **kwargs) -> None:
         kws = ', '.join(f'{k}=?' for k, v in kwargs.items())
