@@ -50,3 +50,29 @@ under_pytest = 'pytest' in sys.modules
 # 'PYTEST_CURRENT_TEST' in os.environ
 # doesn't work before we're actually inside the test.. and it might be late for decorators, for instance
 ###
+
+
+import time
+
+class Timer:
+    def __init__(self, *tags):
+        self.tags = tags
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        delta = self.end - self.start
+        print(f"{self.tags} TIME TAKEN: {delta:.1f}", file=sys.stderr)
+
+
+from functools import wraps
+
+def timing(f):
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        with Timer(f.__name__):
+            return f(*args, **kwargs)
+    return wrapped

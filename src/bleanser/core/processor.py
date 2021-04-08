@@ -115,20 +115,33 @@ class FileSet:
             # short circuit
             return
 
-        # todo so we could also sort individual dumps... then could use sort -m to just merge...
-        # not sure what's better?
-        #
+        # todo so we could also sort individual dumps... then could use sort --merged to just merge...
+        # it seems to be marginally better, like 25% maybe
+        # makes it a bit more compliacted on
+        # if I do implement it:
+        # - add '--merge' flag below
+        # - add sort --unique in sqlite.py
+        # - add sort --check after we got cleaned file
+        #   NOTE: can't make it in-place either because might modify the input file in case of 'idenity' cleaner
+
         # note:
         # safe to reuse the same file as input & output
         # 'This file can be the same as one of the input files.'
         # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/sort.html
+
+        # sort also has --parallel option... but pretty pointless, in most cases we'll be merging two files?
         (sort['--unique'])(self.merged, *extra, '-o', self.merged)
 
         self.items.extend(extra)
 
     def issubset(self, other: 'FileSet', *, diff_filter: str) -> bool:
+        # short circuit
+        # this doesn't really speed up much though? so guess better to keep the code more uniform..
+        # if set(self.items) <= set(other.items):
+        #     return True
         lfile = self.merged
         rfile = other.merged
+        # upd: hmm, this function is actually super fast... guess diff is quite a bit optimized
 
         # TODO tbh shoudl just use cmp/comm for the rest... considering it's all sorted
         # first check if they are identical (should be super fast, stops at the first byte difference)
