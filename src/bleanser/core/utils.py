@@ -76,3 +76,37 @@ def timing(f):
         with Timer(f.__name__):
             return f(*args, **kwargs)
     return wrapped
+
+
+# make it lazy, otherwise it might crash on module import (e.g. on Windows)
+# ideally would be nice to fix it properly https://github.com/ahupp/python-magic#windows
+from functools import lru_cache
+import warnings
+from typing import Callable
+@lru_cache(1)
+def _magic() -> Callable[[Path], Optional[str]]:
+    try:
+        import magic # type: ignore
+    except Exception as e:
+        # logger.exception(e)
+        defensive_msg: Optional[str] = None
+        if isinstance(e, ModuleNotFoundError) and e.name == 'magic':
+            defensive_msg = "python-magic is not detected. It's recommended for better file type detection (pip3 install --user python-magic). See https://github.com/ahupp/python-magic#installation"
+        elif isinstance(e, ImportError):
+            emsg = getattr(e, 'msg', '') # make mypy happy
+            if 'failed to find libmagic' in emsg: # probably the actual library is missing?...
+                defensive_msg = "couldn't import magic. See https://github.com/ahupp/python-magic#installation"
+        if defensive_msg is not None:
+            warnings.warn(defensive_msg)
+            return lambda path: None # stub
+        else:
+            raise e
+    else:
+        mm = magic.Magic(mime=True)
+        return lambda path: mm.from_file(str(path))
+
+
+def mime(path: Path) -> Optional[str]:
+    # next, libmagic, it might access the file, so a bit slower
+    magic = _magic()
+    return magic(path)

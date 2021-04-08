@@ -49,4 +49,4 @@ class Normaliser(SqliteNormaliser):
 
 if __name__ == '__main__':
     from bleanser.core import main
-    main(Normaliser=Normaliser, glob='*.sqlite')
+    main(Normaliser=Normaliser)
