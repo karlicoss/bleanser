@@ -408,9 +408,9 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
 
 
     idir = tmp_path / 'idir'
-    wdir = tmp_path / 'wdir'
+    gwdir = tmp_path / 'wdir'  # 'global' wdir
     idir.mkdir()
-    wdir.mkdir()
+    gwdir.mkdir()
 
     from random import Random
     import string
@@ -430,10 +430,11 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
     ##
 
     idx = 0
+    wdir_spaces = []
     def check_wdir_space() -> None:
         nonlocal idx
         # logger.warning('ITERATION: %s', idx)
-        ds = total_dir_size(wdir)
+        ds = total_dir_size(gwdir)
 
         # 7 is a bit much... but currently it is what it is, can be tighter later
         # basically
@@ -442,19 +443,13 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
         # - we keep one next file (1mb)
         # - we might need to copy the merged bit at some point as well to test it as a candidate for next
         threshold = 7 * one_mb
-        # check_call(['ls', '-al', wdir])
+        # check_call(['ls', '-al', gwdir])
 
         # raise baseexception, so it propagates all the way up and doesn't trigget defensive logic
         if ds > threshold:
             raise BaseException("working dir takes too much space")
 
-        # TODO!
-        # assert r.diff.cmp == CmpResult.DOMINATES
-
-        if idx > 3:
-            # in 'steady' mode should take some space? more of a sanity check..
-            if ds <= one_mb:
-                raise BaseException("working dir takes too little space")
+        wdir_spaces.append(ds)
         idx += 1
 
 
@@ -467,7 +462,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
         yield tp
 
     config = Config(multiway=multiway)
-    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=wdir)
+    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=gwdir)
 
     # force it to compute
     groups = list(func(inputs))
@@ -481,6 +476,11 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
     else:
         expected = 8 if multiway else 12
         assert len(groups) == expected
+
+    # check working dir spaces
+    # in 'steady' mode should take some space? more of a sanity check..
+    took_space = len([x for x in wdir_spaces if x > one_mb])
+    assert took_space > 20
 
 
 @contextmanager
