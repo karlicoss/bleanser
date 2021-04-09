@@ -7,10 +7,10 @@ import shutil
 import sqlite3
 from sqlite3 import Connection
 from tempfile import TemporaryDirectory
-from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, Type
+from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, Type, List
 
 
-from .common import CmpResult, Diff, logger, groups_to_instructions, Config, Instruction, Keep, Delete, Group, parametrize
+from .common import logger, groups_to_instructions, Config, Instruction, Keep, Delete, Group, parametrize
 from .processor import compute_groups
 
 
@@ -40,7 +40,7 @@ sqlite_cmd = local['sqlite3']
 
 
 # strip off 'creating' data in the database -- we're interested to spot whether it was deleted
-SQLITE_GREP_FILTER = '> (INSERT INTO|CREATE TABLE) '
+SQLITE_DIFF_FILTER = '> (INSERT INTO|CREATE TABLE) '
 # FIXME need a test, i.e. with removing single line
 
 
@@ -58,7 +58,6 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
 
 def test_sqlite(tmp_path: Path) -> None:
     # TODO this assumes they are already cleaned up?
-    CR = CmpResult
     def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
         n = NoopSqliteNormaliser(path)
         return n.do_cleanup(path=path, wdir=wdir)
@@ -68,7 +67,7 @@ def test_sqlite(tmp_path: Path) -> None:
     func = lambda paths: compute_groups(
         paths,
         cleanup=ident,
-        grep_filter=SQLITE_GREP_FILTER, max_workers=1,
+        diff_filter=SQLITE_DIFF_FILTER, max_workers=1,
         config=config,
     )
 
@@ -296,7 +295,7 @@ def sqlite_instructions(
     groups: Iterable[Group] = compute_groups(
         paths=paths,
         cleanup=cleanup,
-        grep_filter=SQLITE_GREP_FILTER,
+        diff_filter=SQLITE_DIFF_FILTER,
         config=cfg,
         max_workers=max_workers,
     )
@@ -309,6 +308,20 @@ def sqlite_instructions(
         yield ins
         done += 1
     assert done == len(paths)  # just in case
+
+
+def sqlite_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
+    # meh. copy pasted...
+    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
+        n = Normaliser(path)  # type: ignore  # meh
+        return n.do_cleanup(path, wdir=wdir)
+
+    from .processor import do_diff
+    with TemporaryDirectory() as td1, TemporaryDirectory() as td2:
+        with cleanup(path1, wdir=Path(td1)) as res1, cleanup(path2, wdir=Path(td2)) as res2:
+            # ok, I guess diff_filter=None makes more sense here?
+            # would mean it shows the whole thing
+            return do_diff(res1, res2, diff_filter=None)
 
 
 class Tool:
