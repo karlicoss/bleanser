@@ -506,6 +506,31 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
     assert took_space > 20
 
 
+@parametrize('multiway', [False, True])
+def test_many_files(multiway: bool, tmp_path: Path) -> None:
+    config = Config(multiway=multiway)
+    N = 2000
+
+    @contextmanager
+    def dummy(path: Path, *, wdir: Path) -> Iterator[Path]:
+        tp = wdir / (path.name + '-dump')
+        tp.write_text(path.read_text())
+        yield tp
+
+    paths = []
+    for i in range(N):
+        p = tmp_path / f'{i:05}'
+        paths.append(p)
+        p.write_text(str(i % 10 > 5) + '\n')
+
+    groups = []
+    for group in compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config):
+        groups.append(group)
+    # shouldn't crash due to open files or something, at least
+    expected = 399 if multiway else 799
+    assert len(groups) == expected
+
+
 @contextmanager
 def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
     yield path

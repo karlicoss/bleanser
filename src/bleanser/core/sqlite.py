@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, Type
 
 
-from .common import CmpResult, Diff, logger, groups_to_instructions, Config, Instruction, Keep, Delete, Group
+from .common import CmpResult, Diff, logger, groups_to_instructions, Config, Instruction, Keep, Delete, Group, parametrize
 from .processor import compute_groups
 
 
@@ -167,6 +167,32 @@ def test_sqlite(tmp_path: Path) -> None:
         Keep,   # 7,
     ]
 
+
+@parametrize('multiway', [False, True])
+def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
+    config = Config(multiway=multiway)
+    N = 2000
+
+    def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
+        n = NoopSqliteNormaliser(path)
+        return n.do_cleanup(path=path, wdir=wdir)
+
+    paths = []
+    d: Dict[str, Any] =  {}
+    for i in range(N):
+        if i % 10 == 0:
+            # flush so sometimes it emits groups
+            d = {'t': [('number',)]}
+        d['t'].append((i,))
+        p = _dict2db(d, to=tmp_path / f'{i:04}.db')
+        paths.append(p)
+
+    # shouldn't crash
+    instrs = list(sqlite_instructions(
+        paths,
+        Normaliser=NoopSqliteNormaliser,
+        max_workers=0
+    ))
 
 
 # TODO add some tests for my own dbs? e.g. stashed
