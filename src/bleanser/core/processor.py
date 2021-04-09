@@ -1,6 +1,6 @@
 # TODO later, migrate core to use it?
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, closing
 from pathlib import Path
 from pprint import pprint
 import re
@@ -91,9 +91,8 @@ class FileSet:
     def __init__(self, items: Sequence[Path]=(), *, wdir: Path) -> None:
         self.wdir = wdir
         self.items: List[Path] = []
-        tfile = NamedTemporaryFile(dir=wdir, delete=False)
-        self.merged: Path = Path(tfile.name)
-        self.merged.write_text('') # meh
+        tfile = NamedTemporaryFile(dir=self.wdir, delete=False)
+        self.merged = Path(tfile.name)
         self._union(*items)
 
     def _copy(self) -> 'FileSet':
@@ -129,8 +128,11 @@ class FileSet:
         # 'This file can be the same as one of the input files.'
         # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/sort.html
 
+        # allow it not to have merged file if set is empty
+        tomerge = ([] if len(self.items) == 0 else [self.merged]) + extra
+
         # sort also has --parallel option... but pretty pointless, in most cases we'll be merging two files?
-        (sort['--unique'])(self.merged, *extra, '-o', self.merged)
+        (sort['--unique'])(*tomerge, '-o', self.merged)
 
         self.items.extend(extra)
 
@@ -180,7 +182,13 @@ class FileSet:
     def __repr__(self) -> str:
         return repr((self.items, self.merged))
 
-    def cleanup(self) -> None:
+    def __enter__(self) -> 'FileSet':
+        return self
+
+    def __exit__(self, type, value, tb) -> None:
+        self.close()
+
+    def close(self) -> None:
         self.merged.unlink(missing_ok=True)
 
 
@@ -236,25 +244,26 @@ def _compute_groups_serial(
     cleaned2orig = {}
     cleaned = []
 
-    # TODO eh. messy.
-    stack = ExitStack()
-    if _wdir is None:
-        wdir = Path(stack.enter_context(TemporaryDirectory()))
-    else:
-        wdir = _wdir
+    wdir: Path
 
     IRes = Union[Exception, Cleaned]
     def iter_results() -> Iterator[IRes]:
-        with stack:
+        with ExitStack() as istack:
+            # ugh. what a mess
+            nonlocal wdir
+            if _wdir is None:
+                wdir = Path(istack.enter_context(TemporaryDirectory()))
+            else:
+                wdir = _wdir
             for p in paths:
                 res: IRes
                 ds = total_dir_size(wdir)
                 logger.debug('total wdir(%s) size: %s', wdir, ds)
                 before = time()
                 # pass it a unique dir so they don't mess up each other
-                pwdir = Path(stack.enter_context(TemporaryDirectory()))
+                pwdir = Path(istack.enter_context(TemporaryDirectory(dir=wdir)))
                 try:
-                    res = stack.enter_context(cleanup(p, wdir=pwdir))
+                    res = istack.enter_context(cleanup(p, wdir=pwdir))
                 except Exception as e:
                     logger.exception(e)
                     res = e
@@ -267,11 +276,6 @@ def _compute_groups_serial(
 
     def fset(*paths: Path) -> FileSet:
         return FileSet(paths, wdir=wdir)
-
-    # OMG. extremely hacky...
-    ires = more_itertools.peekable(iter_results())
-
-    total = len(paths)
 
     def unlink_tmp_output(cleaned: Path) -> None:
         # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
@@ -286,14 +290,24 @@ def _compute_groups_serial(
         # todo no need to unlink in debug mode
         cleaned.unlink(missing_ok=True)
 
+    total = len(paths)
+
+    # ok. this is a bit hacky
+    # ... but making it properly iterative would be complicated and error prone
+    # since sometimes we do need lookahead (for right + 1)
+    # so using peekable seems like a good compromise
+    ires = more_itertools.peekable(iter_results())
+    # it would be nice to also release older iterator entries (calling next())
+    # but it seems to change indexing... so a bit of a mess.
+
+    ires[0] # ugh. a bit crap, but we're nudging it to initialize wdir...
+
+
     left  = 0
     # empty fileset is easier than optional
     items = fset()
-    pivots = fset() # in case total = 0 -- just for cleanup...
     while left < total:
         lfile = ires[left]
-
-        items.cleanup()
 
         if isinstance(lfile, Exception):
             yield Group(
@@ -303,6 +317,7 @@ def _compute_groups_serial(
             left += 1
             continue
 
+        items.close()
         items = fset(lfile)
 
         lpivot = left
@@ -317,94 +332,85 @@ def _compute_groups_serial(
         # - rpivot: hopefully advance as much as possible
         # - items : expand to include as much as possible
 
-        # eh. empty fileset is easier than optional
-        pivots = fset()
         right = left + 1
         while True:
-            pivots.cleanup()
-            pivots = fset(lpfile, rpfile)
+            with ExitStack() as rstack:
+                pivots = rstack.enter_context(fset(lpfile, rpfile))
 
-            def group(rm_last: bool) -> Group:
-                gitems = items.items
-                citems = [cleaned2orig[i] for i in gitems]
-                cpivots = [cleaned2orig[i] for i in pivots.items]
-                g =  Group(
-                    items =citems,
-                    pivots=cpivots,
-                )
-                logger.debug('emitting group pivoted on %s, size %d', list(map(str, cpivots)), len(citems))
-                to_unlink = gitems[: len(gitems) if rm_last else -1]
-                for i in to_unlink:
-                    unlink_tmp_output(i)
-                return g
+                def group(rm_last: bool) -> Group:
+                    gitems = items.items
+                    citems = [cleaned2orig[i] for i in gitems]
+                    cpivots = [cleaned2orig[i] for i in pivots.items]
+                    g =  Group(
+                        items =citems,
+                        pivots=cpivots,
+                    )
+                    logger.debug('emitting group pivoted on %s, size %d', list(map(str, cpivots)), len(citems))
+                    to_unlink = gitems[: len(gitems) if rm_last else -1]
+                    for i in to_unlink:
+                        unlink_tmp_output(i)
+                    return g
 
-            if right == total:
-                # end of sequence, so the whole tail is in the same group
-                left = total
-                yield group(rm_last=True)
-                break
+                if right == total:
+                    # end of sequence, so the whole tail is in the same group
+                    left = total
+                    yield group(rm_last=True)
+                    break
 
-            # else try to advance right while maintaining invariants
-            right_res = ires[right]
+                # else try to advance right while maintaining invariants
+                right_res = ires[right]
 
-            next_state: Optional[Tuple[FileSet, Path]]
-            if isinstance(right_res, Exception):
-                # short circuit... error itself will be handled when right_res is the leftmost element
-                next_state = None
-            else:
-                nitems  = items.union(right_res)
-
-                if config.multiway:
-                    # in multiway mode we check if the boundaries (pivots) contain the rest
-                    npivots = fset(lpfile, right_res)
-                    dominated = nitems.issubset(npivots, diff_filter=grep_filter)
-                    npivots.cleanup()
-                else:
-                    # in two-way mode we check if successive paths include each other
-                    before_right = nitems.items[-2]
-                    # TODO ugh. crappy sets... really need to make lazier somehow...
-                    s1 = fset(before_right)
-                    s2 = fset(right_res)
-                    dominated = s1.issubset(s2, diff_filter=grep_filter)
-                    s1.cleanup()
-                    s2.cleanup()
-
-                if dominated:
-                    next_state = (nitems, right_res)
-                else:
+                next_state: Optional[Tuple[FileSet, Path]]
+                if isinstance(right_res, Exception):
+                    # short circuit... error itself will be handled when right_res is the leftmost element
                     next_state = None
-                    nitems.cleanup()
-
-            if next_state is None:
-                # ugh. a bit crap, but seems that a special case is necessary
-                # otherwise left won't ever get advanced?
-                if len(pivots.items) == 2:
-                    left = rpivot
-                    rm_last = False
                 else:
-                    left = rpivot + 1
-                    rm_last = True
-                yield group(rm_last=rm_last)
-                break
+                    nitems  = items.union(right_res)
 
-            # else advance it, keeping lpivot unchanged
-            (nitems, rres) = next_state
-            items.cleanup()
-            items = nitems
-            rpivot = right
-            rpfile = rres
-            # right will not be read anymore?
+                    if config.multiway:
+                        # in multiway mode we check if the boundaries (pivots) contain the rest
+                        npivots = rstack.enter_context(fset(lpfile, right_res))
+                        dominated = nitems.issubset(npivots, diff_filter=grep_filter)
+                    else:
+                        # in two-way mode we check if successive paths include each other
+                        before_right = nitems.items[-2]
+                        s1 = rstack.enter_context(fset(before_right))
+                        s2 = rstack.enter_context(fset(right_res))
+                        dominated = s1.issubset(s2, diff_filter=grep_filter)
 
-            # intermediate files won't be used anymore
-            for i in items.items[1: -1]:
-                unlink_tmp_output(i)
+                    if dominated:
+                        next_state = (nitems, right_res)
+                    else:
+                        next_state = None
+                        rstack.push(nitems)  # won't need it anymore, recycle
 
-            right += 1
-        pivots.cleanup()
+                if next_state is None:
+                    # ugh. a bit crap, but seems that a special case is necessary
+                    # otherwise left won't ever get advanced?
+                    if len(pivots.items) == 2:
+                        left = rpivot
+                        rm_last = False
+                    else:
+                        left = rpivot + 1
+                        rm_last = True
+                    yield group(rm_last=rm_last)
+                    break
 
-    # FIXME use ctx managers for this stuff... somehow
-    pivots.cleanup()
-    items.cleanup()
+                # else advance it, keeping lpivot unchanged
+                (nitems, rres) = next_state
+                rstack.push(items)  # recycle
+                items = nitems
+                rpivot = right
+                rpfile = rres
+                # right will not be read anymore?
+
+                # intermediate files won't be used anymore
+                for i in items.items[1: -1]:
+                    unlink_tmp_output(i)
+
+                right += 1
+
+    items.close()
 
     # meh. hacky but sort of does the trick
     cached = len(getattr(ires, '_cache'))
