@@ -30,6 +30,7 @@ def checked_db(db: Path) -> Path:
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
         list(conn.execute('pragma schema_version;'))
+    conn.close()
     db = checked_no_wal(db)
     return db
 
@@ -51,6 +52,7 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
             qq = ', '.join('?' for _ in schema)
             conn.execute(f'CREATE TABLE {table_name} ({s})')
             conn.executemany(f'INSERT INTO {table_name} VALUES ({qq})', rows[1:])
+    conn.close()
     return to  # just for convenience
 
 
@@ -241,6 +243,7 @@ class SqliteNormaliser:
             # cleanup might take a bit of time, especially with UPDATE statemens
             # but probably unavoidable?
             self.cleanup(conn)
+        conn.close()
         cleaned_db = checked_db(cleaned_db)
 
         ### dump to text file
