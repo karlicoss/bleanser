@@ -11,16 +11,32 @@ import click
 
 # TODO use context and default_map
 # https://click.palletsprojects.com/en/7.x/commands/#overriding-defaults
-def main(*, Normaliser):
-    @click.command()
+def main(*, Normaliser) -> None:
+    @click.group()
+    def call_main() -> None:
+        pass
+
+    # TODO view mode?
+    # might make easier to open without creating wals...
+    # sqlite3 'file:places-20190731110302.sqlite?immutable=1' '.dump' | less
+
+    @call_main.command(name='diff')
+    @click.argument('path1', type=Path)
+    @click.argument('path2', type=Path)
+    def diff(path1: Path, path2: Path) -> None:
+        from .sqlite import sqlite_diff
+        # meh..
+        for line in sqlite_diff(path1, path2, Normaliser=Normaliser):
+            print(line)
+
+
+    @call_main.command(name='clean')
     @click.argument('path', type=Path)
     @click.option('--dry', is_flag=True, default=None, show_default=True, help='Do not delete/move the input files, just print what would happen')
     @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
     @click.option('--remove', is_flag=True, default=None, show_default=True, help='Controls whether files will be actually deleted')
     @click.option('--max-workers', required=False, type=int, help='Passed down to ThreadPoolExecutore. Use 0 for serial execution')
-    def make_main(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int]) -> None:
-        assert Normaliser is not None
-
+    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -43,5 +59,4 @@ def main(*, Normaliser):
         logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
         instructions = sqlite_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
         apply_instructions(instructions, mode=mode)
-    mf = make_main()
-    mf()
+    call_main()

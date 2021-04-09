@@ -19,9 +19,6 @@ import more_itertools
 from plumbum import local # type: ignore
 
 
-GREP_FILTER = '> '
-
-
 Input = Path
 Cleaned = Path
 
@@ -35,7 +32,7 @@ def compute_groups(
         *,
         cleanup: Cleaner,
         max_workers: Optional[int]=None,
-        grep_filter: str,
+        diff_filter: str,
         config: Config,
         _wdir: Optional[Path]=None,
 ) -> Iterator[Group]:
@@ -64,7 +61,7 @@ def compute_groups(
                 lambda *args, **kwargs: mforce(_compute_groups_serial(*args, **kwargs)),
                 paths=pp,
                 cleanup=cleanup,
-                grep_filter=grep_filter,
+                diff_filter=diff_filter,
                 config=config,
                 _wdir=_wdir,
             ))
@@ -83,6 +80,33 @@ grep = local['grep']
 cmp_cmd = local['cmp']
 sort = local['sort']
 
+
+def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str]:
+    dcmd = diff[lfile, rfile]
+    if diff_filter is not None:
+        # if it's empty gonna strip away everything... too unsafe
+        assert diff_filter.strip() != '', diff_filter
+        dcmd = dcmd | grep['-vE', diff_filter]
+    diff_lines = dcmd(retcode=(0, 1))
+    # FIXME not sure about it...
+    # if len(dres) > 10000:
+    #     # fast track to fail? maybe should be configurable..
+    #     # TODO Meh
+    #     return False
+    rem = diff_lines.splitlines()
+    # clean up diff crap like
+    # 756587a756588,762590
+    rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
+
+    # TODO not sure what's the best way to provide some quick debug means...
+    # need grep -C or something like that...
+    if len(rem) > 0:
+        logger.debug(f'diff %s %s', lfile, rfile)
+        logger.debug('vvvvvvvvvvvvv DIFF vvvvvvvvvvvvv')
+        for line in rem:
+            logger.debug(line)
+        logger.debug('^^^^^^^^^^^^^ DIFF ^^^^^^^^^^^^^')
+    return rem
 
 
 # TODO shit. it has to own tmp dir...
@@ -152,31 +176,9 @@ class FileSet:
         if rc == 0:
             return True
 
-        # if it's empty gonna strip away everything... too unsafe
-        assert diff_filter.strip() != '', diff_filter
-
-        dcmd = diff[lfile, rfile]  | grep['-vE', diff_filter]
-        dres = dcmd(retcode=(0, 1))
-        if len(dres) > 10000:
-            # fast track to fail? maybe should be configurable..
-            # TODO Meh
-            return False
-        rem = dres.splitlines()
-        # clean up diff crap like
-        # 756587a756588,762590
-        rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
-
-        # TODO not sure what's the best way to provide some quick debug means...
-        # need grep -C or something like that...
-        if len(rem) > 0:
-            logger.debug(f'diff %s %s', lfile, rfile)
-            logger.debug('vvvvvvvvvvvvv DIFF vvvvvvvvvvvvv')
-            for line in rem:
-                logger.debug(line)
-            logger.debug('^^^^^^^^^^^^^ DIFF ^^^^^^^^^^^^^')
-
+        remaining = do_diff(lfile, rfile, diff_filter=diff_filter)
         # TODO maybe log verbose differences to a file?
-        return len(rem) == 0
+        return len(remaining) == 0
         # TODO could return diff...
 
     def __repr__(self) -> str:
@@ -190,6 +192,9 @@ class FileSet:
 
     def close(self) -> None:
         self.merged.unlink(missing_ok=True)
+
+
+_FILTER_ALL_ADDED = '> '
 
 
 def test_fileset(tmp_path: Path) -> None:
@@ -206,27 +211,28 @@ def test_fileset(tmp_path: Path) -> None:
         fid += 1
         return f
 
+    dfilter = _FILTER_ALL_ADDED
     f1 = lines([])
     fs_ = FS(f1)
     f2 = lines([])
-    assert FS(f1).issubset(FS(f2), diff_filter=GREP_FILTER)
+    assert FS(f1).issubset(FS(f2), diff_filter=dfilter)
 
     fac = lines(['a', 'c'])
     fsac = FS(fac)
-    assert     fs_ .issubset(fsac, diff_filter=GREP_FILTER)
-    assert not fsac.issubset(fs_ , diff_filter=GREP_FILTER)
+    assert     fs_ .issubset(fsac, diff_filter=dfilter)
+    assert not fsac.issubset(fs_ , diff_filter=dfilter)
     assert     fsac.issubset(fs_ , diff_filter='.*')
 
     fc = lines(['c'])
     fe = lines(['e'])
     fsce = FS(fc, fe)
-    assert not fsce.issubset(fsac, diff_filter=GREP_FILTER)
-    assert not fsac.issubset(fsce, diff_filter=GREP_FILTER)
+    assert not fsce.issubset(fsac, diff_filter=_FILTER_ALL_ADDED)
+    assert not fsac.issubset(fsce, diff_filter=_FILTER_ALL_ADDED)
 
 
     fa = lines(['a'])
     fscea = fsce.union(fa)
-    assert fsce.issubset(fscea, diff_filter=GREP_FILTER)
+    assert fsce.issubset(fscea, diff_filter=_FILTER_ALL_ADDED)
 
 
 # todo these are already normalized paths?
@@ -235,7 +241,7 @@ def _compute_groups_serial(
         paths: Sequence[Path],
         *,
         cleanup: Cleaner,
-        grep_filter: str,
+        diff_filter: str,
         config: Config,
         _wdir: Optional[Path],
 ) -> Iterator[Group]:
@@ -370,13 +376,13 @@ def _compute_groups_serial(
                     if config.multiway:
                         # in multiway mode we check if the boundaries (pivots) contain the rest
                         npivots = rstack.enter_context(fset(lpfile, right_res))
-                        dominated = nitems.issubset(npivots, diff_filter=grep_filter)
+                        dominated = nitems.issubset(npivots, diff_filter=diff_filter)
                     else:
                         # in two-way mode we check if successive paths include each other
                         before_right = nitems.items[-2]
                         s1 = rstack.enter_context(fset(before_right))
                         s2 = rstack.enter_context(fset(right_res))
-                        dominated = s1.issubset(s2, diff_filter=grep_filter)
+                        dominated = s1.issubset(s2, diff_filter=diff_filter)
 
                     if dominated:
                         next_state = (nitems, right_res)
@@ -491,7 +497,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
         yield tp
 
     config = Config(multiway=multiway)
-    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config, _wdir=gwdir)
+    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config, _wdir=gwdir)
 
     # force it to compute
     groups = list(func(inputs))
@@ -530,7 +536,7 @@ def test_many_files(multiway: bool, tmp_path: Path) -> None:
         p.write_text(str(i % 10 > 5) + '\n')
 
     groups = []
-    for group in compute_groups(paths, cleanup=dummy, max_workers=0, grep_filter=GREP_FILTER, config=config):
+    for group in compute_groups(paths, cleanup=dummy, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config):
         groups.append(group)
     # shouldn't crash due to open files or something, at least
     expected = 399 if multiway else 799
@@ -568,7 +574,7 @@ def test_simple(multiway: bool, tmp_path: Path) -> None:
     ]:
         groups = list(compute_groups(
             gg,
-            cleanup=_noop, max_workers=0, config=config, grep_filter=GREP_FILTER,
+            cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED,
         ))
         instructions = groups_to_instructions(groups, config=config)
         assert [type(i) for i in instructions] == [Keep for _ in gg]
@@ -602,7 +608,7 @@ def test_filter(tmp_path: Path) -> None:
     p4.write_text('x\ny\n')
 
 
-    groups = list(compute_groups(paths, cleanup=remove_all_except_a, max_workers=0, config=config, grep_filter=GREP_FILTER))
+    groups = list(compute_groups(paths, cleanup=remove_all_except_a, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED))
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,
@@ -635,7 +641,7 @@ def test_twoway(tmp_path: Path) -> None:
     paths = _prepare(tmp_path)
 
     config = Config(delete_dominated=True, multiway=False)
-    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, config=config, grep_filter=GREP_FILTER))
+    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED))
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,
@@ -669,7 +675,7 @@ def test_multiway(tmp_path: Path) -> None:
         delete_dominated=True,
         multiway=True,
     )
-    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, grep_filter=GREP_FILTER, config=config))
+    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config))
     instructions = groups_to_instructions(groups, config=config)
 
     assert [type(i) for i in instructions] == [

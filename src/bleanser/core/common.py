@@ -270,7 +270,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry())
     def stat() -> str:
         tmb = tot_bytes / 2 ** 20
         rmb = rem_bytes / 2 ** 20
-        return f'total cleaned -- {int(rmb):>4} Mb /{int(tmb):>4} Mb -- {rem_files:>3} /{tot_files:>3} files'
+        return f'cleaned so far: {int(rmb):>4} Mb /{int(tmb):>4} Mb , {rem_files:>3} /{tot_files:>3} files'
 
     to_delete = []
     for idx, ins in enumerate(instructions):
@@ -288,7 +288,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry())
             to_delete.append(ins.path)
         else:
             raise RuntimeError(ins)
-        logger.info(f'{idx:3d}/{totals:>3} %s: %s  ; %s', ip, action, stat())
+        logger.info(f'processing {idx:>4}/{totals:>4} %s : %s  ; %s', ip, action, stat())
 
     logger.info('SUMMARY: %s', stat())
 
