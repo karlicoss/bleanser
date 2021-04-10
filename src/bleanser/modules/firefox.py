@@ -25,6 +25,7 @@ class Normaliser(SqliteNormaliser):
     def cleanup(self, c: Connection) -> None:
         tool = Tool(c)
         tool.drop_index('moz_places_guid_uniqueindex')
+        tool.drop_index('guid_uniqueindex') # on mobile only
         [(visits_before,)] = c.execute('SELECT count(*) FROM moz_historyvisits')
         tool.drop_cols(
             table='moz_places',
@@ -40,13 +41,21 @@ class Normaliser(SqliteNormaliser):
                 'description',
                 'preview_image_url',
 
-                # ugh. sometimes changes for no reason...
-                # and anyway, for history the historyvisits table refers place_id (this table's actual id)
-                'guid',
-
                 'foreign_count', # jus some internal refcount thing... https://bugzilla.mozilla.org/show_bug.cgi?id=1017502
+
+                ## mobile only
+                'visit_count_local',
+                'last_visit_date_local',
+                'last_visit_date_remote',
+                'sync_status',
+                'sync_change_counter',
+                ##
             ]
         )
+        # ugh. sometimes changes for no reason...
+        # and anyway, for history the historyvisits table refers place_id (this table's actual id)
+        # also use update instead delete because phone db used to have UNIQUE constraint...
+        c.execute('UPDATE moz_places SET guid=id')
         tool.drop_cols(
             table='moz_bookmarks',
             cols=['lastModified'],  # changing all the time for no reason?
