@@ -344,6 +344,14 @@ class Tool:
 
     def drop_cols(self, *, table: str, cols: Sequence[str]) -> None:
         # for the purposes of comparison this is same as dropping
+        # for update need to filter nonexisting cols
+        #
+        cur = self.connection.execute(f'PRAGMA table_info({table})')
+        existing = [r[1] for r in cur]
+        # todo warn maybe if dropped columns?
+        cols = [c for c in cols if c in existing]
+        if len(cols) == 0:
+            return
         self.update(table, **{col: '' for col in cols})
         # TODO crap. https://stackoverflow.com/a/66399224/706389
         # alter table is since march 2021... so won't be in sqlite for a while
