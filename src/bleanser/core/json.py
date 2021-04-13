@@ -8,9 +8,31 @@ from bleanser.core.utils import Json
 from bleanser.core.sqlite import BaseNormaliser
 
 
+from plumbum import local  # type: ignore
+
+
+jq = local['jq']
+
+
+# TODO hmm maybe I just want to use https://github.com/tomnomnom/gron ?
+# although would be tricky to chop off the indices...
+
+# we replace numbers with placeholders since otherwise it's too unstable
+# TODO ... not sure if it should be the default
+JQ_PATHS = '''
+paths(scalars) as $p
+  | [ ( [ $p[] | if type == "number" then "X" else tostring end ] | join(".") )
+    , ( getpath($p) | tojson )
+    ]
+  | join(": ")
+'''
+
 class JsonNormaliser(BaseNormaliser):
     # compare as is
     DIFF_FILTER = None
+
+    MULTIWAY = True
+    # TODO delete dominated
 
     def cleanup(self, j: Json) -> None:
         # TODO not sure if should modify in place?
@@ -22,15 +44,15 @@ class JsonNormaliser(BaseNormaliser):
         assert path.is_absolute(), path
         cleaned = wdir / Path(*path.parts[1:]) / (path.name + '-cleaned')
         cleaned.parent.mkdir(parents=True, exist_ok=True)
-        import shutil
-        shutil.copy(path, cleaned)
 
         import json
-        with cleaned.open('r') as fp:
+        with path.open('r') as fp:
             j = json.load(fp)
         self.cleanup(j)
-        with cleaned.open('w') as fp:
-            json.dump(j, fp=fp, indent=2, sort_keys=True)
+        # todo sort keys? not sure...
+        js = json.dumps(j) # , indent=2, sort_keys=True)
+        cmd = jq['-r', JQ_PATHS]
+        (cmd << js >str(cleaned))()
         yield cleaned
 
 
