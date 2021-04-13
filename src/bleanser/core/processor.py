@@ -8,15 +8,35 @@ import shutil
 from subprocess import DEVNULL, check_call
 from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
 from time import time
-from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set
+from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set, ClassVar, Type, Iterable
 
 
-from .common import CmpResult, Diff, Relation, Group, logger, groups_to_instructions, Keep, Delete, Config, parametrize
+from .common import Diff, Relation, Group, logger, Config, parametrize
+from .common import Instruction, Keep, Delete
 from .utils import DummyExecutor, total_dir_size
 
 
 import more_itertools
 from plumbum import local # type: ignore
+
+
+
+class BaseNormaliser:
+    # FIXME make default = None?
+    DIFF_FILTER: ClassVar[Optional[str]]
+
+    ## user overridable configs
+    DELETE_DOMINATED: ClassVar[bool] = False
+    MULTIWAY: ClassVar[bool] = False
+    ##
+
+    # TODO ugh. annoying that path is duplicated in two places...
+    def __init__(self, path: Path) -> None:
+        pass
+
+    @contextmanager
+    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        raise NotImplementedError
 
 
 Input = Path
@@ -32,7 +52,7 @@ def compute_groups(
         *,
         cleanup: Cleaner,
         max_workers: Optional[int]=None,
-        diff_filter: str,
+        diff_filter: Optional[str],
         config: Config,
         _wdir: Optional[Path]=None,
 ) -> Iterator[Group]:
@@ -693,3 +713,260 @@ def test_multiway(tmp_path: Path) -> None:
         Keep  ,  # always keep last
     ]
 
+
+# TODO config is unused here?? not sure
+def groups_to_instructions(groups: Iterable[Group], *, config: Config) -> Iterator[Instruction]:
+    done: Dict[Path, Instruction] = {}
+
+    for group in groups:
+        # TODO groups can overlap on their pivots.. but nothing else
+
+        # TODO add split method??
+        for i in group.items:
+            if i in group.pivots:
+                # pivots might be already emitted py the previous groups
+                pi = done.get(i)
+                if pi is None:
+                    keep = Keep(path=i, group=group)
+                    yield keep
+                    done[i] = keep
+                else:
+                    if not isinstance(pi, Keep):
+                        raise RuntimeError(f'{i}: used both as pivot and non-pivot: {group} AND {pi}')
+            else:
+                if i in done:
+                    raise RuntimeError(f'{i}: occurs in multiple groups: {group} AND {done[i]}')
+                assert i not in done, (i, done)
+                deli = Delete(path=i, group=group)
+                yield deli
+                done[i] = deli
+
+
+def test_groups_to_instructions() -> None:
+    def do(*pp: Sequence[str], config=Config()):
+        ppp = [list(map(Path, s)) for s in pp]
+        # for this test we assume pivots are just at the edges
+        grit = (
+            Group(
+                items=p,
+                pivots=(p[0], p[-1]),
+            ) for p in ppp
+        )
+        res = groups_to_instructions(list(grit), config=config)
+        return [(str(p.path), {Keep: 'keep', Delete: 'delete'}[type(p)]) for p in res]
+
+    assert do(
+        ('a', 'b'),
+    ) == [
+        ('a', 'keep'),
+        ('b', 'keep'),
+    ]
+
+    assert do(
+        ('0', 'a'          ),
+        ('a', 'b', 'c', 'd'),
+    ) == [
+        ('0', 'keep'  ),
+        ('a', 'keep'  ),
+        ('b', 'delete'),
+        ('c', 'delete'),
+        ('d', 'keep'  ),
+    ]
+
+
+    # TODO shit. how to test this now?
+    # maybe it's the config -- delete both pivots or not? not sure
+   #inputs = [
+   #    ('a', 'b', CR.SAME     ),
+   #    ('b', 'c', CR.DIFFERENT),
+   #    ('c', 'd', CR.DOMINATES),
+   #    ('d', 'e', CR.SAME     ),
+   #    ('e', 'f', CR.DOMINATES),
+   #    ('f', 'g', CR.DIFFERENT),
+   #    ('g', 'h', CR.SAME     ),
+   #]
+   #
+   #assert do(*inputs) == [
+   #    ('a', 'keep'  ),
+   #    ('b', 'keep'  ),
+   #    ('c', 'keep'  ),
+   #    ('d', 'keep'  ),
+   #    ('e', 'keep'  ),
+   #    ('f', 'keep'  ),
+   #    ('g', 'keep'  ),
+   #    ('h', 'keep'  ),
+   #]
+   #
+   #assert do(*inputs, config=Config(delete_dominated=True)) == [
+   #    ('a', 'keep'  ),
+   #    ('b', 'keep'  ),
+   #    ('c', 'keep'  ),
+   #    ('d', 'delete'),
+   #    ('e', 'delete'),
+   #    ('f', 'keep'  ),
+   #    ('g', 'keep'  ),
+   #    ('h', 'keep'  ),
+   #]
+
+    import pytest  # type: ignore
+
+    with pytest.raises(RuntimeError, match='duplicate items'):
+        # x appears twice in the same group
+        do(
+            ('a', 'b'),
+            ('b', 'x', 'y', 'x', 'd'),
+            ('d', 'e'),
+        )
+
+    with pytest.raises(RuntimeError, match='multiple groups'):
+        # b is duplicate
+        do(
+            ('a', 'b', 'c'),
+            ('c', 'x', 'y', 'b', 'e'),
+        )
+
+    with pytest.raises(RuntimeError, match='pivot and non-pivot'):
+        # b is uses both a pivot and non-pivot
+        do(
+            ('x', 'y', 'a'),
+            ('a', 'b', 'c'),
+            ('b', 'a'),
+        )
+
+
+    # # TODO not sure if should raise... no pivot overlap?
+    # with pytest.raises(AssertionError):
+    #     do(
+    #         ('a', 'b'),
+    #         ('c', 'd'),
+    #     )
+
+
+def compute_instructions(
+        paths: Sequence[Path],
+        *,
+        Normaliser: Type[BaseNormaliser],
+        max_workers: Optional[int],
+) -> Iterator[Instruction]:
+    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
+        n = Normaliser(path)
+        return n.do_cleanup(path, wdir=wdir)
+
+    cfg = Config(
+        delete_dominated=Normaliser.DELETE_DOMINATED,
+        multiway=Normaliser.MULTIWAY,
+    )
+    groups: Iterable[Group] = compute_groups(
+        paths=paths,
+        cleanup=cleanup,
+        diff_filter=Normaliser.DIFF_FILTER,
+        config=cfg,
+        max_workers=max_workers,
+    )
+    instructions: Iterable[Instruction] = groups_to_instructions(groups, config=cfg)
+    total = len(paths)
+    # TODO eh. could at least dump dry mode stats here...
+    done = 0
+    for i, ins in enumerate(instructions):
+        logger.debug(f'{i:<3}/{total:<3} %s: %s', ins.path, type(ins))
+        yield ins
+        done += 1
+    assert done == len(paths)  # just in case
+
+
+# FIXME add a test
+
+from .common import Mode, Dry, Move, Remove
+def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry()) -> None:
+    import click  # type: ignore
+
+    totals: str
+    if not isinstance(mode, Dry):
+        # force for safety
+        instructions = list(instructions)
+        totals = f'{len(instructions):>3}'
+    else:
+        totals = '???'
+
+    rm_action = {
+        Dry   : 'REMOVE (dry mode)',
+        Move  : 'MOVE             ',
+        Remove: 'REMOVE           ',
+    }[type(mode)]
+
+    tot_files = 0
+    rem_files = 0
+    tot_bytes = 0
+    rem_bytes = 0
+
+    def stat() -> str:
+        tmb = tot_bytes / 2 ** 20
+        rmb = rem_bytes / 2 ** 20
+        return f'cleaned so far: {int(rmb):>4} Mb /{int(tmb):>4} Mb , {rem_files:>3} /{tot_files:>3} files'
+
+    to_delete = []
+    for idx, ins in enumerate(instructions):
+        ip = ins.path
+        sz = ip.stat().st_size
+        tot_bytes += sz
+        tot_files += 1
+        action: str
+        if   isinstance(ins, Keep):
+            action = 'will keep        '
+        elif isinstance(ins, Delete):
+            action = rm_action
+            rem_bytes += sz
+            rem_files += 1
+            to_delete.append(ins.path)
+        else:
+            raise RuntimeError(ins)
+        logger.info(f'processing {idx:>4}/{totals:>4} %s : %s  ; %s', ip, action, stat())
+
+    logger.info('SUMMARY: %s', stat())
+
+    if isinstance(mode, Dry):
+        logger.info('dry mode! not touching anything')
+        return
+
+    if len(to_delete) == 0:
+        logger.info('no files to cleanup!')
+        return
+
+    if not click.confirm(f'Ready to {rm_action.strip().lower()} {len(to_delete)} files?', abort=True):
+        return
+
+    move_to: Optional[Path] = None
+    if   isinstance(mode, Move):
+        move_to = mode.path
+        # just in case
+        assert move_to.is_absolute(), move_to
+    elif isinstance(mode, Remove):
+        pass
+    else:
+        raise RuntimeError(mode, type(mode))
+
+    import shutil
+    for p in to_delete:
+        assert p.is_absolute(), p  # just in case
+        if move_to is not None:
+            tgt = move_to / Path(*p.parts[1:])
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            logger.info('mv %s %s', p, tgt)
+            shutil.move(str(p), str(tgt))
+        else:
+            logger.info('rm %s', p)
+            p.unlink()
+
+
+def compute_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
+    # meh. copy pasted...
+    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
+        n = Normaliser(path)  # type: ignore  # meh
+        return n.do_cleanup(path, wdir=wdir)
+
+    from .processor import do_diff
+    with TemporaryDirectory() as td1, TemporaryDirectory() as td2:
+        with cleanup(path1, wdir=Path(td1)) as res1, cleanup(path2, wdir=Path(td2)) as res2:
+            # ok, I guess diff_filter=None makes more sense here?
+            # would mean it shows the whole thing
+            return do_diff(res1, res2, diff_filter=None)

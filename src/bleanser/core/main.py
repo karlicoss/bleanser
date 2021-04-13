@@ -2,8 +2,8 @@
 from pathlib import Path
 from typing import Optional, List
 
-from .common import logger, apply_instructions, Dry, Move, Remove, Mode
-from .sqlite import sqlite_instructions
+from .common import logger, Dry, Move, Remove, Mode
+from .processor import compute_instructions, apply_instructions
 from .utils import mime
 
 import click
@@ -24,9 +24,9 @@ def main(*, Normaliser) -> None:
     @click.argument('path1', type=Path)
     @click.argument('path2', type=Path)
     def diff(path1: Path, path2: Path) -> None:
-        from .sqlite import sqlite_diff
+        from .processor import compute_diff
         # meh..
-        for line in sqlite_diff(path1, path2, Normaliser=Normaliser):
+        for line in compute_diff(path1, path2, Normaliser=Normaliser):
             print(line)
 
 
@@ -49,6 +49,7 @@ def main(*, Normaliser) -> None:
         assert len(modes) == 1, f'please specify exactly one of modes (got {modes})'
         [mode] = modes
 
+        # TODO should also move to Noramliser?
         # todo not sure if this is the best way?
         SQLITE_MIME = 'application/x-sqlite3'
         paths = [
@@ -57,6 +58,6 @@ def main(*, Normaliser) -> None:
             if p.is_file() and mime(p) == SQLITE_MIME
         ]
         logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
-        instructions = sqlite_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
+        instructions = compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
         apply_instructions(instructions, mode=mode)
     call_main()

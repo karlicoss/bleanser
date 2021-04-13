@@ -3,15 +3,14 @@ Helpers for processing sqlite databases
 """
 from contextlib import contextmanager
 from pathlib import Path
-import shutil
 import sqlite3
 from sqlite3 import Connection
-from tempfile import TemporaryDirectory
-from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, Type, List
+from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, List
 
 
-from .common import logger, groups_to_instructions, Config, Instruction, Keep, Delete, Group, parametrize
-from .processor import compute_groups
+from .common import logger, parametrize, Config
+from .common import Keep, Delete, Group
+from .processor import compute_groups, compute_instructions, BaseNormaliser
 
 
 from plumbum import local # type: ignore
@@ -39,11 +38,6 @@ grep = local['grep']
 sqlite_cmd = local['sqlite3']
 
 
-# strip off 'creating' data in the database -- we're interested to spot whether it was deleted
-SQLITE_DIFF_FILTER = '> (INSERT INTO|CREATE TABLE) '
-# FIXME need a test, i.e. with removing single line
-
-
 def _dict2db(d: Dict, *, to: Path) -> Path:
     with sqlite3.connect(to) as conn:
         for table_name, rows in d.items():
@@ -67,7 +61,7 @@ def test_sqlite(tmp_path: Path) -> None:
     func = lambda paths: compute_groups(
         paths,
         cleanup=ident,
-        diff_filter=SQLITE_DIFF_FILTER, max_workers=1,
+        diff_filter=NoopSqliteNormaliser.DIFF_FILTER, max_workers=1,
         config=config,
     )
 
@@ -125,7 +119,7 @@ def test_sqlite(tmp_path: Path) -> None:
     assert g44.pivots == [db4, db6]
     ###
 
-    instrs = sqlite_instructions(
+    instrs = compute_instructions(
         dbs,
         Normaliser=NoopSqliteNormaliser,
         max_workers=0
@@ -153,7 +147,7 @@ def test_sqlite(tmp_path: Path) -> None:
     assert g56.pivots == [db7]
     ###
 
-    instrs = sqlite_instructions(
+    instrs = compute_instructions(
         dbs,
         Normaliser=NoopSqliteNormaliser,
         max_workers=0
@@ -189,7 +183,7 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
         paths.append(p)
 
     # shouldn't crash
-    instrs = list(sqlite_instructions(
+    instrs = list(compute_instructions(
         paths,
         Normaliser=NoopSqliteNormaliser,
         max_workers=0
@@ -198,9 +192,11 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
 
 # TODO add some tests for my own dbs? e.g. stashed
 
-class SqliteNormaliser:
-    DELETE_DOMINATED = False
-    MULTIWAY = False
+class SqliteNormaliser(BaseNormaliser):
+    # FIXME not sure if should be overridable
+    # strip off 'creating' data in the database -- we're interested to spot whether it was deleted
+    DIFF_FILTER = '> (INSERT INTO|CREATE TABLE) '
+    # FIXME need a test, i.e. with removing single line
 
     @staticmethod
     def checked(db: Path) -> Connection:
@@ -229,6 +225,7 @@ class SqliteNormaliser:
         assert path.is_absolute(), path
         cleaned_db = wdir / Path(*path.parts[1:]) / (db.name + '-cleaned')
         cleaned_db.parent.mkdir(parents=True, exist_ok=True)
+        import shutil
         shutil.copy(db, cleaned_db)
         with sqlite3.connect(cleaned_db) as conn:
             # prevent it from generating unnecessary wal files
@@ -275,53 +272,6 @@ class NoopSqliteNormaliser(SqliteNormaliser):
 
     def cleanup(self, c: Connection) -> None:
         pass
-
-
-# TODO probably this function shouldn't delete...
-def sqlite_instructions(
-        paths: Sequence[Path],
-        *,
-        Normaliser: Type[SqliteNormaliser],
-        max_workers: Optional[int],
-) -> Iterator[Instruction]:
-    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = Normaliser(path)  # type: ignore  # meh
-        return n.do_cleanup(path, wdir=wdir)
-
-    cfg = Config(
-        delete_dominated=Normaliser.DELETE_DOMINATED,
-        multiway=Normaliser.MULTIWAY,
-    )
-    groups: Iterable[Group] = compute_groups(
-        paths=paths,
-        cleanup=cleanup,
-        diff_filter=SQLITE_DIFF_FILTER,
-        config=cfg,
-        max_workers=max_workers,
-    )
-    instructions: Iterable[Instruction] = groups_to_instructions(groups, config=cfg)
-    total = len(paths)
-    # TODO eh. could at least dump dry mode stats here...
-    done = 0
-    for i, ins in enumerate(instructions):
-        logger.debug(f'{i:<3}/{total:<3} %s: %s', ins.path, type(ins))
-        yield ins
-        done += 1
-    assert done == len(paths)  # just in case
-
-
-def sqlite_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
-    # meh. copy pasted...
-    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = Normaliser(path)  # type: ignore  # meh
-        return n.do_cleanup(path, wdir=wdir)
-
-    from .processor import do_diff
-    with TemporaryDirectory() as td1, TemporaryDirectory() as td2:
-        with cleanup(path1, wdir=Path(td1)) as res1, cleanup(path2, wdir=Path(td2)) as res2:
-            # ok, I guess diff_filter=None makes more sense here?
-            # would mean it shows the whole thing
-            return do_diff(res1, res2, diff_filter=None)
 
 
 class Tool:
