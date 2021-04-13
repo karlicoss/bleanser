@@ -110,3 +110,7 @@ def mime(path: Path) -> Optional[str]:
     # next, libmagic, it might access the file, so a bit slower
     magic = _magic()
     return magic(path)
+
+
+from typing import Dict, Any
+Json = Dict[str, Any]

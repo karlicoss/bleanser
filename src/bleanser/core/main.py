@@ -62,6 +62,11 @@ def main(*, Normaliser) -> None:
             for p in list(sorted(path.rglob('*')))  # assumes sort order is same as date order? guess it's reasonable
             if p.is_file() and mime(p) == SQLITE_MIME
         ]
+        if len(paths) == 0:
+            # ok, try json...
+            paths = list(sorted(path.rglob('*.json')))
+        assert len(paths) > 0
+
         logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
         instructions = compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
         apply_instructions(instructions, mode=mode)
