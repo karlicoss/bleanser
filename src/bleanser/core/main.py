@@ -21,11 +21,16 @@ def main(*, Normaliser) -> None:
     # sqlite3 'file:places-20190731110302.sqlite?immutable=1' '.dump' | less
 
     @call_main.command(name='diff')
+    @click.option('--vim', is_flag=True, default=False, show_default=True, help='Use vimdiff')
     @click.argument('path1', type=Path)
     @click.argument('path2', type=Path)
-    def diff(path1: Path, path2: Path) -> None:
+    def diff(path1: Path, path2: Path, *, vim: bool) -> None:
         from .processor import compute_diff
         # meh..
+        if vim:
+            import os
+            os.environ['USE_VIMDIFF'] = 'yes'
+
         for line in compute_diff(path1, path2, Normaliser=Normaliser):
             print(line)
 

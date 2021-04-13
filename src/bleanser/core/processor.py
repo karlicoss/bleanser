@@ -1,6 +1,7 @@
 # TODO later, migrate core to use it?
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, ExitStack, closing
+import os
 from pathlib import Path
 from pprint import pprint
 import re
@@ -969,4 +970,7 @@ def compute_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
         with cleanup(path1, wdir=Path(td1)) as res1, cleanup(path2, wdir=Path(td2)) as res2:
             # ok, I guess diff_filter=None makes more sense here?
             # would mean it shows the whole thing
+            # meh
+            if os.environ.get('USE_VIMDIFF', None) == 'yes':
+                os.execlp('vimdiff', 'vimdiff', str(res1), str(res2))
             return do_diff(res1, res2, diff_filter=None)
