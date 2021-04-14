@@ -75,3 +75,6 @@ def delkey(j: Json, *, key: str) -> None:
 if __name__ == '__main__':
     from bleanser.core import main
     main(Normaliser=JsonNormaliser)
+
+# just for convenience
+from .utils import Json

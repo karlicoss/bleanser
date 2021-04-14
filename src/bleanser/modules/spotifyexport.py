@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-from bleanser.core.utils import Json
-from bleanser.core.json import JsonNormaliser, delkey
+from bleanser.core.json import JsonNormaliser, delkey, Json
 
 
-class SpotifyNormaliser(JsonNormaliser):
+class Normaliser(JsonNormaliser):
     # TODO hmm. do_cleanup should run in a parallel process.. otherwise it's basically not parallelizing here?
     def cleanup(self, j: Json) -> None:
         ## these change for no reason, and probably no one cares about them
@@ -20,5 +19,4 @@ class SpotifyNormaliser(JsonNormaliser):
 
 
 if __name__ == '__main__':
-    from bleanser.core import main
-    main(Normaliser=SpotifyNormaliser)
+    Normaliser.main()
