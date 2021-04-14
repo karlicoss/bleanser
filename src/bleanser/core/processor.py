@@ -288,9 +288,11 @@ def _compute_groups_serial(
             else:
                 wdir = _wdir
             for p in paths:
+                logger.info('processing %s', p)
+
                 res: IRes
                 ds = total_dir_size(wdir)
-                logger.debug('total wdir(%s) size: %s', wdir, ds)
+                # logger.debug('total wdir(%s) size: %s', wdir, ds)
                 before = time()
                 # pass it a unique dir so they don't mess up each other
                 pwdir = Path(istack.enter_context(TemporaryDirectory(dir=wdir)))
@@ -317,9 +319,7 @@ def _compute_groups_serial(
             return
         # meh... just in case
         assert str(cleaned).startswith(gettempdir()), cleaned
-        if cleaned.exists(): # todo maybe get rid of this warning...
-            logger.debug('unlinking: %s', cleaned)
-        # todo no need to unlink in debug mode
+        # todo no need to unlink in debug mode?
         cleaned.unlink(missing_ok=True)
 
     total = len(paths)
