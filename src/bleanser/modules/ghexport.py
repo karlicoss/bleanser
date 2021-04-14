@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-from bleanser.core.utils import Json
-from bleanser.core.json import JsonNormaliser, delkey
+from bleanser.core.json import JsonNormaliser, delkey, Json
 
 
-class GhexportNormaliser(JsonNormaliser):
+class Normaliser(JsonNormaliser):
     def cleanup(self, j: Json) -> None:
         # TODO hmm... need a way to cleanup after it's been dumped to json with paths... ugh
         # TODO ugh... for these various stats are always flaky (like number of starts) and I don't necessarily wanna track them...
@@ -13,5 +12,4 @@ class GhexportNormaliser(JsonNormaliser):
 
 
 if __name__ == '__main__':
-    from bleanser.core import main
-    main(Normaliser=GhexportNormaliser)
+    Normaliser.main()

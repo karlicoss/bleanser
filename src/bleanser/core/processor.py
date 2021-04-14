@@ -39,6 +39,11 @@ class BaseNormaliser:
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
         raise NotImplementedError
 
+    @classmethod
+    def main(cls) -> None:
+        from .main import main as run_main
+        run_main(Normaliser=cls)
+
 
 Input = Path
 Cleaned = Path

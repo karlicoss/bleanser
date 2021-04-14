@@ -112,5 +112,5 @@ def mime(path: Path) -> Optional[str]:
     return magic(path)
 
 
-from typing import Dict, Any
-Json = Dict[str, Any]
+from typing import Any
+Json = Any
