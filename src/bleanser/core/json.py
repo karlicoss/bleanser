@@ -145,6 +145,7 @@ class JsonNormaliser(BaseNormaliser):
             j = json.load(fp)
         self.cleanup(j)
         # todo sort keys? not sure...
+        # TODO huh. jq version is almost order of magnitude slower???
         # js = json.dumps(j) # , indent=2, sort_keys=True)
         # cmd = jq['-r', JQ_PATHS]
         # jq_lines = (cmd << js )().splitlines()
