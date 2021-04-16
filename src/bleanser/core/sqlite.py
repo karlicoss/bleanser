@@ -222,7 +222,7 @@ class SqliteNormaliser(BaseNormaliser):
 
         # ugh. in principle could use :memory: database here...
         # but then dumping it via iterdump() takes much more time then sqlite3 .dump command..
-        assert path.is_absolute(), path
+        path = path.absolute()
         cleaned_db = wdir / Path(*path.parts[1:]) / (db.name + '-cleaned')
         cleaned_db.parent.mkdir(parents=True, exist_ok=True)
         import shutil

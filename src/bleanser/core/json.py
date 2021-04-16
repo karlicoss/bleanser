@@ -28,8 +28,8 @@ paths(scalars) as $p
 '''
 
 class JsonNormaliser(BaseNormaliser):
-    # compare as is
-    DIFF_FILTER = None
+    # filter out additions; keep the rest
+    DIFF_FILTER = '> '
 
     MULTIWAY = True
     # TODO delete dominated
@@ -41,7 +41,7 @@ class JsonNormaliser(BaseNormaliser):
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
         # todo copy paste from SqliteNormaliser
-        assert path.is_absolute(), path
+        path = path.absolute()
         cleaned = wdir / Path(*path.parts[1:]) / (path.name + '-cleaned')
         cleaned.parent.mkdir(parents=True, exist_ok=True)
 
@@ -52,7 +52,15 @@ class JsonNormaliser(BaseNormaliser):
         # todo sort keys? not sure...
         js = json.dumps(j) # , indent=2, sort_keys=True)
         cmd = jq['-r', JQ_PATHS]
-        (cmd << js >str(cleaned))()
+        jq_lines = (cmd << js )().splitlines()
+
+        # TODO later
+        cleanup_jq_dump = getattr(self, 'cleanup_jq_dump', None)
+        if cleanup_jq_dump is not None:
+            cleanup_jq_dump(jq_lines)
+        with cleaned.open('w') as fp:
+            for line in jq_lines:
+                print(line, file=fp)
         yield cleaned
 
 

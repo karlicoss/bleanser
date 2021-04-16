@@ -20,7 +20,7 @@ def main(*, Normaliser) -> None:
     # might make easier to open without creating wals...
     # sqlite3 'file:places-20190731110302.sqlite?immutable=1' '.dump' | less
 
-    @call_main.command(name='diff')
+    @call_main.command(name='diff', short_help='diff two files after cleanup')
     @click.option('--vim', is_flag=True, default=False, show_default=True, help='Use vimdiff')
     @click.argument('path1', type=Path)
     @click.argument('path2', type=Path)
@@ -34,8 +34,20 @@ def main(*, Normaliser) -> None:
         for line in compute_diff(path1, path2, Normaliser=Normaliser):
             print(line)
 
+    # todo ugh, name sucks
+    @call_main.command(name='cleaned', short_help='dump file after cleanup to stdout')
+    @click.argument('path', type=Path)
+    def cleaned(path: Path) -> None:
+        n = Normaliser(path)
+        from tempfile import TemporaryDirectory
+        # TODO might be nice to print time...
+        # TODO for json, we want to print the thing after jq processing? hmm
+        with TemporaryDirectory() as td, n.do_cleanup(path, wdir=Path(td)) as cleaned:
+            click.secho(f'You can examine cleaned file: {cleaned}', fg='green')
+            click.pause(info="Press any key when you've finished")
 
-    @call_main.command(name='clean')
+
+    @call_main.command(name='clean', short_help='process & cleanup files')
     @click.argument('path', type=Path)
     @click.option('--dry', is_flag=True, default=None, show_default=True, help='Do not delete/move the input files, just print what would happen')
     @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
