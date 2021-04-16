@@ -291,7 +291,7 @@ def _compute_groups_serial(
                 logger.info('processing %s', p)
 
                 res: IRes
-                ds = total_dir_size(wdir)
+                # ds = total_dir_size(wdir)
                 # logger.debug('total wdir(%s) size: %s', wdir, ds)
                 before = time()
                 # pass it a unique dir so they don't mess up each other
@@ -318,7 +318,7 @@ def _compute_groups_serial(
             # handle 'identity' cleanup -- shouldn't try to remove user files
             return
         # meh... just in case
-        assert str(cleaned).startswith(gettempdir()), cleaned
+        assert str(cleaned.resolve()).startswith(str(Path(gettempdir()).resolve())), cleaned
         # todo no need to unlink in debug mode?
         cleaned.unlink(missing_ok=True)
 
