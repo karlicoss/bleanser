@@ -288,8 +288,8 @@ def _compute_groups_serial(
                 wdir = Path(istack.enter_context(TemporaryDirectory()))
             else:
                 wdir = _wdir
-            for p in paths:
-                logger.info('processing %s', p)
+            for i, p in enumerate(paths):
+                logger.info('processing %s (%d/%d)', p, i, len(paths))
 
                 res: IRes
                 # ds = total_dir_size(wdir)

@@ -53,7 +53,8 @@ def main(*, Normaliser) -> None:
     @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
     @click.option('--remove', is_flag=True, default=None, show_default=True, help='Controls whether files will be actually deleted')
     @click.option('--max-workers', required=False, type=int, help='Passed down to ThreadPoolExecutore. Use 0 for serial execution')
-    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int]) -> None:
+    @click.option('--limit', required=False, type=int, default=None, help='Only process first <limit> files (hack for memory leak issue)')
+    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int], limit: Optional[int]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -66,17 +67,23 @@ def main(*, Normaliser) -> None:
         assert len(modes) == 1, f'please specify exactly one of modes (got {modes})'
         [mode] = modes
 
-        # TODO should also move to Noramliser?
+        # TODO should also move to Normaliser?
         # todo not sure if this is the best way?
-        SQLITE_MIME = 'application/x-sqlite3'
         paths = [
             p
             for p in list(sorted(path.rglob('*')))  # assumes sort order is same as date order? guess it's reasonable
-            if p.is_file() and mime(p) == SQLITE_MIME
+            if p.is_file()
         ]
+
+        SQLITE_MIME = 'application/x-sqlite3'
+        # TODO might take a while if there are many paths
+        paths = [p for p in paths if mime(p) == SQLITE_MIME]
+
         if len(paths) == 0:
             # ok, try json...
             paths = list(sorted(path.rglob('*.json')))
+        if limit is not None:
+            paths = paths[:limit]
         assert len(paths) > 0
 
         logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
