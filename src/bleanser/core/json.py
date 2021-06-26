@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from itertools import tee
-import json
+import orjson as json
 from pathlib import Path
 from typing import Iterator
 
@@ -78,7 +78,7 @@ def _aspaths(js: Json) -> Tuple[JHash, Iterable[Tuple[JPath, JVal]]]:
             for p, v in cres:
                 ress.append((cp + ('' if len(p) == 0 else (sep + p)), v))
 
-        dhash = hashlib.md5(json.dumps(hd).encode('utf8')).hexdigest()[:7]
+        dhash = hashlib.md5(json.dumps(hd)).hexdigest()[:7]
         return (dhash, ress)
 
     raise RuntimeError(js, type(js))
@@ -149,7 +149,7 @@ class JsonNormaliser(BaseNormaliser):
         cleaned.parent.mkdir(parents=True, exist_ok=True)
 
         with path.open('r') as fp:
-            j = json.load(fp)
+            j = json.loads(fp.read())
         self.cleanup(j)
         # todo sort keys? not sure...
         # TODO huh. jq version is almost order of magnitude slower???
