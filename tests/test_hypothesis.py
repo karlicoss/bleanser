@@ -32,9 +32,10 @@ def test(data: Path, tmp_path: Path) -> None:
     assert len(paths) > 80, paths  # precondition
 
     # 4 workers: 64 seconds
+    # 4 workers, pool for asdict: 42 seconds..
     # 2 workers: 81 seconds. hmmm
-    instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=2)) # , max_workers=0
-    apply_instructions(instructions, mode=Remove())
+    instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=4))
+    apply_instructions(instructions, mode=Remove(), need_confirm=False)
     remaining = [x.name for x in sorted(data.iterdir())]
     assert {
         'hypothesis_2017-11-21.json',

@@ -1,5 +1,4 @@
 # TODO later, migrate core to use it?
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, ExitStack, closing
 import os
 from pathlib import Path
@@ -67,7 +66,8 @@ def compute_groups(
 
     # if wdir is passed will use this dir instead of a temporary
     # messy but makes debugging a bit easier..
-    pool = DummyExecutor() if max_workers == 0 else ThreadPoolExecutor(max_workers=max_workers)
+    from concurrent.futures import ThreadPoolExecutor as Pool
+    pool = DummyExecutor() if max_workers == 0 else Pool(max_workers=max_workers)
     with pool:
         workers = getattr(pool, '_max_workers')
         workers = min(workers, len(paths))  # no point in using too many workers
@@ -126,7 +126,8 @@ def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str
 
     # TODO not sure what's the best way to provide some quick debug means...
     # need grep -C or something like that...
-    if len(rem) > 0:
+    print_diff = True
+    if print_diff and len(rem) > 0:
         logger.debug(f'diff %s %s', lfile, rfile)
         logger.debug('vvvvvvvvvvvvv DIFF vvvvvvvvvvvvv')
         for line in rem:
@@ -302,7 +303,7 @@ def _compute_groups_serial(
                     logger.exception(e)
                     res = e
                 after = time()
-                logger.debug('cleanup(%s): took %.1f seconds', p, after - before)
+                logger.debug('cleanup(%s): took %.2f seconds', p, after - before)
                 cleaned2orig[res] = p
                 cleaned.append(res)
                 yield res
@@ -883,7 +884,7 @@ def compute_instructions(
 # FIXME add a test
 
 from .common import Mode, Dry, Move, Remove
-def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry()) -> None:
+def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(), need_confirm: bool=True) -> None:
     import click  # type: ignore
 
     totals: str
@@ -938,7 +939,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry())
         logger.info('no files to cleanup!')
         return
 
-    if not click.confirm(f'Ready to {rm_action.strip().lower()} {len(to_delete)} files?', abort=True):
+    if need_confirm and not click.confirm(f'Ready to {rm_action.strip().lower()} {len(to_delete)} files?', abort=True):
         return
 
     move_to: Optional[Path] = None

@@ -38,6 +38,8 @@ JPath = str
 JVal  = str
 JHash = str
 # TODO ugh. it's a bit too elaborate way to do structural diff, really...
+# TODO fuck. this is quite slow, but not sure what should I do about it...
+# how to make it work with process pool executor??
 def _aspaths(js: Json) -> Tuple[JHash, Iterable[Tuple[JPath, JVal]]]:
     if isinstance(js, (str, int, float, bool, type(None))):
         # TODO json dumps?
@@ -123,6 +125,11 @@ def test_aspaths() -> None:
     ]
 
 
+
+def _aspaths_aux(js: Json) -> List[str]:
+    return list(aspaths(js))
+
+
 class JsonNormaliser(BaseNormaliser):
     # filter out additions; keep the rest
     DIFF_FILTER = '> '
@@ -149,7 +156,13 @@ class JsonNormaliser(BaseNormaliser):
         # js = json.dumps(j) # , indent=2, sort_keys=True)
         # cmd = jq['-r', JQ_PATHS]
         # jq_lines = (cmd << js )().splitlines()
-        jq_lines = list(aspaths(j))
+        jq_lines = _aspaths_aux(j)
+        # # move to top
+        # from concurrent.futures import ProcessPoolExecutor as Pool
+        # pool = Pool(8)
+        # #
+        # fut = pool.submit(_aspaths_aux, j)
+        # jq_lines = fut.result()
 
         # TODO later
         cleanup_jq_dump = getattr(self, 'cleanup_jq_dump', None)
