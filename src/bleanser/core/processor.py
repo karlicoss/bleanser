@@ -1,4 +1,5 @@
 # TODO later, migrate core to use it?
+import click
 from contextlib import contextmanager, ExitStack, closing
 import os
 from pathlib import Path
@@ -875,7 +876,7 @@ def compute_instructions(
     # TODO eh. could at least dump dry mode stats here...
     done = 0
     for i, ins in enumerate(instructions):
-        logger.debug(f'{i:<3}/{total:<3} %s: %s', ins.path, type(ins))
+        logger.debug(f'{i:<3}/{total:<3} %s: %s', ins.path, type(ins).__name__)
         yield ins
         done += 1
     assert done == len(paths)  # just in case
@@ -896,9 +897,9 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         totals = '???'
 
     rm_action = {
-        Dry   : 'REMOVE (dry mode)',
-        Move  : 'MOVE             ',
-        Remove: 'REMOVE           ',
+        Dry   : click.style('REMOVE (dry mode)', fg='yellow'),
+        Move  : click.style('MOVE             ', fg='yellow'),
+        Remove: click.style('REMOVE           ', fg='red'   ),
     }[type(mode)]
 
     tot_files = 0
@@ -919,7 +920,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         tot_files += 1
         action: str
         if   isinstance(ins, Keep):
-            action = 'will keep        '
+            action = click.style('will keep        ', fg='green')
         elif isinstance(ins, Delete):
             action = rm_action
             rem_bytes += sz

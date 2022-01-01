@@ -9,7 +9,7 @@ from typing import Iterator
 
 from bleanser.core.common import logger
 from bleanser.core.utils import Json
-from bleanser.core.sqlite import BaseNormaliser
+from bleanser.core.processor import BaseNormaliser
 
 
 from plumbum import local  # type: ignore

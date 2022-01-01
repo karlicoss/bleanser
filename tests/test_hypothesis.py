@@ -10,8 +10,9 @@ import pytest
 TESTDATA = Path(__file__).absolute().parent / 'testdata'
 data_dir = TESTDATA / 'hypothesis'
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def data():
+    # todo would be nice to have some read only view on it instead?
     src = data_dir.resolve()
     # TODO careful so it isn't filling up the disk...
     with TemporaryDirectory() as td:
@@ -25,8 +26,17 @@ from bleanser.core.common import logger, Dry, Move, Remove, Mode
 from bleanser.core.json import JsonNormaliser as Normaliser
 
 
+# total time about 5s?
+@pytest.mark.parametrize('num', range(10))
+def test_normalise_one(data: Path, tmp_path: Path, num) -> None:
+    path = data / 'hypothesis_20210625T220028Z.json'
+    n = Normaliser(path)
+    with n.do_cleanup(path, wdir=tmp_path):
+        pass
+
+
 # TODO less verbose mode for tests?
-def test(data: Path, tmp_path: Path) -> None:
+def test_all(data: Path, tmp_path: Path) -> None:
     # FIXME share with main
     paths = list(sorted(data.glob('*.json')))
     assert len(paths) > 80, paths  # precondition
