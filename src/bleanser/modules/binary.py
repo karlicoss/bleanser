@@ -20,6 +20,8 @@ class Normaliser(BaseNormaliser):
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
         path = path.absolute().resolve()
+
+        # TODO not sure if cleaned path _has_ to be in wdir? can we return the orig path?
         cleaned_path = wdir / Path(*path.parts[1:]) / (path.name + '-cleaned')
         cleaned_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(path, cleaned_path)

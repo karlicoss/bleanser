@@ -1,29 +1,15 @@
+from common import skip_if_not_karlicoss as pytestmark
+
 from pathlib import Path
-import shutil
-from tempfile import TemporaryDirectory
 from typing import List
 
 import pytest
 
-
-TESTDATA = Path(__file__).absolute().parent / 'testdata'
-data_dir = TESTDATA / 'instapaper'
-
-
-@pytest.fixture(scope='module')
-def data():
-    # todo would be nice to have some read only view on it instead?
-    src = data_dir.resolve()
-    # TODO careful so it isn't filling up the disk...
-    with TemporaryDirectory() as td:
-        tdir = Path(td)
-        shutil.copytree(src, tdir, dirs_exist_ok=True)
-        yield tdir
-
-
-from bleanser.core.processor import apply_instructions, compute_instructions
-from bleanser.core.common import logger, Dry, Move, Remove, Mode
 from bleanser.modules.binary import Normaliser
+
+from common import TESTDATA, actions
+
+data = TESTDATA / 'instapaper'
 
 
 def via_fdupes(path: Path) -> List[str]:
@@ -31,23 +17,26 @@ def via_fdupes(path: Path) -> List[str]:
     lines = check_output(['fdupes', '-1', path]).decode('utf8').splitlines()
     to_delete = []
     for line in lines:
-        to_delete.extend(line.split()[1:-1])
-    return to_delete
+        items = line.split()
+        # meh... don't get why it's not processing them in order...
+        items = list(sorted(items))
+        to_delete.extend(items[1:-1])
+    return list(sorted(to_delete))
 
 
-def test_all(data: Path, tmp_path: Path) -> None:
-    expected_deleted = {Path(p).name for p in via_fdupes(path=data)}
-
+# TODO maybe add some sanity checks?
+# e.g. try guessing dates from filenames and making sure they are consistent with mtimes?
+# todo need to resort removing to a single command
+# and check 'remove' mode separately
+def test_all() -> None:
     paths = list(sorted(data.glob('*.json')))
-    assert len(paths) > 20, paths  # precondition
+    # assert len(paths) > 20, paths  # precondition
 
-    Normaliser.DIFF_FILTER = None # FIXME meh
+    Normaliser.DIFF_FILTER = None
+    # FIXME meh.. maybe instead instantiate an instance instead of class?
 
-    instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=0))
-    apply_instructions(instructions, mode=Remove(), need_confirm=False)
-    remaining = [x.name for x in sorted(data.iterdir())]
+    res = actions(paths=paths, Normaliser=Normaliser)
+    expected_deleted = [Path(p) for p in via_fdupes(path=data)]
+    assert res.cleaned == expected_deleted
 
-    deleted = {p.name for p in paths if p.name not in remaining}
-    assert 0 < len(deleted) < len(paths), deleted # just in case
-
-    assert deleted == expected_deleted
+# FIXME hmm need to make sure --dry is the default (maybe add a cmdline test?)

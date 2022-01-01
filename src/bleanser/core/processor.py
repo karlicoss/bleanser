@@ -936,6 +936,9 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         logger.info('dry mode! not touching anything')
         return
 
+    from .utils import under_pytest
+    assert not under_pytest  # just a paranoid check to prevent deleting something under tests by accident
+
     if len(to_delete) == 0:
         logger.info('no files to cleanup!')
         return
