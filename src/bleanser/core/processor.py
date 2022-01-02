@@ -995,7 +995,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
 def compute_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
     # meh. copy pasted...
     def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = Normaliser(path)  # type: ignore  # meh
+        n = Normaliser()
         return n.do_cleanup(path, wdir=wdir)
 
     from .processor import do_diff
@@ -1004,6 +1004,11 @@ def compute_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
             # ok, I guess diff_filter=None makes more sense here?
             # would mean it shows the whole thing
             # meh
+            # todo maybe add DIFFTOOL env or something? so we could use meld
             if os.environ.get('USE_VIMDIFF', None) == 'yes':
-                os.execlp('vimdiff', 'vimdiff', str(res1), str(res2))
+                wrap = ['-c', 'windo set wrap']
+                # wrap = []
+                diffopts = ['-c', 'set diffopt=filler,context:0']
+
+                os.execlp('vimdiff', 'vimdiff', *wrap, *diffopts, str(res1), str(res2))
             return do_diff(res1, res2, diff_filter=None)
