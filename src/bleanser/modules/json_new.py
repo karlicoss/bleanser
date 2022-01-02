@@ -5,7 +5,7 @@ from typing import Iterator
 import json
 
 
-from bleanser.core.json import delkey
+from bleanser.core.json import delkeys
 from bleanser.core.processor import BaseNormaliser
 from bleanser.core.utils import Json
 
@@ -15,39 +15,39 @@ class Normaliser(BaseNormaliser):
     DIFF_FILTER =  '> '
 
     def cleanup(self, j: Json) -> Json:
-        for key in [
-                'subreddit_subscribers',
-                'subscribers',
-                'ups',
-                'score',
-                'num_comments',
+        keys = {
+               'subreddit_subscribers',
+               'subscribers',
+               'ups',
+               'score',
+               'num_comments',
 
-                'upvote_ratio',
+               'upvote_ratio',
 
-                'videostream_links_count',
-                'dash_url',
-                'hls_url',
-                'post_hint',
-                'author_premium',
-                'thumbnail_height',
-                'thumbnail_width',
+               'videostream_links_count',
+               'dash_url',
+               'hls_url',
+               'post_hint',
+               'author_premium',
+               'thumbnail_height',
+               'thumbnail_width',
 
-                'author_patreon_flair',
-                'author_flair_text_color',
+               'author_patreon_flair',
+               'author_flair_text_color',
 
-                'parent_whitelist_status', # some ads thing
-                'whitelist_status', # some ads thing
-                'wls', # TODO ???
+               'parent_whitelist_status', # some ads thing
+               'whitelist_status', # some ads thing
+               'wls', # TODO ???
 
-                # 'secure_media', # flaky, not sure why. not important, ther is another media link
+               # 'secure_media', # flaky, not sure why. not important, ther is another media link
 
-                # 'giver_coin_rewrad',
-                'all_awardings',
+               # 'giver_coin_rewrad',
+               'all_awardings',
 
-                'pwls', # TODO what is it??
-                'likes', # todo?
-        ]:
-            delkey(j, key=key)
+               'pwls', # TODO what is it??
+               'likes', # todo?
+        }
+        delkeys(j, keys=keys)
         return j
 
     @contextmanager
