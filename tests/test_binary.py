@@ -9,8 +9,6 @@ from bleanser.modules.binary import Normaliser
 
 from common import TESTDATA, actions
 
-data = TESTDATA / 'instapaper'
-
 
 def via_fdupes(path: Path) -> List[str]:
     from subprocess import check_output
@@ -28,14 +26,33 @@ def via_fdupes(path: Path) -> List[str]:
 # e.g. try guessing dates from filenames and making sure they are consistent with mtimes?
 # todo need to resort removing to a single command
 # and check 'remove' mode separately
-def test_all() -> None:
-    paths = list(sorted(data.glob('*.json')))
-    # assert len(paths) > 20, paths  # precondition
+@pytest.mark.parametrize('data', [
+    TESTDATA / 'instapaper',
+    TESTDATA / 'hypothesis_xz',
+])
+def test_all(data: Path) -> None:
+    paths = list(sorted(data.glob('*.json*')))
+    assert len(paths) > 20, paths  # precondition
 
-    Normaliser.DIFF_FILTER = None
-    # FIXME meh.. maybe instead instantiate an instance instead of class?
+    from contextlib import nullcontext, contextmanager
 
-    res = actions(paths=paths, Normaliser=Normaliser)
+    @contextmanager
+    def hack_filter():
+        prev = Normaliser.DIFF_FILTER
+        try:
+            # FIXME meh.. maybe instead instantiate an instance instead of class?
+            Normaliser.DIFF_FILTER = None
+            yield
+        finally:
+            Normaliser.DIFF_FILTER = prev
+
+
+    # meeeh... for now only need to hack for pure json because of default '> ' diff filter
+    ctx = nullcontext if 'xz' in str(data) else hack_filter
+
+    with ctx():
+        res = actions(paths=paths, Normaliser=Normaliser)
+
     expected_deleted = [Path(p) for p in via_fdupes(path=data)]
     assert res.cleaned == expected_deleted
 
