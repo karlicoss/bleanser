@@ -38,7 +38,7 @@ def main(*, Normaliser) -> None:
     @call_main.command(name='cleaned', short_help='dump file after cleanup to stdout')
     @click.argument('path', type=Path)
     def cleaned(path: Path) -> None:
-        n = Normaliser(path)
+        n = Normaliser()
         from tempfile import TemporaryDirectory
         # TODO might be nice to print time...
         # TODO for json, we want to print the thing after jq processing? hmm
