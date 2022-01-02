@@ -81,7 +81,8 @@ def main(*, Normaliser) -> None:
 
         if len(paths) == 0:
             # ok, try json...
-            paths = list(sorted(path.rglob('*.json')))
+            # meh... need to think how to support archived stuff properly?
+            paths = list(sorted(path.rglob('*.json*')))
         if limit is not None:
             paths = paths[:limit]
         assert len(paths) > 0
