@@ -67,24 +67,28 @@ def main(*, Normaliser) -> None:
         assert len(modes) == 1, f'please specify exactly one of modes (got {modes})'
         [mode] = modes
 
-        # TODO should also move to Normaliser?
-        # todo not sure if this is the best way?
-        paths = [
-            p
-            for p in list(sorted(path.rglob('*')))  # assumes sort order is same as date order? guess it's reasonable
-            if p.is_file()
-        ]
-
-        SQLITE_MIME = 'application/x-sqlite3'
-        # TODO might take a while if there are many paths
-        paths = [p for p in paths if mime(p) == SQLITE_MIME]
-
+        # first try json...
+        # meh... need to think how to support archived stuff properly?
+        paths = list(sorted(path.rglob('*.json*')))
+        # second, try sqlite
         if len(paths) == 0:
-            # ok, try json...
-            # meh... need to think how to support archived stuff properly?
-            paths = list(sorted(path.rglob('*.json*')))
+            SQLITE_MIME = 'application/x-sqlite3'
+            # TODO might take a while if there are many paths
+            paths = [p for p in paths if mime(p) == SQLITE_MIME]
+        if len(paths) == 0:
+            # TODO should also move to Normaliser?
+            # todo not sure if this is the best way?
+            paths = [
+                p
+                for p in list(sorted(path.rglob('*')))  # assumes sort order is same as date order? guess it's reasonable
+                if p.is_file()
+            ]
+
         if limit is not None:
-            paths = paths[:limit]
+            if limit > 0:
+                paths = paths[:limit]
+            else:
+                paths = paths[limit:]
         assert len(paths) > 0
 
         logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
