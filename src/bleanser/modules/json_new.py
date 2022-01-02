@@ -34,6 +34,7 @@ REDDIT_IGNORE_KEYS = {
     'all_awardings',
     'allow_chat_post_creation',
     'allow_discovery',
+    'allow_galleries',
     'allow_images',
     'allow_live_comments',
     'allow_polls',
@@ -163,6 +164,10 @@ REDDIT_IGNORE_KEYS = {
     # 'is_favorited',
     # 'is_subscriber',
     # 'domain',
+    # should_archive_posts -- not sure?
+    #
+    #
+    # subreddit_type: public/restricted -- actually quite useful info!
 }
 
 

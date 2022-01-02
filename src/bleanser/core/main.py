@@ -53,8 +53,11 @@ def main(*, Normaliser) -> None:
     @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
     @click.option('--remove', is_flag=True, default=None, show_default=True, help='Controls whether files will be actually deleted')
     @click.option('--max-workers', required=False, type=int, help='Passed down to ThreadPoolExecutore. Use 0 for serial execution')
-    @click.option('--limit', required=False, type=int, default=None, help='Only process first <limit> files (hack for memory leak issue)')
-    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int], limit: Optional[int]) -> None:
+    # todo originally, hack for memory leak issue
+    # TODO ugh. how to name it --from? metavar= didn't work
+    @click.option('--from_', required=False, type=int, default=None)
+    @click.option('--to'  , required=False, type=int, default=None)
+    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int], from_: Optional[int], to: Optional[int]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -84,11 +87,11 @@ def main(*, Normaliser) -> None:
                 if p.is_file()
             ]
 
-        if limit is not None:
-            if limit > 0:
-                paths = paths[:limit]
-            else:
-                paths = paths[limit:]
+        if from_ is None:
+            from_ = 0
+        if to is None:
+            to = len(paths)
+        paths = paths[from_: to]
         assert len(paths) > 0
 
         logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
