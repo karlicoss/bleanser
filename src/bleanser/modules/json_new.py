@@ -175,6 +175,8 @@ class Normaliser(BaseNormaliser):
     # filter out additions; keep the rest
     DIFF_FILTER =  '> '
 
+    DELETE_DOMINATED = False
+
     def cleanup(self, j: Json) -> Json:
         delkeys(j, keys=REDDIT_IGNORE_KEYS)
         return j

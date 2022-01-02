@@ -207,6 +207,12 @@ class FileSet:
 
         self.items.extend(extra)
 
+    def issame(self, other: 'FileSet') -> bool:
+        lfile = self.merged
+        rfile = other.merged
+        (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
+        return rc == 0
+
     def issubset(self, other: 'FileSet', *, diff_filter: str) -> bool:
         # short circuit
         # this doesn't really speed up much though? so guess better to keep the code more uniform..
@@ -241,6 +247,7 @@ class FileSet:
         self.merged.unlink(missing_ok=True)
 
 
+# TODO reuse it in normalisers
 _FILTER_ALL_ADDED = '> '
 
 
@@ -264,8 +271,14 @@ def test_fileset(tmp_path: Path) -> None:
     f2 = lines([])
     assert FS(f1).issubset(FS(f2), diff_filter=dfilter)
 
-    fac = lines(['a', 'c'])
-    fsac = FS(fac)
+    assert FS(f1).issame(FS(f2))
+
+    fsac = FS(lines(['a', 'c']))
+
+    assert     fsac.issame(FS(lines(['a', 'c'])))
+    assert not fsac.issame(FS(lines(['a', 'c', 'b'])))
+    assert not FS(lines(['a', 'c', 'b'])).issame(fsac)
+
     assert     fs_ .issubset(fsac, diff_filter=dfilter)
     assert not fsac.issubset(fs_ , diff_filter=dfilter)
     assert     fsac.issubset(fs_ , diff_filter='.*')
@@ -425,6 +438,9 @@ def _compute_groups_serial(
                     nitems  = items.union(right_res)
 
                     if config.multiway:
+                        # otherwise doesn't make sense?
+                        assert config.delete_dominated
+
                         # in multiway mode we check if the boundaries (pivots) contain the rest
                         npivots = rstack.enter_context(fset(lpfile, right_res))
                         dominated = nitems.issubset(npivots, diff_filter=diff_filter)
@@ -433,7 +449,11 @@ def _compute_groups_serial(
                         before_right = nitems.items[-2]
                         s1 = rstack.enter_context(fset(before_right))
                         s2 = rstack.enter_context(fset(right_res))
-                        dominated = s1.issubset(s2, diff_filter=diff_filter)
+
+                        if not config.delete_dominated:
+                            dominated = s1.issame(s2)
+                        else:
+                            dominated = s1.issubset(s2, diff_filter=diff_filter)
 
                     if dominated:
                         next_state = (nitems, right_res)
@@ -547,7 +567,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
         check_wdir_space()
         yield tp
 
-    config = Config(multiway=multiway)
+    config = Config(multiway=multiway, delete_dominated=True)
     func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config, _wdir=gwdir)
 
     # force it to compute
@@ -571,7 +591,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
 
 @parametrize('multiway', [False, True])
 def test_many_files(multiway: bool, tmp_path: Path) -> None:
-    config = Config(multiway=multiway)
+    config = Config(multiway=multiway, delete_dominated=True)
     N = 2000
 
     @contextmanager
@@ -602,7 +622,7 @@ def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
 @parametrize('multiway', [False, True])
 def test_simple(multiway: bool, tmp_path: Path) -> None:
     config = Config(
-        delete_dominated=False,
+        delete_dominated=True,
         multiway=multiway,
     )
 
@@ -672,8 +692,10 @@ def test_filter(tmp_path: Path) -> None:
 def _prepare(tmp_path: Path):
     sets = [
         ['X'],                # keep
-        ['B'],                # delete
-        ['B', 'A'],           # delete
+        ['B'],                # keep
+        ['B'],                # delete (always, because it's the same)
+        ['B'],                # delete if we delete dominated
+        ['B', 'A'],           # delete if we delete dominated
         ['C', 'B', 'A'],      # keep
         ['A', 'BB', 'C'],     # keep
         ['B', 'A', 'E', 'Y'], # keep
@@ -688,16 +710,22 @@ def _prepare(tmp_path: Path):
     return paths
 
 
-def test_twoway(tmp_path: Path) -> None:
+@parametrize('delete_dominated', [
+    True,
+    False,
+])
+def test_twoway(tmp_path: Path, delete_dominated) -> None:
     paths = _prepare(tmp_path)
 
-    config = Config(delete_dominated=True, multiway=False)
+    config = Config(delete_dominated=delete_dominated, multiway=False)
     groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED))
-    instructions = groups_to_instructions(groups, config=config)
+    instructions = list(groups_to_instructions(groups, config=config))
     assert [type(i) for i in instructions] == [
         Keep,
         Keep,
-        Delete,  # dominated by the next set
+        Delete,
+        Delete if delete_dominated else Keep,  # dominated
+        Delete if delete_dominated else Keep,  # dominated by the next set
         Keep,
         Keep,
         Keep
@@ -731,7 +759,9 @@ def test_multiway(tmp_path: Path) -> None:
 
     assert [type(i) for i in instructions] == [
         Keep,    # X
-        Delete,  # B  in CBA
+        Delete,  # B in CBA
+        Delete,  # B in CBA
+        Delete,  # B in CBA
         Delete,  # BA in CBA
         Keep,    # keep CBA
         Keep,    # keep because of BB

@@ -56,7 +56,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
         n = NoopSqliteNormaliser()
         return n.do_cleanup(path=path, wdir=wdir)
 
-    config = Config(multiway=False)
+    config = Config(multiway=False, delete_dominated=True)
     # use single thread for test purposes
     func = lambda paths: compute_groups(
         paths,
