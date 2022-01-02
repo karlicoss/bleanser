@@ -7,26 +7,9 @@ Format-agnostic, clean up as literal file diffs
 from bleanser.core.processor import BaseNormaliser
 
 
-from contextlib import contextmanager
-from pathlib import Path
-import shutil
-from typing import Iterator
-
-
 class Normaliser(BaseNormaliser):
     # filter out additions; keep the rest
-    DIFF_FILTER = '> '
-
-    @contextmanager
-    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        path = path.absolute().resolve()
-
-        # TODO not sure if cleaned path _has_ to be in wdir? can we return the orig path?
-        cleaned_path = wdir / Path(*path.parts[1:]) / (path.name + '-cleaned')
-        cleaned_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(path, cleaned_path)
-
-        yield cleaned_path
+    DIFF_FILTER =  '> '
 
 
 if __name__ == '__main__':

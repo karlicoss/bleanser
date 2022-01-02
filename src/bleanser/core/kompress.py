@@ -21,8 +21,9 @@ def _zstd_open(path: Path, *args, **kwargs) -> IO[str]:
 # TODO use the 'dependent type' trick?
 def kopen(path: PathIsh, *args, mode: str='rt', **kwargs) -> IO[str]:
     # TODO handle mode in *rags?
-    encoding = kwargs.get('encoding', 'utf8')
-    kwargs['encoding'] = encoding
+    if 't' in mode: # meh
+        encoding = kwargs.get('encoding', 'utf8')
+        kwargs['encoding'] = encoding
 
     pp = Path(path)
     suf = pp.suffix
@@ -31,7 +32,7 @@ def kopen(path: PathIsh, *args, mode: str='rt', **kwargs) -> IO[str]:
         r = lzma.open(pp, mode, *args, **kwargs)
         # should only happen for binary mode?
         # file:///usr/share/doc/python3/html/library/lzma.html?highlight=lzma#lzma.open
-        assert not isinstance(r, lzma.LZMAFile), r
+        # assert not isinstance(r, lzma.LZMAFile), r
         return r
     elif suf in {'.zip'}:
         # eh. this behaviour is a bit dodgy...
@@ -79,7 +80,8 @@ class CPath(BasePath):
     """
     def open(self, *args, **kwargs):
         # TODO assert read only?
-        return kopen(str(self))
+        return kopen(str(self), *args, **kwargs)
+    # FIXME bytes mode...
 
 
 open = kopen # TODO deprecate

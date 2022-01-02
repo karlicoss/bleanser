@@ -50,7 +50,7 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
     return to  # just for convenience
 
 
-def test_sqlite(tmp_path: Path) -> None:
+def test_sqlite_simple(tmp_path: Path) -> None:
     # TODO this assumes they are already cleaned up?
     def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
         n = NoopSqliteNormaliser()
@@ -217,16 +217,14 @@ class SqliteNormaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        db = path
-        db = checked_db(db)
+        with self.unpacked(path=path, wdir=wdir) as upath:
+            pass
+        del path # just to prevent from using by accident
+
+        cleaned_db = checked_db(upath)
 
         # ugh. in principle could use :memory: database here...
         # but then dumping it via iterdump() takes much more time then sqlite3 .dump command..
-        path = path.absolute().resolve()
-        cleaned_db = wdir / Path(*path.parts[1:]) / (db.name + '-cleaned')
-        cleaned_db.parent.mkdir(parents=True, exist_ok=True)
-        import shutil
-        shutil.copy(db, cleaned_db)
         with sqlite3.connect(cleaned_db) as conn:
             # prevent it from generating unnecessary wal files
             conn.execute('PRAGMA journal_mode=MEMORY;')

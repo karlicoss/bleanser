@@ -14,6 +14,7 @@ from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Uni
 
 from .common import Diff, Relation, Group, logger, Config, parametrize
 from .common import Instruction, Keep, Delete
+from .kompress import CPath
 from .utils import DummyExecutor, total_dir_size
 
 
@@ -31,9 +32,31 @@ class BaseNormaliser:
     MULTIWAY: ClassVar[bool] = False
     ##
 
+    # take in input path
+    # output file descriptor (could be tmp dir based or in-memory?)
+    # would be perfect time to unpack it?
+    # or allow outputting either Path or fd? dunno
+
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        raise NotImplementedError
+        with self.unpacked(path=path, wdir=wdir) as path:
+            yield path
+
+    @contextmanager
+    def unpacked(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        # todo ok, kinda annoying that a lot of time is spent unpacking xz files...
+        # not sure what to do about it
+        with CPath(str(path)).open(mode='rb') as fo:
+            res = fo.read()
+
+        # TODO not sure if cleaned path _has_ to be in wdir? can we return the orig path?
+        # maybe if the cleanup method is not implemented?
+        path = path.absolute().resolve()
+        cleaned_path = wdir / Path(*path.parts[1:]) / (path.name + '-cleaned')
+        cleaned_path.parent.mkdir(parents=True, exist_ok=True)
+        cleaned_path.write_bytes(res)
+        # writing to tmp does take a while... hmm
+        yield cleaned_path
 
     @classmethod
     def main(cls) -> None:
@@ -271,12 +294,12 @@ def _compute_groups_serial(
 ) -> Iterator[Group]:
     assert len(paths) > 0
 
-    cleaned2orig = {}
+    IRes = Union[Exception, Cleaned]
+    cleaned2orig: Dict[IRes, Path] = {}
     cleaned = []
 
     wdir: Path
 
-    IRes = Union[Exception, Cleaned]
     def iter_results() -> Iterator[IRes]:
         with ExitStack() as istack:
             # ugh. what a mess
@@ -301,6 +324,9 @@ def _compute_groups_serial(
                     res = e
                 after = time()
                 logger.debug('cleanup(%s): took %.2f seconds', p, after - before)
+                # TODO ugh. Exception isn't hashable in general, so at least assert to avoid ambiguity
+                # not sure what would be the proper fix...
+                assert res not in cleaned2orig, res
                 cleaned2orig[res] = p
                 cleaned.append(res)
                 yield res
@@ -340,6 +366,7 @@ def _compute_groups_serial(
         lfile = ires[left]
 
         if isinstance(lfile, Exception):
+            # todo ugh... why are we using exception as a dict index??
             yield Group(
                 items =[cleaned2orig[lfile]],
                 pivots=[cleaned2orig[lfile]],

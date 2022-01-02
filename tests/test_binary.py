@@ -34,7 +34,7 @@ def test_all(data: Path) -> None:
     paths = list(sorted(data.glob('*.json*')))
     assert len(paths) > 20, paths  # precondition
 
-    from contextlib import nullcontext, contextmanager
+    from contextlib import contextmanager
 
     @contextmanager
     def hack_filter():
@@ -46,11 +46,7 @@ def test_all(data: Path) -> None:
         finally:
             Normaliser.DIFF_FILTER = prev
 
-
-    # meeeh... for now only need to hack for pure json because of default '> ' diff filter
-    ctx = nullcontext if 'xz' in str(data) else hack_filter
-
-    with ctx():
+    with hack_filter():
         res = actions(paths=paths, Normaliser=Normaliser)
 
     expected_deleted = [Path(p) for p in via_fdupes(path=data)]

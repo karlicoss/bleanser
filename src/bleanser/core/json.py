@@ -143,6 +143,8 @@ class JsonNormaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        # TODO call .unpacked
+
         # todo copy paste from SqliteNormaliser
         path = path.absolute().resolve()
         cleaned = wdir / Path(*path.parts[1:]) / (path.name + '-cleaned')
