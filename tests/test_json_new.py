@@ -15,26 +15,22 @@ from common import TESTDATA, actions
 ])
 def test_all(data: Path) -> None:
     paths = list(sorted(data.glob('*.json*')))
-    # assert len(paths) > 20, paths  # precondition
 
     res = actions(paths=paths, Normaliser=Normaliser)
 
+    # /data/exports/reddit/reddit_20211230T034059Z.json.xz /data/exports/reddit/reddit_20211230T035056Z.json.xz
+    assert [p.name for p in res.remaining] == [
+        'reddit_20211230T034059Z.json',  # ??
+        'reddit_20211230T035056Z.json',  # some things legit disappeared due to api limits
 
-    for r in {
-            'reddit_20220101T192056Z.json',  # subreddit description changed
-            'reddit_20220101T193109Z.json',  # also subreddit description
-            'reddit_20220102T142057Z.json',  # kept author changed (likely deleted?)
-    }:
-        assert r in {p.name for p in res.remaining}
+        'reddit_20211230T041057Z.json',  # ??
+        'reddit_20220101T185059Z.json',  # subreddit description
 
+        'reddit_20220101T191057Z.json',  # ??
+        'reddit_20220101T192056Z.json',  # subreddit description changed
+        'reddit_20220101T193109Z.json',  # also subreddit description
 
-    assert res.remaining == [
-        paths[0 ], # first one
-        paths[2 ], # last in group
-        paths[3 ], # subreddit descr change
-        paths[4 ], # subreddit descr change
-
-        paths[7 ], # first in group
-        paths[8 ], # author changed
-        paths[11], # last in group
+        'reddit_20220102T132059Z.json',  # ??
+        'reddit_20220102T142057Z.json',  # author changed (likely deleted?)
+        'reddit_20220102T164059Z.json',  # last in group
     ]

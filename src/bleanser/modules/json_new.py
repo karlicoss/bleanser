@@ -139,6 +139,7 @@ REDDIT_IGNORE_KEYS = {
     'suggested_comment_sort',
     'suggested_sort',
     'suggested_sort',
+    'thumbnail',
     'thumbnail_height',
     'thumbnail_width',
     'top_awarded_type',
