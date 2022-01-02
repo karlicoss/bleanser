@@ -15,7 +15,7 @@ data = TESTDATA / 'hypothesis'
 @pytest.mark.parametrize('num', range(10))
 def test_normalise_one(tmp_path: Path, num) -> None:
     path = data / 'hypothesis_20210625T220028Z.json'
-    n = Normaliser(path)
+    n = Normaliser()
     with n.do_cleanup(path, wdir=tmp_path):
         pass
 

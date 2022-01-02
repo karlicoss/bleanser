@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from itertools import tee
 import orjson as json
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, List
 
 from bleanser.core.common import logger
 from bleanser.core.utils import Json
@@ -189,7 +189,7 @@ def test_json_normaliser_1(tmp_path: Path) -> None:
     i = tmp_path / 'input.json'
     i.write_text(json.dumps(j))
 
-    n = JsonNormaliser(i)
+    n = JsonNormaliser()
     with n.do_cleanup(i, wdir=tmp_path) as c:
         res = c.read_text()
 
@@ -216,7 +216,7 @@ def test_json_normaliser_2(tmp_path: Path) -> None:
     i = tmp_path / 'input.json'
     i.write_text(json.dumps(j))
 
-    n = JsonNormaliser(i)
+    n = JsonNormaliser()
     with n.do_cleanup(i, wdir=tmp_path) as c:
         res = c.read_text()
 

@@ -1,5 +1,5 @@
 # TODO later, migrate core to use it?
-import click
+import click  # type: ignore
 from contextlib import contextmanager, ExitStack, closing
 import os
 from pathlib import Path
@@ -30,10 +30,6 @@ class BaseNormaliser:
     DELETE_DOMINATED: ClassVar[bool] = False
     MULTIWAY: ClassVar[bool] = False
     ##
-
-    # TODO ugh. annoying that path is duplicated in two places...
-    def __init__(self, path: Path) -> None:
-        pass
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
@@ -857,7 +853,7 @@ def compute_instructions(
         max_workers: Optional[int],
 ) -> Iterator[Instruction]:
     def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = Normaliser(path)
+        n = Normaliser()
         return n.do_cleanup(path, wdir=wdir)
 
     cfg = Config(

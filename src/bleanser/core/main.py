@@ -6,7 +6,7 @@ from .common import logger, Dry, Move, Remove, Mode
 from .processor import compute_instructions, apply_instructions
 from .utils import mime
 
-import click
+import click # type: ignore
 
 
 # TODO use context and default_map

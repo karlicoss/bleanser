@@ -53,7 +53,7 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
 def test_sqlite(tmp_path: Path) -> None:
     # TODO this assumes they are already cleaned up?
     def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = NoopSqliteNormaliser(path)
+        n = NoopSqliteNormaliser()
         return n.do_cleanup(path=path, wdir=wdir)
 
     config = Config(multiway=False)
@@ -169,7 +169,7 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
     N = 2000
 
     def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = NoopSqliteNormaliser(path)
+        n = NoopSqliteNormaliser()
         return n.do_cleanup(path=path, wdir=wdir)
 
     paths = []
@@ -267,9 +267,6 @@ class SqliteNormaliser(BaseNormaliser):
 
 
 class NoopSqliteNormaliser(SqliteNormaliser):
-    def __init__(self, path: Path) -> None:
-        pass
-
     def cleanup(self, c: Connection) -> None:
         pass
 

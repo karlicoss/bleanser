@@ -1,4 +1,4 @@
-import click
+import click  # type: ignore
 
 
 # TODO adhoc mode?
