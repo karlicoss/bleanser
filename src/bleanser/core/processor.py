@@ -899,7 +899,7 @@ def compute_instructions(
     # TODO eh. could at least dump dry mode stats here...
     done = 0
     for i, ins in enumerate(instructions):
-        logger.debug(f'{i:<3}/{total:<3} %s: %s', ins.path, type(ins).__name__)
+        logger.debug(f'{i:<3}/{total:<3} %s : %s', ins.path, type(ins).__name__)
         yield ins
         done += 1
     assert done == len(paths)  # just in case
