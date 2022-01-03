@@ -47,6 +47,11 @@ class Normaliser(BaseNormaliser):
                 for i in v:
                     print(f'{k} ::: {json.dumps(i, sort_keys=True)}', file=fo)
 
+        # todo meh... see Fileset._union
+        # this gives it a bit of a speedup
+        from subprocess import check_call
+        check_call(['sort', '-o', cleaned, cleaned])
+
         yield cleaned
 
 

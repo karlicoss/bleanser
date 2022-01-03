@@ -226,8 +226,18 @@ class FileSet:
         # allow it not to have merged file if set is empty
         tomerge = ([] if len(self.items) == 0 else [self.merged]) + extra
 
+        # hmm sadly sort command doesn't detect it itself?
+        # todo make less hacky... ideally the callee would maintain the sorted files
+        is_sorted = []
+        for p in tomerge: # todo no need to check self.merged?
+            (rc, _, _) = sort['--check', p].run(retcode=(0, 1))
+            is_sorted.append(rc == 0)
+        mflag = []
+        if all(is_sorted):
+            mflag = ['--merge']
+
         # sort also has --parallel option... but pretty pointless, in most cases we'll be merging two files?
-        (sort['--unique'])(*tomerge, '-o', self.merged)
+        (sort['--unique'])(*mflag, *tomerge, '-o', self.merged)
 
         self.items.extend(extra)
 
