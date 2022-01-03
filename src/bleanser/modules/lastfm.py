@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-from bleanser.core.json import JsonNormaliser, delkey, Json
+from bleanser.modules.json_new import Normaliser as JsonNormaliser, Json
 
 
 class Normaliser(JsonNormaliser):
+
+    MULTIWAY = True
     DELETE_DOMINATED = True
-    def cleanup(self, j: Json) -> None:
+
+    def cleanup(self, j: Json) -> Json:
         # ugh sometimes case changes for no reason
-        # TODO would be nice to use jq for that... e.g. older filter was
-        # 'sort_by(.date) | map(map_values(ascii_downcase?))'
         for x in j:
-        # TODO json can be list...
-            for k, v in x.items():  # type: ignore
+            for k, v in x.items():
                 x[k] = v.lower()
+        return j
+        # todo would be nice to use jq for that... e.g. older filter was
+        # 'sort_by(.date) | map(map_values(ascii_downcase?))'
 
 
 if __name__ == '__main__':

@@ -14,6 +14,7 @@ from common import TESTDATA, actions
     TESTDATA / 'reddit',
 ])
 def test_all(data: Path) -> None:
+    # TODO add a test for multiway
     paths = list(sorted(data.glob('*.json*')))
 
     res = actions(paths=paths, Normaliser=Normaliser)
@@ -21,15 +22,14 @@ def test_all(data: Path) -> None:
     # /data/exports/reddit/reddit_20211230T034059Z.json.xz /data/exports/reddit/reddit_20211230T035056Z.json.xz
     assert [p.name for p in res.remaining] == [
         'reddit_20211227T164130Z.json',  # first in group
-        'reddit_20211227T170106Z.json',  # ??? really don't get why, no diff? last in group??
+        'reddit_20211227T170106Z.json',  # saved item rolled over
         'reddit_20211227T171058Z.json',  # some saved items rolled over
-        'reddit_20211227T173058Z.json',  # ??
 
-
-        'reddit_20211230T034059Z.json',  # ??
+        'reddit_20211227T173058Z.json',  # keeping boundary
+        'reddit_20211230T034059Z.json',  # some items rolled over
         'reddit_20211230T035056Z.json',  # some things legit disappeared due to api limits
 
-        'reddit_20211230T041057Z.json',  # ??
+        'reddit_20211230T041057Z.json',  # keeping boundary for the next one
         'reddit_20220101T185059Z.json',  # subreddit description
 
         'reddit_20220101T191057Z.json',  # ??

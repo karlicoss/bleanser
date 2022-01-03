@@ -230,8 +230,8 @@ def test_json_normaliser_2(tmp_path: Path) -> None:
     # assert len(lset) == 10, (lines, lset)
 
 
-from typing import Union, Sequence
-def delkeys(j: Json, *, keys: Union[str, Sequence[str]]) -> None:
+from typing import Union, Collection
+def delkeys(j: Json, *, keys: Union[str, Collection[str]]) -> None:
     if isinstance(keys, str):
         keys = {keys} # meh
 

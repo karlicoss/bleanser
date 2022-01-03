@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-from bleanser.core.json import JsonNormaliser, delkey, Json
+from bleanser.core.json import JsonNormaliser, delkeys, Json
 
 
 class Normaliser(JsonNormaliser):
     # TODO hmm. do_cleanup should run in a parallel process.. otherwise it's basically not parallelizing here?
     def cleanup(self, j: Json) -> None:
         ## these change for no reason, and probably no one cares about them
-        delkey(j, key='images')
-        delkey(j, key='available_markets')
-        delkey(j, key='popularity')
-        delkey(j, key='preview_url')
-        delkey(j, key='external_urls')
-        delkey(j, key='total_episodes')
+        delkeys(j, keys={
+            'images',
+            'available_markets',
+            'popularity',
+            'preview_url',
+            'external_urls',
+            'total_episodes',
+        })
         ##
 
         # TODO hmm. it changes often... but then it's kind of a useful info..
