@@ -37,14 +37,18 @@ def main(*, Normaliser) -> None:
     # todo ugh, name sucks
     @call_main.command(name='cleaned', short_help='dump file after cleanup to stdout')
     @click.argument('path', type=Path)
-    def cleaned(path: Path) -> None:
+    @click.option('--stdout', is_flag=True)
+    def cleaned(path: Path, stdout: bool) -> None:
         n = Normaliser()
         from tempfile import TemporaryDirectory
         # TODO might be nice to print time...
         # TODO for json, we want to print the thing after jq processing? hmm
         with TemporaryDirectory() as td, n.do_cleanup(path, wdir=Path(td)) as cleaned:
-            click.secho(f'You can examine cleaned file: {cleaned}', fg='green')
-            click.pause(info="Press any key when you've finished")
+            if stdout:
+                print(cleaned.read_text())
+            else:
+                click.secho(f'You can examine cleaned file: {cleaned}', fg='green')
+                click.pause(info="Press any key when you've finished")
 
 
     @call_main.command(name='clean', short_help='process & cleanup files')
