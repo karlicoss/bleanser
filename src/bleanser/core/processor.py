@@ -126,30 +126,48 @@ grep = local['grep']
 cmp_cmd = local['cmp']
 sort = local['sort']
 
+# ok so there is no time difference if using special diff line format
+# $ hyperfine -i -- 'diff --new-line-format="> %L" --old-line-format="" --unchanged-line-format="" tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted'
+# Benchmark 1: diff --new-line-format="> %L" --old-line-format="" --unchanged-line-format="" tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted
+#   Time (mean ± σ):      28.9 ms ±   2.3 ms    [User: 17.5 ms, System: 11.1 ms]
+#   Range (min … max):    26.4 ms …  37.1 ms    109 runs
+#
+#   Warning: Ignoring non-zero exit code.
+#
+# $ hyperfine -i -- 'diff tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted'
+# Benchmark 1: diff tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted
+#   Time (mean ± σ):      27.6 ms ±   1.5 ms    [User: 16.8 ms, System: 10.7 ms]
+#   Range (min … max):    26.0 ms …  32.9 ms    107 runs
+#
+#   Warning: Ignoring non-zero exit code.
+
 
 def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str]:
     dcmd = diff[lfile, rfile]
+    filter_crap = True
     if diff_filter is not None:
         # if it's empty gonna strip away everything... too unsafe
         assert diff_filter.strip() != '', diff_filter
-        # TODO shit. the caret here is a bit confusing...
-        # maybe need a better way of finding added items...
-        # most likely need to just use comm for that
-        # https://serverfault.com/questions/68684/how-can-i-get-diff-to-show-only-added-and-deleted-lines-if-diff-cant-do-it-wh/68786
-        dcmd = dcmd | grep['-vE', '^' + diff_filter]
-    diff_lines = dcmd(retcode=(0, 1))
-    # FIXME not sure about it...
-    # if len(dres) > 10000:
-    #     # fast track to fail? maybe should be configurable..
-    #     # TODO Meh
-    #     return False
-    rem = diff_lines.splitlines()
-    # clean up diff crap like
-    # 756587a756588,762590 and 88888,88890d88639
-    # TODO wonder if should combine it with diff_filter??
-    # TODO need to cover with test, both a and d bits
-    rem = [l for l in rem if not re.fullmatch(r'(\d+,)?\d+[ad]\d+(,\d+)?', l)]
 
+        # shortcut...
+        if diff_filter == '> ':
+            # TODO wtf?? is plumbum messing with "" escaping or something??
+            # passing '--old-line-format="< %L"' ended up in extra double quotes emitted
+            dcmd = dcmd['--new-line-format=', '--unchanged-line-format=', '--old-line-format=< %L']
+            filter_crap = False
+        else:
+            dcmd = dcmd | grep['-vE', '^' + diff_filter]
+    diff_lines = dcmd(retcode=(0, 1))
+
+    # FIXME move splitlines under print_diff and len() check
+    rem = diff_lines.splitlines()
+    if filter_crap:
+        # TODO remove later perhaps once we make diff_filter non-configurable
+        # clean up diff crap like
+        # 756587a756588,762590 and 88888,88890d88639
+        rem = [l for l in rem if not re.fullmatch(r'(\d+,)?\d+[ad]\d+(,\d+)?', l)]
+
+    # TODO maybe log in a separate file
     # TODO not sure what's the best way to provide some quick debug means...
     # need grep -C or something like that...
     print_diff = True
@@ -216,6 +234,9 @@ class FileSet:
     def issame(self, other: 'FileSet') -> bool:
         lfile = self.merged
         rfile = other.merged
+        # TODO meh. maybe get rid of cmp, it's not really faster
+        # even on exactly same file (copy) it seemed to be slower
+        # https://unix.stackexchange.com/questions/153286/is-cmp-faster-than-diff-q
         (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
         return rc == 0
 
