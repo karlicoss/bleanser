@@ -34,3 +34,15 @@ def actions(*, paths: List[Path], Normaliser, max_workers=0) -> Res:
         else:
             raise RuntimeError(type(i))
     return Res(cleaned=cleaned, remaining=remaining)
+
+
+from contextlib import contextmanager
+@contextmanager
+def hack_attribute(Normaliser, key, value):
+    prev = getattr(Normaliser, key)
+    try:
+        # FIXME meh.. maybe instead instantiate an instance instead of class?
+        setattr(Normaliser, key, value)
+        yield
+    finally:
+        setattr(Normaliser, key, prev)

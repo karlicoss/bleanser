@@ -7,7 +7,7 @@ import pytest
 
 from bleanser.modules.binary import Normaliser
 
-from common import TESTDATA, actions
+from common import TESTDATA, actions, hack_attribute
 
 
 def via_fdupes(path: Path) -> List[str]:
@@ -34,19 +34,7 @@ def test_all(data: Path) -> None:
     paths = list(sorted(data.glob('*.json*')))
     assert len(paths) > 20, paths  # precondition
 
-    from contextlib import contextmanager
-
-    @contextmanager
-    def hack_filter():
-        prev = Normaliser.DIFF_FILTER
-        try:
-            # FIXME meh.. maybe instead instantiate an instance instead of class?
-            Normaliser.DIFF_FILTER = None
-            yield
-        finally:
-            Normaliser.DIFF_FILTER = prev
-
-    with hack_filter():
+    with hack_attribute(Normaliser, 'DIFF_FILTER', None):
         res = actions(paths=paths, Normaliser=Normaliser)
 
     expected_deleted = [Path(p) for p in via_fdupes(path=data)]
