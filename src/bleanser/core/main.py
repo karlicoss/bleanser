@@ -61,7 +61,9 @@ def main(*, Normaliser) -> None:
     # TODO ugh. how to name it --from? metavar= didn't work
     @click.option('--from_', required=False, type=int, default=None)
     @click.option('--to'  , required=False, type=int, default=None)
-    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int], from_: Optional[int], to: Optional[int]) -> None:
+    @click.option('--multiway', is_flag=True, default=None, help='force "multiway" cleanup')
+    @click.option('--delete-dominated', is_flag=True, default=None)
+    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], delete_dominated: Optional[bool]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -99,6 +101,11 @@ def main(*, Normaliser) -> None:
         assert len(paths) > 0
 
         logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
+        if multiway is not None:
+            Normaliser.MULTIWAY = multiway
+        if delete_dominated is not None:
+            Normaliser.DELETE_DOMINATED = delete_dominated
+
         instructions = compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
         apply_instructions(instructions, mode=mode)
     call_main()
