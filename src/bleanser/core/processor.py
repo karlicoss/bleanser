@@ -132,7 +132,11 @@ def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str
     if diff_filter is not None:
         # if it's empty gonna strip away everything... too unsafe
         assert diff_filter.strip() != '', diff_filter
-        dcmd = dcmd | grep['-vE', diff_filter]
+        # TODO shit. the caret here is a bit confusing...
+        # maybe need a better way of finding added items...
+        # most likely need to just use comm for that
+        # https://serverfault.com/questions/68684/how-can-i-get-diff-to-show-only-added-and-deleted-lines-if-diff-cant-do-it-wh/68786
+        dcmd = dcmd | grep['-vE', '^' + diff_filter]
     diff_lines = dcmd(retcode=(0, 1))
     # FIXME not sure about it...
     # if len(dres) > 10000:
@@ -141,8 +145,10 @@ def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str
     #     return False
     rem = diff_lines.splitlines()
     # clean up diff crap like
-    # 756587a756588,762590
-    rem = [l for l in rem if not re.fullmatch(r'\d+a\d+(,\d+)?', l)]
+    # 756587a756588,762590 and 88888,88890d88639
+    # TODO wonder if should combine it with diff_filter??
+    # TODO need to cover with test, both a and d bits
+    rem = [l for l in rem if not re.fullmatch(r'(\d+,)?\d+[ad]\d+(,\d+)?', l)]
 
     # TODO not sure what's the best way to provide some quick debug means...
     # need grep -C or something like that...
@@ -617,6 +623,34 @@ def test_many_files(multiway: bool, tmp_path: Path) -> None:
 @contextmanager
 def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
     yield path
+
+
+def test_special_characters(tmp_path: Path) -> None:
+    p1 = tmp_path / 'p1'
+    p1.write_text('A\n')
+    p2 = tmp_path / 'p2'
+    p2.write_text('A\n< C > whoops\n')
+    p3 = tmp_path / 'p3'
+    p3.write_text('A\n< C > whoops\n')
+    p4 = tmp_path / 'p4'
+    p4.write_text('A\n')
+
+    config = Config(
+        delete_dominated=True,
+        multiway=True,
+    )
+    gg = [p1, p2, p3, p4]
+    groups = list(compute_groups(
+        gg,
+        cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED,
+    ))
+    instructions = groups_to_instructions(groups, config=config)
+    assert [type(i) for i in instructions] == [
+        Keep,   # start of group
+        Delete, # same as next
+        Keep,   # has unique item: < C > whoops
+        Keep,   # end of group
+    ]
 
 
 @parametrize('multiway', [False, True])

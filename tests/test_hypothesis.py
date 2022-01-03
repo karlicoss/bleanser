@@ -6,7 +6,7 @@ import pytest
 
 from bleanser.core.json import JsonNormaliser as Normaliser
 
-from common import TESTDATA, actions
+from common import TESTDATA, actions, hack_attribute
 
 data = TESTDATA / 'hypothesis'
 
@@ -29,7 +29,8 @@ def test_all() -> None:
     # 4 workers: 64 seconds
     # 4 workers, pool for asdict: 42 seconds..
     # 2 workers: 81 seconds. hmmm
-    res = actions(paths=paths, Normaliser=Normaliser, max_workers=4)
+    with hack_attribute(Normaliser, 'DELETE_DOMINATED', True):
+        res = actions(paths=paths, Normaliser=Normaliser, max_workers=4)
     remaining = {p.name for p in res.remaining}
     assert 0 < len(remaining) < len(paths), remaining  # sanity check
 

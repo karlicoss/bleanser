@@ -33,7 +33,9 @@ def test_lastfm() -> None:
 
     with hack_attribute(Normaliser, 'MULTIWAY', False):
         res = actions(paths=paths, Normaliser=Normaliser)
-    assert res.cleaned == []
+    assert [p.name for p in res.cleaned] == [
+        'lastfm_20211107T011431Z.json', # fully contained in lastfm_20211127T011459Z
+    ]
 
     with hack_attribute(Normaliser, 'MULTIWAY', True):
         res = actions(paths=paths, Normaliser=Normaliser)
@@ -57,8 +59,11 @@ def test_lastfm() -> None:
         # <toplevel> ::: {"album": "departed glories", "artist": "biosphere", "date": "1635619124", "name": "than is the mater"}
         'lastfm_20211031T001458Z.json',
 
-
+        # this item is only present in this file:
+        # > <toplevel> ::: {"album": "2010", "artist": "earl sweatshirt", "date": "1638578097", "name": "2010"}
         'lastfm_20211204T011641Z.json',
+
+        # last item
         'lastfm_20220103T011522Z.json',
     ]
 
