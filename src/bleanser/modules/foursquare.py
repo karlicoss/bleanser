@@ -76,6 +76,16 @@ class Normaliser(JsonNormaliser):
             res.extend(l)
 
         for c in res:
+            # some id that might change, probs useless
+            v = c.get('venue', None)
+            if v is not None:
+                v['contact'].pop('facebook' , None) # don't care
+                v['contact'].pop('instagram', None) # don't care
+                del v['verified'] # don't care
+                v.pop('delivery', None) # eh, we don't care about what venue uses for delivery
+
+            # todo would be nice to support compose keys for delkeys..
+            # e.g. ('venue', 'contact', 'facebook')
             delkeys(c, keys={
                 ## these are just always changing, nothing we can do about it
                 'checkinsCount',
