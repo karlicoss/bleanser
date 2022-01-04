@@ -167,7 +167,8 @@ class Normaliser(JsonNormaliser):
     # filter out additions; keep the rest
     DIFF_FILTER =  '> '
 
-    DELETE_DOMINATED = True
+    # NOTE: we don't want to delete dominated/use multiway in reddit, because that way we lose timestamps for changes!!!
+    DELETE_DOMINATED = False
 
     def cleanup(self, j: Json) -> Json:
         delkeys(j, keys=REDDIT_IGNORE_KEYS)
@@ -178,7 +179,7 @@ if __name__ == '__main__':
     Normaliser.main()
 
 
-def test_reddit() -> None:
+def test_reddit_1() -> None:
     from bleanser.tests.common import TESTDATA, actions, hack_attribute
     # TODO add a test for multiway
 
@@ -206,4 +207,49 @@ def test_reddit() -> None:
         'reddit_20220102T132059Z.json',  # ??
         'reddit_20220102T142057Z.json',  # author changed (likely deleted?)
         'reddit_20220102T164059Z.json',  # last in group
+    ]
+
+
+def test_reddit_2() -> None:
+    from bleanser.tests.common import TESTDATA, actions, hack_attribute
+    data = TESTDATA / 'reddit2'
+    paths = list(sorted(data.glob('*.json*')))
+
+    res = actions(paths=paths, Normaliser=Normaliser)
+    # note: fieles appear to be spaced out by 20 mins instead of 10 (backup frequency)
+    # this is ok, because I temporarily moved every other file away in the absence of bleanser
+    assert [p.name for p in res.remaining] == [
+        'reddit_20210803T121056Z.json',
+
+        # ^v -- identical
+
+        'reddit_20210803T213053Z.json',
+
+        # here: some saved items rolled over
+        'reddit_20210803T215050Z.json',
+
+        # ^v -- identical
+
+        'reddit_20210804T085052Z.json',
+
+        # here: some subreddit description changed
+        'reddit_20210804T091050Z.json',
+
+        # ^v -- identical
+
+        'reddit_20210804T161053Z.json',
+
+        # here: some subreddit description changed
+        'reddit_20210804T163053Z.json',
+
+        # ^v -- identical
+
+        'reddit_20210804T191049Z.json',
+
+        # here: subreddit type changed from restricted to public (/r/BCI)
+        'reddit_20210804T193054Z.json',
+
+        # ^v -- identical
+
+        'reddit_20210804T213055Z.json',
     ]
