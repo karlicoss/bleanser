@@ -86,7 +86,7 @@ def compute_groups(
 
     # if wdir is passed will use this dir instead of a temporary
     # messy but makes debugging a bit easier..
-    from concurrent.futures import ThreadPoolExecutor as Pool
+    from concurrent.futures import ProcessPoolExecutor as Pool
     pool = DummyExecutor() if max_workers == 0 else Pool(max_workers=max_workers)
     with pool:
         workers = getattr(pool, '_max_workers')
@@ -102,9 +102,10 @@ def compute_groups(
             chunks.append(pp)
             # force iterator if we're using more than one thread
             # otherwise it'll still be basically serial execution
-            mforce = list if workers > 1 else lambda x: x
+            # in addition, multiprocess would fail to pickle returned iterator
+            func = _compute_groups_serial_as_list if max_workers > 0 else _compute_groups_serial
             futures.append(pool.submit(
-                lambda *args, **kwargs: mforce(_compute_groups_serial(*args, **kwargs)),
+                func,
                 paths=pp,
                 cleanup=cleanup,
                 diff_filter=diff_filter,
@@ -331,6 +332,10 @@ def test_fileset(tmp_path: Path) -> None:
     fscea = fsce.union(fa)
     assert fsce.issubset(fscea, diff_filter=_FILTER_ALL_ADDED)
 
+
+# just for process pool
+def _compute_groups_serial_as_list(*args, **kwargs):
+    return list(_compute_groups_serial(*args, **kwargs))
 
 # todo these are already normalized paths?
 # although then harder to handle exceptions... ugh
@@ -967,6 +972,10 @@ def test_groups_to_instructions() -> None:
     #         ('c', 'd'),
     #     )
 
+def _cleanup_aux(path: Path, *, wdir: Path, Normaliser) -> ContextManager[Path]:
+    n = Normaliser()
+    return n.do_cleanup(path, wdir=wdir)
+
 
 def compute_instructions(
         paths: Sequence[Path],
@@ -974,9 +983,9 @@ def compute_instructions(
         Normaliser: Type[BaseNormaliser],
         max_workers: Optional[int],
 ) -> Iterator[Instruction]:
-    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = Normaliser()
-        return n.do_cleanup(path, wdir=wdir)
+    import functools
+    # meh.. makes sure it's picklable
+    cleanup = functools.partial(_cleanup_aux, Normaliser=Normaliser)
 
     cfg = Config(
         delete_dominated=Normaliser.DELETE_DOMINATED,

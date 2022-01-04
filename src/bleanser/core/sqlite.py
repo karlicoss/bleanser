@@ -50,17 +50,18 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
     return to  # just for convenience
 
 
-def test_sqlite_simple(tmp_path: Path) -> None:
+def _test_aux(path: Path, *, wdir: Path) -> ContextManager[Path]:
     # TODO this assumes they are already cleaned up?
-    def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = NoopSqliteNormaliser()
-        return n.do_cleanup(path=path, wdir=wdir)
+    n = NoopSqliteNormaliser()
+    return n.do_cleanup(path=path, wdir=wdir)
 
+
+def test_sqlite_simple(tmp_path: Path) -> None:
     config = Config(multiway=False, delete_dominated=True)
     # use single thread for test purposes
     func = lambda paths: compute_groups(
         paths,
-        cleanup=ident,
+        cleanup=_test_aux,
         diff_filter=NoopSqliteNormaliser.DIFF_FILTER, max_workers=1,
         config=config,
     )

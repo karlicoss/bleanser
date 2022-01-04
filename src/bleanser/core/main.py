@@ -56,7 +56,7 @@ def main(*, Normaliser) -> None:
     @click.option('--dry', is_flag=True, default=None, show_default=True, help='Do not delete/move the input files, just print what would happen')
     @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
     @click.option('--remove', is_flag=True, default=None, show_default=True, help='Controls whether files will be actually deleted')
-    @click.option('--max-workers', required=False, type=int, help='Passed down to ThreadPoolExecutore. Use 0 for serial execution')
+    @click.option('--max-workers', required=False, type=int, help='Passed down to PoolExecutor. Use 0 for serial execution')
     # todo originally, hack for memory leak issue
     # TODO ugh. how to name it --from? metavar= didn't work
     @click.option('--from_', required=False, type=int, default=None)
