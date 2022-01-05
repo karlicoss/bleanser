@@ -161,6 +161,9 @@ REDDIT_IGNORE_KEYS = {
     #
     #
     # subreddit_type: public/restricted -- actually quite useful info!
+    # profile -> link_karma, comment_karma -- probs useful to keep
+    #
+    # TODO maybe, num_crossposts? have only seen once so far
 }
 
 class Normaliser(JsonNormaliser):
@@ -172,6 +175,17 @@ class Normaliser(JsonNormaliser):
 
     def cleanup(self, j: Json) -> Json:
         delkeys(j, keys=REDDIT_IGNORE_KEYS)
+
+        # hmm, 'created' changes all the time for some reason starting from 20181124201020
+        # https://www.reddit.com/r/redditdev/comments/29991t/whats_the_difference_between_created_and_created/ciiuk24/
+        # ok, it's broken, should use created_utc instead
+        for k, v in j.items():
+            if not isinstance(v, list):
+                continue
+            for i in v:
+                if 'created_utc' in i:
+                    i.pop('created', None)
+
         return j
 
 
