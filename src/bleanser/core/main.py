@@ -56,14 +56,14 @@ def main(*, Normaliser) -> None:
     @click.option('--dry', is_flag=True, default=None, show_default=True, help='Do not delete/move the input files, just print what would happen')
     @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
     @click.option('--remove', is_flag=True, default=None, show_default=True, help='Controls whether files will be actually deleted')
-    @click.option('--max-workers', required=False, type=int, help='Passed down to PoolExecutor. Use 0 for serial execution')
+    @click.option('--max-workers', required=False, type=int, default=0, help='Passed down to PoolExecutor. Use 0 for serial execution')
     # todo originally, hack for memory leak issue
     # TODO ugh. how to name it --from? metavar= didn't work
     @click.option('--from_', required=False, type=int, default=None)
     @click.option('--to'  , required=False, type=int, default=None)
     @click.option('--multiway', is_flag=True, default=None, help='force "multiway" cleanup')
     @click.option('--delete-dominated', is_flag=True, default=None)
-    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], delete_dominated: Optional[bool]) -> None:
+    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: int, from_: Optional[int], to: Optional[int], multiway: Optional[bool], delete_dominated: Optional[bool]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
