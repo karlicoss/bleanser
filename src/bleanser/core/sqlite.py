@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Helpers for processing sqlite databases
 """
@@ -235,6 +236,20 @@ class SqliteNormaliser(BaseNormaliser):
             # need to drop all constraints, foreign keys and uniqueness stuff
             # can't do this in sqlite though... only via temporary table?
 
+            tool = Tool(conn)
+            master_info = tool.get_sqlite_master()
+            for name, type_ in master_info.items():
+                if type_ == 'index':
+                    tool.drop_index(name)
+                elif type_ == 'view':
+                    tool.drop_view(name)
+                elif type_ == 'trigger':
+                    tool.drop_trigger(name)
+
+            master_info = tool.get_sqlite_master()
+            assert all(x == 'table' for x in master_info.values()), master_info
+            # TODO how to check there are no more triggers etc for real? do we need to commit or smth?
+
             # cleanup might take a bit of time, especially with UPDATE statemens
             # but probably unavoidable?
             self.cleanup(conn)
@@ -261,10 +276,11 @@ class SqliteNormaliser(BaseNormaliser):
 
 
     def cleanup(self, c: Connection) -> None:
-        # todo could have default implementation??
-        raise NotImplementedError
+        pass
 
 
+
+# TODO just use regular normaliser
 class NoopSqliteNormaliser(SqliteNormaliser):
     def cleanup(self, c: Connection) -> None:
         pass
@@ -273,6 +289,13 @@ class NoopSqliteNormaliser(SqliteNormaliser):
 class Tool:
     def __init__(self, connection: Connection) -> None:
         self.connection = connection
+
+    def get_sqlite_master(self) -> Dict[str, str]:
+        res = {}
+        for c in self.connection.execute('SELECT name, type FROM sqlite_master'):
+            [name, type_] = c
+            res[name] = type_
+        return res
 
     # FIXME quoting
     def drop(self, table: str) -> None:
@@ -303,3 +326,7 @@ class Tool:
         # alter table is since march 2021... so won't be in sqlite for a while
         # for col in cols:
         #     c.execute(f'ALTER TABLE {table} DROP COLUMN {col}')
+
+
+if __name__ == '__main__':
+    SqliteNormaliser.main()
