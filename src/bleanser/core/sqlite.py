@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import sqlite3
 from sqlite3 import Connection
+from subprocess import check_call
 from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, List
 
 
@@ -195,10 +196,8 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
 # TODO add some tests for my own dbs? e.g. stashed
 
 class SqliteNormaliser(BaseNormaliser):
-    # FIXME not sure if should be overridable
-    # strip off 'creating' data in the database -- we're interested to spot whether it was deleted
-    DIFF_FILTER = '> (INSERT INTO|CREATE TABLE) '
-    # FIXME need a test, i.e. with removing single line
+    DIFF_FILTER = '> '
+    # FIXME need a test, i.e. with removing single row?
 
     @staticmethod
     def checked(db: Path) -> Connection:
@@ -223,29 +222,27 @@ class SqliteNormaliser(BaseNormaliser):
             pass
         del path # just to prevent from using by accident
 
-        cleaned_db = checked_db(upath)
+        from bleanser.core.ext.sqlite_dumben import run as dumben
+
+        upath = checked_db(upath)
+
+        assert upath.is_absolute(), upath
+        unique_tmp_dir = wdir / Path(*upath.parts[1:])  # cut off '/' and use relative path
+        unique_tmp_dir.mkdir(parents=True, exist_ok=True)  # meh
+
+        cleaned_db = unique_tmp_dir / 'cleaned.db'
+        dumben(db=upath, output=cleaned_db, output_as_db=True)
 
         # ugh. in principle could use :memory: database here...
         # but then dumping it via iterdump() takes much more time then sqlite3 .dump command..
         with sqlite3.connect(cleaned_db) as conn:
             # prevent it from generating unnecessary wal files
             conn.execute('PRAGMA journal_mode=MEMORY;')
-            # we don't care about constraints in cleanup stage
-            conn.execute('PRAGMA foreign_keys = OFF;')
-            # FIXME
-            # need to drop all constraints, foreign keys and uniqueness stuff
-            # can't do this in sqlite though... only via temporary table?
 
+            # extra paranoid checks...
+            # TODO maybe also get create statements from sqlite_master and assert no constraints etc
+            # and double chech it by passing something without dumbing down
             tool = Tool(conn)
-            master_info = tool.get_sqlite_master()
-            for name, type_ in master_info.items():
-                if type_ == 'index':
-                    tool.drop_index(name)
-                elif type_ == 'view':
-                    tool.drop_view(name)
-                elif type_ == 'trigger':
-                    tool.drop_trigger(name)
-
             master_info = tool.get_sqlite_master()
             assert all(x == 'table' for x in master_info.values()), master_info
             # TODO how to check there are no more triggers etc for real? do we need to commit or smth?
@@ -258,17 +255,15 @@ class SqliteNormaliser(BaseNormaliser):
 
         ### dump to text file
         ## prepare a fake path for dump, just to preserve original file paths at least to some extent
-        assert cleaned_db.is_absolute(), cleaned_db
-        dump_file = wdir / Path(*cleaned_db.parts[1:])  # cut off '/' and use relative path
-        dump_file = dump_file.parent / f'{dump_file.name}-dump.sql'
-        dump_file.parent.mkdir(parents=True, exist_ok=True)  # meh
-        ##
+        dump_file = unique_tmp_dir / f'dump.sql'
+
         # dumping also takes a bit of time for big databases...
         dump_cmd = sqlite_cmd['-readonly', cleaned_db, '.dump']
-        # can't filter it otherwise :( and can't drop it in filter
-        filter_cmd = grep['-vE', '^INSERT INTO sqlite_sequence ']
-        cmd = (dump_cmd | filter_cmd) > str(dump_file)
-        cmd(retcode=(0, 1))
+        cmd = dump_cmd > str(dump_file)
+        cmd()
+
+        # hmm seems necessary sometimes.. not sure why
+        check_call(['sort', '-o', dump_file, dump_file])
 
         cleaned_db.unlink()
         ###
@@ -277,7 +272,6 @@ class SqliteNormaliser(BaseNormaliser):
 
     def cleanup(self, c: Connection) -> None:
         pass
-
 
 
 # TODO just use regular normaliser

@@ -91,7 +91,7 @@ class _Filter:
 
 
     def as_sql_lines(self) -> Iterator[bytes]:
-        with Popen(['sqlite3', self.db, '.dump'], stdout=PIPE) as p:
+        with Popen(['sqlite3', '-readonly', self.db, '.dump'], stdout=PIPE) as p:
             out = p.stdout; assert out is not None
             lines = _as_sql_lines(iter(out))
             yield from self._filtered(lines)
