@@ -3,9 +3,8 @@ from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
-    # TODO likely will need to enable true
-    MULTIWAY = False
-    DELETE_DOMINATED = False
+    MULTIWAY = True
+    DELETE_DOMINATED = True
 
     def cleanup(self, c) -> None:
         t = Tool(c)
@@ -17,9 +16,11 @@ class Normaliser(SqliteNormaliser):
         # TODO I guess generally safer to drop specific columns instead of whole tables
         t.drop_cols(table='match_seen_state', cols=['match_id', 'last_message_seen_id'])
 
-        # TODO match->last_activity_date -- hmmm changing quite a bit? is it interesting? not sure
+        # TODO last_acitivy_date table? only has activity for yourself? not sure...
+        # t.drop('last_activity_date')
+        # this one contributes to _a lot_ of changes, dunno
         #
-        # last_acitivy_date table? only has activity for yourself? not sure...
+        # match->last_activity_date -- hmmm changing quite a bit? is it interesting? not sure
         #
         # message->is_liked -- not sure if worth keeping... only for finding out the first change?
         #
@@ -30,3 +31,44 @@ class Normaliser(SqliteNormaliser):
 
 if __name__ == '__main__':
     Normaliser.main()
+
+
+def test_tinder() -> None:
+    from bleanser.tests.common import TESTDATA, actions
+    data = TESTDATA / 'tinder_android'
+    paths = list(sorted(data.rglob('*.db*')))
+
+    res = actions(paths=paths, Normaliser=Normaliser)
+
+    # TODO just return relative paths in test helper
+    assert [f'{p.parent.name}/{p.name}' for p in res.remaining] == [
+        '20210523193545/tinder-3.db',  # keep, first in group
+        # '20210916214349/tinder-3.db',  # MOVE
+        # '20210916223254/tinder-3.db',  # MOVE
+        '20210916232749/tinder-3.db',  # keep, some likes changes etc
+        '20210917004827/tinder-3.db',
+        '20210917014719/tinder-3.db',
+        '20210917015444/tinder-3.db',
+        # '20210917031235/tinder-3.db',  # MOVE
+        '20210917060029/tinder-3.db',
+
+
+        '20211007060802/tinder-3.db',  # keep, first in group
+        # '20211007090109/tinder-3.db',
+        # '20211007094056/tinder-3.db',
+        '20211007115318/tinder-3.db',  # keep, last_activity
+        # '20211007133114/tinder-3.db',
+        # '20211007143940/tinder-3.db',
+        # '20211007155908/tinder-3.db',
+        # '20211007165243/tinder-3.db',
+        '20211007180708/tinder-3.db',  # keep, bio changed
+
+        '20211225050314/tinder-3.db',  # keep: first in group
+        # '20211225193930/tinder-3.db',
+        '20211226052237/tinder-3.db',  # keep: last_activity_date changed
+        # '20211226091116/tinder-3.db',
+        # '20211226135158/tinder-3.db',
+        # '20211227002918/tinder-3.db',
+        '20211227044403/tinder-3.db',  # keep: last_actvivity_date changed
+        '20211227145813/tinder-3.db',  # keep: last in group
+    ]
