@@ -70,7 +70,8 @@ class _Filter:
             assert si != -1, line
             # backticks are quotes (e.g. if table name is a special keyword...)
             table_name = line[len(b'CREATE TABLE '): si]
-            table_name = table_name.lstrip(b'IF NOT EXISTS ')  # sometimes happens
+            table_name = table_name.replace(b'IF NOT EXISTS ', b'')
+            table_name = table_name.lstrip()  # sometimes happens
             table_name = table_name.strip().strip(b'`').strip(b"'")
 
             schema = self.tables[table_name.decode('utf8')]
