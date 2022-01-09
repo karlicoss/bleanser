@@ -35,47 +35,6 @@ TODO annoying bit is that bluemaestro has 'updates' like
 ###
 
 
-### podcastaddict
-#
-from .paths import PA1, PA2, PA3, PA4
-def test_podcastaddict_2_vs_3():
-    # PA2 and PA3 are a month apart
-    # TODO shit -- this is hopeless, lots of completely random updates...
-    # maybe triplets mode would be better...
-    # TODO blog: motivation for 'triplets' pruning
-    sqldiff(PA2, PA3)
-
-def test_podcastaddict_3_vs_4():
-    # these are a day apart -- ok, no changes..
-    sqldiff(PA3, PA4)
-
-
-def test_podcastaddict_234():
-    sqldump(PA2)
-    # ugh crap. triples isn't much better...
-    # e.g. stuff in 'podcasts' may reorder...
-
-'''
-interesting tables:
-- podcasts
-
-there is a fair amount of crap tables, e.g.
-- ad_campaign
-- bitmaps
-- radion_search_results?
-- content_policy_violation
-- ordered_list???
-- sqlite_stat1??
-- fts_virtual_episode_docsize??
-- blocking_services???
-
-but it would be annoying if this knowledge starts seeping through ....
-
-'''
-
-###
-
-
 ### firefox
 '''
 generally could work... but has some stuff like this:
@@ -93,16 +52,6 @@ also
 --strict mode -- absolutely conforms to schema
 --???    mode -- just looks at 'useful' data (similarly to two 'styles' I have in jq normaliser)
 
-'''
-###
-
-
-### smscalls
-'''
-xml file... hmm.
-date changes & also total count & backup_set field
-I guess the most reasonable is to have some xpath substitution...
-overall probably not worth too much effort to generalize considering it's basically the only xml I have
 '''
 ###
 
@@ -131,8 +80,6 @@ TODO maybe a safer option would be to dump a 'diff database'?? not sure how it w
 
 ### TODO definitely need a 'simple' mode, for pruning exactly equal files..
 ### maybe run it first regardless, for performance reasons
-### TODO needs great support for archives... also make sure to compare archives without unpacking at first
-### TODO archives: optimize for decompression speed?
 ### TODO not sure how to make it friednly to DAL...
 ### eh. whatever, these aren't the most pressing issues... people have lots of disk space and very few sync it
 ### maybe just add it on the roadmap

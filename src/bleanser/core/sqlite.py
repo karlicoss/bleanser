@@ -293,6 +293,21 @@ class Tool:
             res[name] = type_
         return res
 
+    def get_schemas(self) -> Dict[str, Dict[str, str]]:
+        # TODO reuse get_sqlite_master?
+        from .utils import get_tables
+        tables = get_tables(self.connection)
+        res: Dict[str, Dict[str, str]] = {}
+        for table in tables:
+            schema: Dict[str, str] = {}
+            for row in self.connection.execute(f'PRAGMA table_info({table})'):
+                col   = row[1]
+                type_ = row[2]
+                schema[col] = type_
+            res[table] = schema
+        return res
+
+
     # FIXME quoting
     def drop(self, table: str) -> None:
         self.connection.execute(f'DROP TABLE IF EXISTS {table}')
