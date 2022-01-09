@@ -20,11 +20,23 @@ def main(*, Normaliser) -> None:
     # might make easier to open without creating wals...
     # sqlite3 'file:places-20190731110302.sqlite?immutable=1' '.dump' | less
 
+    _DEFAULT = object()
+
     @call_main.command(name='diff', short_help='diff two files after cleanup')
-    @click.option('--vim', is_flag=True, default=False, show_default=True, help='Use vimdiff')
     @click.argument('path1', type=Path)
-    @click.argument('path2', type=Path)
-    def diff(path1: Path, path2: Path, *, vim: bool) -> None:
+    @click.argument('path2', default=_DEFAULT)
+    @click.option('--vim', is_flag=True, default=False, show_default=True, help='Use vimdiff')
+    @click.option('--from_', required=False, type=int, default=None)
+    @click.option('--to'  , required=False, type=int, default=None)
+    def diff(path1: Path, path2: Optional[Path], *, from_: Optional[str], to: Optional[str], vim: bool) -> None:
+        # TODO meh. how to do nargs='?' in click?
+        if path2 is _DEFAULT:
+            paths = _get_paths(path=path1, from_=from_, to=to)
+            assert len(paths) == 2, paths
+            [path1, path2] = paths
+        else:
+            path2 = Path(path2)
+
         from .processor import compute_diff
         # meh..
         if vim:
@@ -76,31 +88,8 @@ def main(*, Normaliser) -> None:
         assert len(modes) == 1, f'please specify exactly one of modes (got {modes})'
         [mode] = modes
 
-        # first try json...
-        # meh... need to think how to support archived stuff properly?
-        paths = list(sorted(path.rglob('*.json*')))
-        # second, try sqlite
-        if len(paths) == 0:
-            SQLITE_MIME = 'application/x-sqlite3'
-            # TODO might take a while if there are many paths
-            paths = [p for p in paths if mime(p) == SQLITE_MIME]
-        if len(paths) == 0:
-            # TODO should also move to Normaliser?
-            # todo not sure if this is the best way?
-            paths = [
-                p
-                for p in list(sorted(path.rglob('*')))  # assumes sort order is same as date order? guess it's reasonable
-                if p.is_file()
-            ]
+        paths = _get_paths(path=path, from_=from_, to=to)
 
-        if from_ is None:
-            from_ = 0
-        if to is None:
-            to = len(paths)
-        paths = paths[from_: to]
-        assert len(paths) > 0
-
-        logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
         if multiway is not None:
             Normaliser.MULTIWAY = multiway
         if delete_dominated is not None:
@@ -109,3 +98,33 @@ def main(*, Normaliser) -> None:
         instructions = compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
         apply_instructions(instructions, mode=mode)
     call_main()
+
+
+def _get_paths(*, path: Path, from_: Optional[int], to: Optional[int]) -> List[Path]:
+    assert path.is_dir(), path
+    # first try json...
+    # meh... need to think how to support archived stuff properly?
+    paths = list(sorted(path.rglob('*.json*')))
+    # second, try sqlite
+    if len(paths) == 0:
+        SQLITE_MIME = 'application/x-sqlite3'
+        # TODO might take a while if there are many paths
+        paths = [p for p in paths if mime(p) == SQLITE_MIME]
+    if len(paths) == 0:
+        # TODO should also move to Normaliser?
+        # todo not sure if this is the best way?
+        paths = [
+            p
+            for p in list(sorted(path.rglob('*')))  # assumes sort order is same as date order? guess it's reasonable
+            if p.is_file()
+        ]
+
+    if from_ is None:
+        from_ = 0
+    if to is None:
+        to = len(paths)
+    paths = paths[from_: to]
+    assert len(paths) > 0
+
+    logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
+    return paths
