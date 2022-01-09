@@ -11,7 +11,9 @@ class Normaliser(SqliteNormaliser):
         tables = Tool(c).get_schemas()
         assert 'podcasts' in tables, tables
         eps = tables['episodes']
-        assert 'playbackDate' in eps  # to make sure it's safe to use multiway/delete dominated
+        # to make sure it's safe to use multiway/delete dominated:
+        assert 'playbackDate' in eps
+        assert 'position_to_resume' in eps
 
     # TODO I guess the point is that they run before even trying to cleanup the database, as sanity checks
     # guess makes more sense to implement base 'check' mehod
@@ -29,6 +31,8 @@ class Normaliser(SqliteNormaliser):
         t.drop_cols(table='episodes', cols=[
             'thumbnail_id',
             'new_status',
+
+            'downloaded_status_int',
         ])
         t.drop_cols(table='podcasts', cols=[
             'last_modified',
@@ -42,7 +46,7 @@ class Normaliser(SqliteNormaliser):
             'episodesNb',
             'subscribers',
             'thumbnail_id',
-            'update_date',
+            'update_date', 'update_status',
             'filter_chapter_excluded_keywords',
 
             'category',
@@ -75,3 +79,32 @@ class Normaliser(SqliteNormaliser):
 
 if __name__ == '__main__':
     Normaliser.main()
+
+
+def test_podcastaddict() -> None:
+    from bleanser.tests.common import TESTDATA, actions2
+    res = actions2(path=TESTDATA / 'podcastaddict_android', rglob='*.db*', Normaliser=Normaliser)
+    assert res.remaining == [
+        '20180106220736/podcastAddict.db',
+        '20190227212300/podcastAddict.db',
+        '20200217195816/podcastAddict.db',
+
+        '20200406041500/podcastAddict.db',
+        # '20210306070017/podcastAddict.db',
+        # '20210306070020/podcastAddict.db',
+        '20210306140046/podcastAddict.db',
+
+        # keep: episode position changed
+        '20210306165958/podcastAddict.db',
+
+        '20210509141916/podcastAddict.db',
+        # '20210510070001/podcastAddict.db',
+        # '20210511185801/podcastAddict.db',
+        # '20210513164819/podcastAddict.db',
+        # some podcast lengths changed... might be useful
+        '20210517000609/podcastAddict.db',
+        # '20211226145720/podcastAddict.db',
+        '20211226172310/podcastAddict.db',
+        # some podcast authors changed... dunno if useful but whatever
+        '20211228010151/podcastAddict.db',
+    ]

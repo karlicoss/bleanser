@@ -34,14 +34,10 @@ if __name__ == '__main__':
 
 
 def test_tinder() -> None:
-    from bleanser.tests.common import TESTDATA, actions
-    data = TESTDATA / 'tinder_android'
-    paths = list(sorted(data.rglob('*.db*')))
+    from bleanser.tests.common import TESTDATA, actions2
+    res = actions2(path=TESTDATA / 'tinder_android', rglob='*.db*', Normaliser=Normaliser)
 
-    res = actions(paths=paths, Normaliser=Normaliser)
-
-    # TODO just return relative paths in test helper
-    assert [f'{p.parent.name}/{p.name}' for p in res.remaining] == [
+    assert res.remaining == [
         '20210523193545/tinder-3.db',  # keep, first in group
         # '20210916214349/tinder-3.db',  # MOVE
         # '20210916223254/tinder-3.db',  # MOVE

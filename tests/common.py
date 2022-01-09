@@ -36,6 +36,23 @@ def actions(*, paths: List[Path], Normaliser, max_workers=0) -> Res:
     return Res(cleaned=cleaned, remaining=remaining)
 
 
+@dataclass
+class Res2:
+    cleaned  : List[str]
+    remaining: List[str]
+
+
+def actions2(*, path: Path, rglob: str, Normaliser, max_workers=0) -> Res2:
+    paths = list(sorted(path.rglob(rglob)))
+    res = actions(paths=paths, Normaliser=Normaliser)
+    cleaned   = res.cleaned
+    remaining = res.remaining
+    return Res2(
+        cleaned  =[str(c.relative_to(path)) for c in cleaned  ],
+        remaining=[str(c.relative_to(path)) for c in remaining],
+    )
+
+
 from contextlib import contextmanager
 @contextmanager
 def hack_attribute(Normaliser, key, value):
