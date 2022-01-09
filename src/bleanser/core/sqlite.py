@@ -218,8 +218,10 @@ class SqliteNormaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        with self.unpacked(path=path, wdir=wdir) as upath:
-            pass
+        # TODO handle compressed databases later... need to think how to work around checking for no wal etc..
+        # with self.unpacked(path=path, wdir=wdir) as upath:
+        #     pass
+        upath = path
         del path # just to prevent from using by accident
 
         from bleanser.core.ext.sqlite_dumben import run as dumben
@@ -258,7 +260,7 @@ class SqliteNormaliser(BaseNormaliser):
         dump_file = unique_tmp_dir / f'dump.sql'
 
         # dumping also takes a bit of time for big databases...
-        dump_cmd = sqlite_cmd['-readonly', cleaned_db, '.dump']
+        dump_cmd = sqlite_cmd['-readonly', f'file://{cleaned_db}?immutable=1', '.dump']
         cmd = dump_cmd > str(dump_file)
         cmd()
 

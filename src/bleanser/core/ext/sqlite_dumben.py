@@ -60,22 +60,28 @@ class _Filter:
             if line.startswith(b'DELETE FROM sqlite_sequence') or line.startswith(b'INSERT INTO sqlite_sequence'):
                 # smth to do with autoincrement
                 return b''
+            if line.startswith(b'DELETE FROM sqlite_stat1') or line.startswith(b'INSERT INTO sqlite_stat1'):
+                # smth to do with ANALYZE
+                return b''
             return line
 
         if line.startswith(b'CREATE TABLE '):
             si = line.find(b'(')
             assert si != -1, line
             # backticks are quotes (e.g. if table name is a special keyword...)
-            table_name = line[len(b'CREATE TABLE '): si].strip().strip(b'`')
+            table_name = line[len(b'CREATE TABLE '): si]
+            table_name = table_name.lstrip(b'IF NOT EXISTS ')  # sometimes happens
+            table_name = table_name.strip().strip(b'`').strip(b"'")
+
             schema = self.tables[table_name.decode('utf8')]
             line2 = line[:si] + b' (' + b', '.join(f'{k} {v}'.encode('utf8') for k, v in schema.items()) + b');\n'
             return line2
-            # jesus..
-            # just drop it?
 
         dropped = [
             b'CREATE INDEX ',
             b'CREATE VIEW ',
+
+            b'ANALYZE ',  # some optimization thing https://www.sqlite.org/lang_analyze.html
         ]
         if any(line.startswith(s) for s in dropped):
             return b''
@@ -91,7 +97,7 @@ class _Filter:
 
 
     def as_sql_lines(self) -> Iterator[bytes]:
-        with Popen(['sqlite3', '-readonly', self.db, '.dump'], stdout=PIPE) as p:
+        with Popen(['sqlite3', '-readonly', f'file://{self.db}?immutable=1', '.dump'], stdout=PIPE) as p:
             out = p.stdout; assert out is not None
             lines = _as_sql_lines(iter(out))
             yield from self._filtered(lines)
