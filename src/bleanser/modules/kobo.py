@@ -1,37 +1,58 @@
 #!/usr/bin/env python3
-from pathlib import Path
-from sqlite3 import Connection
-
-from bleanser.core import logger
-from bleanser.core.utils import get_tables
 from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
+    # events are only snapshots, so probs makes sense
+    MULTIWAY = True
     DELETE_DOMINATED = True
 
-    def __init__(self, db: Path) -> None:
-        # todo not sure about this?.. also makes sense to run checked for cleanup/extract?
-        with self.checked(db) as conn:
-            self.tables = get_tables(conn)
-        def check_table(name: str) -> None:
-            assert name in self.tables, self.tables
-        check_table('content')
-        check_table('Bookmark')
-        check_table('BookAuthors')
 
-    def cleanup(self, c: Connection) -> None:
+    def check(self, c) -> None:
+        tool = Tool(c)
+        tables = tool.get_schemas()
+        assert 'content'     in tables, tables
+        bm = tables['Bookmark']
+        assert 'BookmarkID'  in bm, bm
+        assert 'DateCreated' in bm, bm
+        assert 'BookAuthors' in tables, tables
+
+
+    def cleanup(self, c) -> None:
+        self.check(c)
+
         tool = Tool(c)
         tool.drop('content') # some cached book data? so not very interesting when it changes..
         tool.drop('content_keys')  # just some image meta
         tool.drop('volume_shortcovers')  # just some hashes
         tool.drop('volume_tabs')  # some hashes
-        # ## often changing
-        # c.execute('UPDATE episodes SET thumbnail_id=-1')
-        # c.execute('UPDATE podcasts SET update_date=-1,episodesNb=-1,thumbnail_id=-1,subscribers=-1')
-        # ##
+
+        tool.drop_cols(table='Event', cols=['Checksum'])
+
+        # pointless, they are changeing all the time
+        c.execute('UPDATE Activity SET Date = NULL WHERE Id = "SomeFakeRecommendedTabId"')
+        # TODO not sure about RecentBook?
+        c.execute('UPDATE Activity SET Date = NULL WHERE Type IN ("TopPicksTab", "Top50")')
+        c.execute('UPDATE Shelf SET _SyncTime = NULL, LastAccessed = NULL, LastModified = NULL WHERE Id = "ReadingList"')
+        tool.drop_cols(table='user', cols=['SyncContinuationToken', 'KoboAccessToken', 'KoboAccessTokenExpiry', 'AuthToken', 'RefreshToken'])
+        tool.drop_cols(table='Bookmark', cols=[
+            'SyncTime',
+            'Version', # not sure what it is, but sometimes changing?
+            'StartContainerChildIndex', 'EndContainerChildIndex', # ????
+
+            'StartContainerPath', 'EndContainerPath',
+        ])
+        # FIXME shit!
+        # BLOB ExtraData seems to just disappear??? e.g from Events table
+        # ugh. really weird... sqlite3 db .dump doesn't print blob at all (not even prefixed as X)
+
+        # either way, decoding it is hopeless without kobuddy?
+
+        # TODO ugh. Bookmark.DateCreated sometimes rounds to nearest second? wtf...
+        # TODO Event table -- not sure... it trackes event counts, so needs to be cumulative or something?
+        # yep, they def seem to messing up a lot
+        # TODO Activity -- dates changing all the time... not sure
 
 
 if __name__ == '__main__':
-    from bleanser.core import main
-    main(Normaliser=Normaliser)
+    Normaliser.main()

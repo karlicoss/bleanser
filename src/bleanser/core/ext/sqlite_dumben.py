@@ -82,6 +82,7 @@ class _Filter:
         dropped = [
             b'CREATE INDEX ', b'CREATE UNIQUE INDEX ',
             b'CREATE VIEW ',
+            b'CREATE TRIGGER ',
 
             b'ANALYZE ',  # some optimization thing https://www.sqlite.org/lang_analyze.html
         ]
@@ -169,4 +170,5 @@ if __name__ == '__main__':
     main()
 
 # FIXME add some tests, maybe some dbs from testdata with triggers/constraints
-#
+# e.g. KoboReader-20211130.sqlite seems to have
+# CREATE TRIGGER kobo_plus_asset_cleanup
