@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from bleanser.core.sqlite import SqliteNormaliser, Tool
-from bleanser.core.utils import get_tables
 
 
 class Normaliser(SqliteNormaliser):

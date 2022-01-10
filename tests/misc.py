@@ -13,28 +13,6 @@ def sqldump(path, **kwargs):
     check_call(['sqlite3', f'file:///{path}?immutable=1', '.dump'], **kwargs)
 
 
-### Bluemaestro
-from .paths import BM1, BM2  # type: ignore
-
-def test_bluemaestro_old_vs_new():
-    sqldiff(BM1, BM2)
-
-
-def test_bluemaestro_new_vs_old():
-    sqldiff(BM2, BM1)
-
-
-def test_bluemaestro_old_vs_old():
-    sqldiff(BM1, BM1)
-
-'''
-generally this seems to work well
-TODO annoying bit is that bluemaestro has 'updates' like
-  e.g. UPDATE ABCDEF_info SET downloadUnix=1614539578549 WHERE id=0;
-'''
-###
-
-
 ### firefox
 '''
 generally could work... but has some stuff like this:
