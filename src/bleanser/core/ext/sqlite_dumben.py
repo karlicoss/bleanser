@@ -75,11 +75,12 @@ class _Filter:
             table_name = table_name.strip().strip(b'`').strip(b"'")
 
             schema = self.tables[table_name.decode('utf8')]
-            line2 = line[:si] + b' (' + b', '.join(f'{k} {v}'.encode('utf8') for k, v in schema.items()) + b');\n'
+            # always escape in case the column is named 'index' or someting
+            line2 = line[:si] + b' (' + b', '.join(f'`{k}` {v}'.encode('utf8') for k, v in schema.items()) + b');\n'
             return line2
 
         dropped = [
-            b'CREATE INDEX ',
+            b'CREATE INDEX ', b'CREATE UNIQUE INDEX ',
             b'CREATE VIEW ',
 
             b'ANALYZE ',  # some optimization thing https://www.sqlite.org/lang_analyze.html
@@ -142,7 +143,7 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
         out = sys.stdout.buffer
     else:
         if output_as_db:
-            popen = ctx_stack.enter_context(Popen(['sqlite3', output], stdin=PIPE))
+            popen = ctx_stack.enter_context(Popen(['sqlite3', '-bail', output], stdin=PIPE))
             pin = popen.stdin; assert pin is not None
             out = pin
         else:
