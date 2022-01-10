@@ -31,6 +31,15 @@ def checked_db(db: Path) -> Path:
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
         list(conn.execute('pragma schema_version;'))
+
+        tool = Tool(conn)
+        schemas = tool.get_schemas()
+        for table, schema in schemas.items():
+            for n, t in schema.items():
+                if t == 'BLOB':
+                    raise RuntimeError(f'{table}::{n} has type BLOB -- not supported yet, sometimes dumps as empty string')
+
+
     conn.close()
     db = checked_no_wal(db)
     return db
