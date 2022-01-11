@@ -3,26 +3,58 @@ from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
-    # TODO do we really need multiway now?
     MULTIWAY = True
     DELETE_DOMINATED = True
+
+    ALLOWED_BLOBS = {
+        ('favicons', 'data'),
+        ('thumbnails', 'data'),
+        ('bookmarks_with_favicons', 'favicon'),
+        ('history_with_favicons', 'favicon'),
+        ('combined_with_favicons', 'favicon'),
+    }
+
+
+    def is_old_firefox(self, c) -> bool:
+        tool = Tool(c)
+        tables = tool.get_schemas()
+        if 'bookmarks' in tables:
+            return True
+        if 'moz_bookmarks' in tables:
+            return False
+        raise RuntimeError(f"Unexpected schema {tables}")
+
 
     def check(self, c) -> None:
         tool = Tool(c)
         tables = tool.get_schemas()
-        b = tables['moz_bookmarks']
-        assert 'dateAdded' in b, b
-        assert 'guid'      in b, b
-        h = tables['moz_historyvisits']
-        assert 'place_id'   in h, h
-        assert 'visit_date' in h, h
-        p = tables['moz_places']
-        assert 'url' in p, p
-        assert 'id'  in p, p
-        # moz_annos -- apparently, downloads?
+        if self.is_old_firefox(c):
+            v = tables['visits']
+            assert 'history_guid' in v, v
+            assert 'date'         in v, v
+            h = tables['history']
+            assert 'url'  in h, h
+            assert 'guid' in h, h
+        else:
+            b = tables['moz_bookmarks']
+            assert 'dateAdded' in b, b
+            assert 'guid'      in b, b
+            h = tables['moz_historyvisits']
+            assert 'place_id'   in h, h
+            assert 'visit_date' in h, h
+            p = tables['moz_places']
+            assert 'url' in p, p
+            assert 'id'  in p, p
+
 
     def cleanup(self, c) -> None:
         self.check(c)
+
+        if self.is_old_firefox(c):
+            self.cleanup_old(c)
+            return
+
+        # otherwise, assume new db format
 
         tool = Tool(c)
         [(visits_before,)] = c.execute('SELECT count(*) FROM moz_historyvisits')
@@ -79,6 +111,80 @@ class Normaliser(SqliteNormaliser):
         # sanity check just in case... can remove after we get rid of triggers properly...
         [(visits_after,)] = c.execute('SELECT count(*) FROM moz_historyvisits')
         assert visits_before == visits_after, (visits_before, visits_after)
+
+
+    def cleanup_old(self, c) -> None:
+        tool = Tool(c)
+
+        # TODO could be pretty useful + really marginal benefits form cleaning it up, like 5% of databases maybe
+        # tool.drop('searchhistory')
+
+        tool.drop('thumbnails')
+        tool.drop('favicons')
+
+        # doesn't really have anything interesting? ...
+        # just some image urls and maybe titles... likely no one cares about them
+        tool.drop('page_metadata')
+
+        tool.drop_cols(
+            'bookmarks',
+            # we don't care about these
+            cols=[
+                'position', 'localVersion', 'syncVersion',
+                'modified', # also seems to depend on bookmark position
+
+                'guid',  # sort of a hash and changes with position changes too?
+            ],
+        )
+        tool.drop_cols(
+            'clients',
+            cols=['last_modified'],
+        )
+        tool.drop_cols(
+            'history',
+            cols=[
+                # aggregates, changing all the time
+                'visits',
+                'visits_local',
+                'visits_remote',
+                ##
+
+                # hmm, this seems to be last date.. actual dates are in 'visits'
+                'date',
+                'date_local',
+                'date_remote',
+                ##
+
+                'title',
+                # ugh. changes dynamically. e.g. (1) on twitter/telegram notifications
+                # could update in some elaborate manner. idk
+
+                'modified', # ? changes for no apparent reason, probs because of the corresponding aggregates
+            ]
+        )
+
+        tool.drop_cols(
+            'remote_devices',
+            cols=[
+                # probs only the presence of devices is interesting..
+                # changing all the time for no reason
+                '_id',
+                'modified',
+                'last_access_time',
+                'created', # yes, this also changed all the time
+            ]
+        )
+
+        # FIXME hmm...
+        # on the one hand, kind of interesting info..
+        # on the other, they change A LOT, so we'll miss most of tab snapshots anyway...
+        # also newer databases don't have tab information anyway.. so I guess for now best to clean them up..
+        tool.drop('tabs')
+        # tool.drop_cols(
+        #     'tabs',
+        #     cols=['_id', 'favicon', 'position',],
+        # )
+
 
 
 if __name__ == '__main__':
