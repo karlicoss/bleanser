@@ -1,31 +1,30 @@
 #!/usr/bin/env python3
-from pathlib import Path
-from sqlite3 import Connection
-
-
-from bleanser.core import logger
-from bleanser.core.utils import get_tables
 from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
-    DELETE_DOMINATED = True
+    # TODO do we really need multiway now?
     MULTIWAY = True
+    DELETE_DOMINATED = True
 
-    def __init__(self, db: Path) -> None:
-        # todo not sure about this?.. also makes sense to run checked for cleanup/extract?
-        with self.checked(db) as conn:
-            self.tables = get_tables(conn)
-        def check_table(name: str) -> None:
-            assert name in self.tables, (name, self.tables)
-        check_table('moz_bookmarks')
-        check_table('moz_historyvisits')
+    def check(self, c) -> None:
+        tool = Tool(c)
+        tables = tool.get_schemas()
+        b = tables['moz_bookmarks']
+        assert 'dateAdded' in b, b
+        assert 'guid'      in b, b
+        h = tables['moz_historyvisits']
+        assert 'place_id'   in h, h
+        assert 'visit_date' in h, h
+        p = tables['moz_places']
+        assert 'url' in p, p
+        assert 'id'  in p, p
         # moz_annos -- apparently, downloads?
 
-    def cleanup(self, c: Connection) -> None:
+    def cleanup(self, c) -> None:
+        self.check(c)
+
         tool = Tool(c)
-        tool.drop_index('moz_places_guid_uniqueindex')
-        tool.drop_index('guid_uniqueindex') # on mobile only
         [(visits_before,)] = c.execute('SELECT count(*) FROM moz_historyvisits')
         tool.drop_cols(
             table='moz_places',
@@ -50,6 +49,10 @@ class Normaliser(SqliteNormaliser):
                 'sync_status',
                 'sync_change_counter',
                 ##
+
+                ## ? maybe mobile only
+                'visit_count_remote',
+                ##
             ]
         )
         # ugh. sometimes changes for no reason...
@@ -65,13 +68,47 @@ class Normaliser(SqliteNormaliser):
         tool.drop('moz_meta')
         tool.drop('moz_origins')  # prefix/host/frequency -- not interesting
         # todo not sure...
-        tool.drop('moz_inputhistory')
+        # tool.drop('moz_inputhistory')
 
+        tool.drop_cols('moz_bookmarks_synced', cols=[
+            'id',  # id always changes, and they have guid instead
+            'serverModified',  # changes without any actual chagnes to bookmark?
+        ])
+
+        # TODO do we still need it?
         # sanity check just in case... can remove after we get rid of triggers properly...
         [(visits_after,)] = c.execute('SELECT count(*) FROM moz_historyvisits')
         assert visits_before == visits_after, (visits_before, visits_after)
 
 
 if __name__ == '__main__':
-    from bleanser.core import main
-    main(Normaliser=Normaliser)
+    Normaliser.main()
+
+
+# TODO need to make sure we test 'rolling' visits
+# these look like they are completely cumulative in terms of history
+def test_fenix() -> None:
+    from bleanser.tests.common import TESTDATA, actions2
+    res = actions2(path=TESTDATA / 'fenix', rglob='*.sqlite*', Normaliser=Normaliser)
+    assert res.remaining == [
+        # eh, too lazy to document the reason for keeping them...
+        # many of them are just bookmark changes
+        '20210327103953/places.sqlite',
+        '20210408155753/places.sqlite',
+        '20210419092604/places.sqlite',
+        '20210514081246/places.sqlite',
+        # '20210517094437/places.sqlite',  # move
+        # '20210517175309/places.sqlite',  # move
+        # '20210520132446/places.sqlite',  # move
+        # '20210522092831/places.sqlite',  # move
+        # '20210524152154/places.sqlite',  # move
+        # '20210526075434/places.sqlite',  # move
+        # '20210527062123/places.sqlite',  # move
+        # '20210530172804/places.sqlite',  # move
+        # '20210601165208/places.sqlite',  # move
+        # '20210602192530/places.sqlite',  # move
+        # '20210603032923/places.sqlite',  # move
+        '20210603144405/places.sqlite',
+        '20210623234309/places.sqlite',
+        '20210717141629/places.sqlite',
+    ]

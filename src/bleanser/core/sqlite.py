@@ -331,7 +331,7 @@ class Tool:
         kws = ', '.join(f'{k}=?' for k, v in kwargs.items())
         self.connection.execute(f'UPDATE {table} set {kws}', list(kwargs.values()))
 
-    def drop_cols(self, *, table: str, cols: Sequence[str]) -> None:
+    def drop_cols(self, table: str, *, cols: Sequence[str]) -> None:
         # for the purposes of comparison this is same as dropping
         # for update need to filter nonexisting cols
         #
