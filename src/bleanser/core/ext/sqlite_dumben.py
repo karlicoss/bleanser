@@ -60,7 +60,7 @@ class _Filter:
             if line.startswith(b'DELETE FROM sqlite_sequence') or line.startswith(b'INSERT INTO sqlite_sequence'):
                 # smth to do with autoincrement
                 return b''
-            if line.startswith(b'DELETE FROM sqlite_stat1') or line.startswith(b'INSERT INTO sqlite_stat1'):
+            if line.startswith(b'DELETE FROM sqlite_stat') or line.startswith(b'INSERT INTO sqlite_stat'):
                 # smth to do with ANALYZE
                 return b''
             return line
@@ -138,6 +138,7 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
     if output is None:
         assert output_as_db is False
 
+    popen: Optional[Popen] = None
     ctx_stack = contextlib.ExitStack()
     out: IO[bytes]
     if output is None:
@@ -153,6 +154,11 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
     with ctx_stack:
         for line in _Filter(db=db).as_sql_lines():
             out.write(line)
+
+    if popen is not None:
+        popen.wait()
+        ret = popen.returncode
+        assert ret == 0, ret
 
 
 def main() -> None:
