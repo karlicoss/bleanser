@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 from sqlite3 import Connection
 from subprocess import check_call
-from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, List
+from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, List, Set, Tuple
 
 
 from .common import logger, parametrize, Config
@@ -26,7 +26,7 @@ def checked_no_wal(db: Path) -> Path:
     return db
 
 
-def checked_db(db: Path) -> Path:
+def checked_db(db: Path, *, allowed_blobs: Set[Tuple[str, str]]) -> Path:
     # integrity check
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
@@ -37,8 +37,9 @@ def checked_db(db: Path) -> Path:
         for table, schema in schemas.items():
             for n, t in schema.items():
                 if t == 'BLOB':
-                    raise RuntimeError(f'{table}::{n} has type BLOB -- not supported yet, sometimes dumps as empty string')
-
+                    key = (table, n)
+                    if key not in allowed_blobs:
+                        raise RuntimeError(f'{schema}: {key} has type BLOB -- not supported yet, sometimes dumps as empty string')
 
     conn.close()
     db = checked_no_wal(db)
@@ -208,12 +209,12 @@ class SqliteNormaliser(BaseNormaliser):
     DIFF_FILTER = '> '
     # FIXME need a test, i.e. with removing single row?
 
-    @staticmethod
-    def checked(db: Path) -> Connection:
+    ALLOWED_BLOBS = set()
+
+    @classmethod
+    def checked(cls, db: Path) -> Path:
         """common schema checks (for both cleanup/extract)"""
-        db = checked_db(db)
-        conn = sqlite3.connect(f'file:{db}?immutable=1', uri=True)
-        return conn
+        return checked_db(db, allowed_blobs=cls.ALLOWED_BLOBS)
 
     # TODO in principle we can get away with using only 'extract'?
     # 'cleanup' is just a sanity check? so you don't cleanup too much by accident?
@@ -235,7 +236,7 @@ class SqliteNormaliser(BaseNormaliser):
 
         from bleanser.core.ext.sqlite_dumben import run as dumben
 
-        upath = checked_db(upath)
+        upath = self.checked(upath)
 
         assert upath.is_absolute(), upath
         unique_tmp_dir = wdir / Path(*upath.parts[1:])  # cut off '/' and use relative path
@@ -262,7 +263,7 @@ class SqliteNormaliser(BaseNormaliser):
             # but probably unavoidable?
             self.cleanup(conn)
         conn.close()
-        cleaned_db = checked_db(cleaned_db)
+        cleaned_db = self.checked(cleaned_db)
 
         ### dump to text file
         ## prepare a fake path for dump, just to preserve original file paths at least to some extent
