@@ -30,7 +30,8 @@ def checked_db(db: Path, *, allowed_blobs: Set[Tuple[str, str]]) -> Path:
     # integrity check
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
-        list(conn.execute('pragma schema_version;'))
+        list(conn.execute('PRAGMA schema_version;'))
+        list(conn.execute('PRAGMA integrity_check;'))
 
         tool = Tool(conn)
         schemas = tool.get_schemas()
