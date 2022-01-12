@@ -99,8 +99,10 @@ class Normaliser(SqliteNormaliser):
         )
         tool.drop('moz_meta')
         tool.drop('moz_origins')  # prefix/host/frequency -- not interesting
-        # todo not sure...
-        # tool.drop('moz_inputhistory')
+
+        tool.drop_cols('moz_inputhistory', cols=[
+            'use_count', #  eh, some floating point that changes all the time
+        ])
 
         tool.drop_cols('moz_bookmarks_synced', cols=[
             'id',  # id always changes, and they have guid instead
