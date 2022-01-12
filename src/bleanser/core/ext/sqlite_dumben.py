@@ -72,7 +72,7 @@ class _Filter:
             table_name = line[len(b'CREATE TABLE '): si]
             table_name = table_name.replace(b'IF NOT EXISTS ', b'')
             table_name = table_name.lstrip()  # sometimes happens
-            table_name = table_name.strip().strip(b'`').strip(b"'")
+            table_name = table_name.strip().strip(b"`'\"")
 
             schema = self.tables[table_name.decode('utf8')]
             # always escape in case the column is named 'index' or someting
