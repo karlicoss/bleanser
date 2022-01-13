@@ -34,7 +34,7 @@ def checked_db(db: Path, *, allowed_blobs: Set[Tuple[str, str]]) -> Path:
         list(conn.execute('PRAGMA integrity_check;'))
 
         tool = Tool(conn)
-        schemas = tool.get_schemas()
+        schemas = tool.get_tables()
         for table, schema in schemas.items():
             for n, t in schema.items():
                 if t == 'BLOB':
@@ -57,15 +57,15 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
             schema = rows[0]
             s = ', '.join(schema)
             qq = ', '.join('?' for _ in schema)
-            conn.execute(f'CREATE TABLE {table_name} ({s})')
-            conn.executemany(f'INSERT INTO {table_name} VALUES ({qq})', rows[1:])
+            conn.execute(f'CREATE TABLE `{table_name}` ({s})')
+            conn.executemany(f'INSERT INTO `{table_name}` VALUES ({qq})', rows[1:])
     conn.close()
     return to  # just for convenience
 
 
 def _test_aux(path: Path, *, wdir: Path) -> ContextManager[Path]:
     # TODO this assumes they are already cleaned up?
-    n = NoopSqliteNormaliser()
+    n = SqliteNormaliser()
     return n.do_cleanup(path=path, wdir=wdir)
 
 
@@ -75,7 +75,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     func = lambda paths: compute_groups(
         paths,
         cleanup=_test_aux,
-        diff_filter=NoopSqliteNormaliser.DIFF_FILTER, max_workers=1,
+        diff_filter=SqliteNormaliser._DIFF_FILTER, max_workers=1,
         config=config,
     )
 
@@ -135,7 +135,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
 
     instrs = compute_instructions(
         dbs,
-        Normaliser=NoopSqliteNormaliser,
+        Normaliser=SqliteNormaliser,
         max_workers=0
     )
     assert list(map(type, instrs)) == [
@@ -163,7 +163,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
 
     instrs = compute_instructions(
         dbs,
-        Normaliser=NoopSqliteNormaliser,
+        Normaliser=SqliteNormaliser,
         max_workers=0
     )
     assert list(map(type, instrs)) == [
@@ -183,7 +183,7 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
     N = 2000
 
     def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = NoopSqliteNormaliser()
+        n = SqliteNormaliser()
         return n.do_cleanup(path=path, wdir=wdir)
 
     paths = []
@@ -199,7 +199,7 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
     # shouldn't crash
     instrs = list(compute_instructions(
         paths,
-        Normaliser=NoopSqliteNormaliser,
+        Normaliser=SqliteNormaliser,
         max_workers=0
     ))
 
@@ -207,10 +207,9 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
 # TODO add some tests for my own dbs? e.g. stashed
 
 class SqliteNormaliser(BaseNormaliser):
-    DIFF_FILTER = '> '
     # FIXME need a test, i.e. with removing single row?
 
-    ALLOWED_BLOBS = set()
+    ALLOWED_BLOBS: Set[Tuple[str, str]] = set()
 
     @classmethod
     def checked(cls, db: Path) -> Path:
@@ -287,12 +286,6 @@ class SqliteNormaliser(BaseNormaliser):
         pass
 
 
-# TODO just use regular normaliser
-class NoopSqliteNormaliser(SqliteNormaliser):
-    def cleanup(self, c: Connection) -> None:
-        pass
-
-
 class Tool:
     def __init__(self, connection: Connection) -> None:
         self.connection = connection
@@ -304,40 +297,40 @@ class Tool:
             res[name] = type_
         return res
 
-    def get_schemas(self) -> Dict[str, Dict[str, str]]:
-        # TODO reuse get_sqlite_master?
-        from .utils import get_tables
-        tables = get_tables(self.connection)
+    def get_tables(self) -> Dict[str, Dict[str, str]]:
+        sm = self.get_sqlite_master()
+
         res: Dict[str, Dict[str, str]] = {}
-        for table in tables:
+        for name, type_ in sm.items():
+            if type_ != 'table':
+                continue
             schema: Dict[str, str] = {}
-            for row in self.connection.execute(f'PRAGMA table_info({table})'):
+            for row in self.connection.execute(f'PRAGMA table_info(`{name}`)'):
                 col   = row[1]
                 type_ = row[2]
                 schema[col] = type_
-            res[table] = schema
+            res[name] = schema
         return res
 
-
-    # FIXME quoting
     def drop(self, table: str) -> None:
-        self.connection.execute(f'DROP TABLE IF EXISTS {table}')
+        self.connection.execute(f'DROP TABLE IF EXISTS `{table}`')
 
     def drop_view(self, view: str) -> None:
-        self.connection.execute(f'DROP VIEW IF EXISTS {view}')
+        self.connection.execute(f'DROP VIEW IF EXISTS `{view}`')
 
     def drop_index(self, index: str) -> None:
-        self.connection.execute(f'DROP INDEX IF EXISTS {index}')
+        self.connection.execute(f'DROP INDEX IF EXISTS `{index}`')
 
     def update(self, table: str, **kwargs) -> None:
-        kws = ', '.join(f'{k}=?' for k, v in kwargs.items())
-        self.connection.execute(f'UPDATE {table} set {kws}', list(kwargs.values()))
+        # note: seems that can't paremeterize col name in sqlite
+        kws = ', '.join(f'`{k}`=?' for k, v in kwargs.items())
+        self.connection.execute(f'UPDATE {table} SET {kws}', list(kwargs.values()))
 
     def drop_cols(self, table: str, *, cols: Sequence[str]) -> None:
         # for the purposes of comparison this is same as dropping
         # for update need to filter nonexisting cols
         #
-        cur = self.connection.execute(f'PRAGMA table_info({table})')
+        cur = self.connection.execute(f'PRAGMA table_info(`{table}`)')
         existing = [r[1] for r in cur]
         # todo warn maybe if dropped columns?
         cols = [c for c in cols if c in existing]

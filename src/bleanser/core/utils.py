@@ -3,42 +3,6 @@ def assert_never(value: NoReturn) -> NoReturn:
     assert False, f'Unhandled value: {value} ({type(value).__name__})'
 
 
-from sqlite3 import Connection
-from typing import List
-def get_tables(c: Connection) -> List[str]:
-    cur = c.execute('SELECT name FROM sqlite_master')
-    names = [c[0] for c in cur]
-    return names
-
-
-# https://stackoverflow.com/a/10436851/706389
-from typing import Any, Optional
-from concurrent.futures import Future, Executor
-class DummyExecutor(Executor):
-    def __init__(self, max_workers: Optional[int]=1) -> None:
-        self._shutdown = False
-        self._max_workers = max_workers
-
-    def submit(self, fn, *args, **kwargs) -> Future:  # type: ignore[override]
-        if self._shutdown:
-            raise RuntimeError('cannot schedule new futures after shutdown')
-
-        f: Future[Any] = Future()
-        try:
-            result = fn(*args, **kwargs)
-        except KeyboardInterrupt:
-            raise
-        except BaseException as e:
-            f.set_exception(e)
-        else:
-            f.set_result(result)
-
-        return f
-
-    def shutdown(self, wait: bool=True) -> None:  # type: ignore[override]
-        self._shutdown = True
-
-
 from pathlib import Path
 def total_dir_size(d: Path) -> int:
     return sum(f.stat().st_size for f in d.glob('**/*') if f.is_file())
@@ -82,7 +46,7 @@ def timing(f):
 # ideally would be nice to fix it properly https://github.com/ahupp/python-magic#windows
 from functools import lru_cache
 import warnings
-from typing import Callable
+from typing import Callable, Optional
 @lru_cache(1)
 def _magic() -> Callable[[Path], Optional[str]]:
     try:
@@ -114,3 +78,23 @@ def mime(path: Path) -> Optional[str]:
 
 from typing import Any
 Json = Any
+
+
+from typing import Union, Collection
+def delkeys(j: Json, *, keys: Union[str, Collection[str]]) -> None:
+    if isinstance(keys, str):
+        keys = {keys} # meh
+
+    # todo if primitive, don't do anything
+    if   isinstance(j, (int, float, bool, type(None), str)):
+        return
+    elif isinstance(j, list):
+        for v in j:
+            delkeys(v, keys=keys)
+    elif isinstance(j, dict):
+        for key in keys:
+            j.pop(key, None)
+        for k, v in j.items():
+            delkeys(v, keys=keys)
+    else:
+        raise RuntimeError(type(j))

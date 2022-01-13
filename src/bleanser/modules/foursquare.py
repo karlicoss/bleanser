@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from bleanser.core.json import delkeys
-from bleanser.modules.json_new import Normaliser as JsonNormaliser, Json
+from bleanser.modules.json_new import JsonNormaliser, Json, delkeys
 
 
 TARGET = object()
@@ -96,35 +95,10 @@ class Normaliser(JsonNormaliser):
                 'sticker', # very volatile, some crap that 4sq sets on places
 
                 # ugh. lat/lng are volatile, varying after 4th digit after dot for some reason
-                'lat', 'lng', # FIXME instead round to 4th digit or something??
+                'lat', 'lng', # TODO instead round to 4th digit or something??
             })
 
         return res
-
-    # old processor for json -- probably can remove now
-    # def cleanup_jq_dump(self, lines: list[str]) -> None:
-    #     import re
-    #     # FIXME X is a bit non-standard -- think about it better
-    #     to_drop = [
-    #         # too volatile
-    #         r'^X.(meta|notifications).',
-    #         r'.photo.(prefix|suffix)',
-    #         r'.photos.items.X.(prefix|suffix)',
-    #         r'^X.response.checkins.count',
-    #         r'.X.editableUntil',
-
-    #         # r'.items.X.(venue|sticker).',
-    #         r'.items.X.sticker.',
-    #         r'.items.X.venue.stats.(usersCount|tipCount|checkinsCount)',
-    #         r'.items.X.venue.(menu|url|categories|contact|delivery|location.labeledLatLng|location.lat|location.lng)',
-    #         r'.items.X.venue.(location.lat|location.lng)',
-    #     ]
-    #     res = []
-    #     for line in lines:
-    #         drop = any(re.search(r, line) for r in to_drop)
-    #         if not drop:
-    #             res.append(line)
-    #     lines[:] = res
 
 
 if __name__ == '__main__':

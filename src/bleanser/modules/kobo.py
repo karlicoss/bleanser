@@ -10,7 +10,7 @@ class Normaliser(SqliteNormaliser):
 
     def check(self, c) -> None:
         tool = Tool(c)
-        tables = tool.get_schemas()
+        tables = tool.get_tables()
         assert 'content'     in tables, tables
         bm = tables['Bookmark']
         assert 'BookmarkID'  in bm, bm

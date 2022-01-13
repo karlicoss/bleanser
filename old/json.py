@@ -230,28 +230,6 @@ def test_json_normaliser_2(tmp_path: Path) -> None:
     # assert len(lset) == 10, (lines, lset)
 
 
-from typing import Union, Collection
-def delkeys(j: Json, *, keys: Union[str, Collection[str]]) -> None:
-    if isinstance(keys, str):
-        keys = {keys} # meh
-
-    # todo if primitive, don't do anything
-    if   isinstance(j, (int, float, bool, type(None), str)):
-        return
-    elif isinstance(j, list):
-        for v in j:
-            delkey(v, keys=keys)
-    elif isinstance(j, dict):
-        for key in keys:
-            j.pop(key, None)
-        for k, v in j.items():
-            delkey(v, keys=keys)
-    else:
-        raise RuntimeError(type(j))
-
-
-delkey = delkeys # todo deprecate
-
 # can work as generic json processor
 if __name__ == '__main__':
     from bleanser.core import main

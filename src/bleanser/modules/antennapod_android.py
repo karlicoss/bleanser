@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from bleanser.core.sqlite import SqliteNormaliser, Tool
-from bleanser.core.utils import get_tables
 
 
 class Normaliser(SqliteNormaliser):
@@ -9,7 +8,7 @@ class Normaliser(SqliteNormaliser):
 
 
     def check(self, c) -> None:
-        tables = Tool(c).get_schemas()
+        tables = Tool(c).get_tables()
         assert 'Feeds' in tables, tables
         eps = tables['FeedItems']
         assert 'link' in eps

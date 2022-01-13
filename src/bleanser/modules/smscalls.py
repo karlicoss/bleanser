@@ -19,6 +19,8 @@ if __name__ == '__main__':
 
 
 def test_smscalls() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions
     data = TESTDATA / 'smscalls'
     paths = list(sorted(data.glob('*.xml*')))

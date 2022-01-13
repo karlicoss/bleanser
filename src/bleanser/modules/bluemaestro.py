@@ -10,7 +10,7 @@ class Normaliser(SqliteNormaliser):
     def cleanup(self, c) -> None:
         tool = Tool(c)
 
-        tables = tool.get_schemas()
+        tables = tool.get_tables()
         info_tables = [x for x in tables if x.endswith('_info')]
         if len(info_tables) == 0:
             # old db format
@@ -41,6 +41,8 @@ if __name__ == '__main__':
 
 # TODO think I've had jdoe or something with example databases..
 def test_bluemaestro() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions2
     res = actions2(path=TESTDATA / 'bluemaestro', rglob='*.db*', Normaliser=Normaliser)
 

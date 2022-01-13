@@ -14,11 +14,9 @@ if ! [ -z "$CI" ]; then
     # install OS specific stuff here
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macos
-        brew install jq
         brew install libmagic # for python-magic
     else
         sudo apt update
-        sudo apt install jq
     fi
 fi
 

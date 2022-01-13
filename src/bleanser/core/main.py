@@ -28,7 +28,7 @@ def main(*, Normaliser) -> None:
     @click.option('--vim', is_flag=True, default=False, show_default=True, help='Use vimdiff')
     @click.option('--from_', required=False, type=int, default=None)
     @click.option('--to'  , required=False, type=int, default=None)
-    def diff(path1: Path, path2: Optional[Path], *, from_: Optional[str], to: Optional[str], vim: bool) -> None:
+    def diff(path1: Path, path2: Path, *, from_: Optional[int], to: Optional[int], vim: bool) -> None:
         # TODO meh. how to do nargs='?' in click?
         if path2 is _DEFAULT:
             paths = _get_paths(path=path1, from_=from_, to=to)

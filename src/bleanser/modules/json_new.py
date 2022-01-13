@@ -6,14 +6,10 @@ from typing import Iterator
 
 
 from bleanser.core.processor import BaseNormaliser
-from bleanser.core.utils import Json
+from bleanser.core.utils import Json, delkeys # for convenience...
 
 
-class Normaliser(BaseNormaliser):
-    # TODO not sure if should override here? rely on parent class not having defaults
-    # filter out additions; keep the rest
-    DIFF_FILTER =  '> '
-
+class JsonNormaliser(BaseNormaliser):
     DELETE_DOMINATED = False
 
     def cleanup(self, j: Json) -> Json:
@@ -56,4 +52,43 @@ class Normaliser(BaseNormaliser):
 
 
 if __name__ == '__main__':
-    Normaliser.main()
+    JsonNormaliser.main()
+
+
+# TODO actually implement some artificial json test
+#
+def test_nonidempotence(tmp_path: Path) -> None:
+    from bleanser.tests.common import hack_attribute, actions
+    '''
+    Just demonstrates that multiway processing might be
+    It's probably going to be very hard to fix, likely finding 'minimal' cover (at least in terms of partial ordering) is NP hard?
+    '''
+
+    sets = [
+        [],
+        ['a'],
+        ['a', 'b'],
+        [     'b', 'c'],
+        ['a', 'b', 'c'],
+    ]
+    for i, s in enumerate(sets):
+        p = tmp_path / f'{i}.json'
+        p.write_text(json.dumps(s))
+
+    with hack_attribute(JsonNormaliser, 'MULTIWAY', True), hack_attribute(JsonNormaliser, 'DELETE_DOMINATED', True):
+        paths = list(sorted(tmp_path.glob('*.json')))
+        res = actions(paths=paths, Normaliser=JsonNormaliser)
+
+        assert [p.name for p in res.remaining] == [
+            '0.json', # keeping as boundary
+            '2.json', # keeping because item a has rolled over
+            '4.json', # keeping as boundary
+        ]
+
+        paths = list(res.remaining)
+        res = actions(paths=paths, Normaliser=JsonNormaliser)
+        assert [p.name for p in res.remaining] == [
+            '0.json',
+            # note: 2.json is removed because fully contained in 4.json
+            '4.json',
+        ]

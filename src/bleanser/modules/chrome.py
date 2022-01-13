@@ -13,7 +13,7 @@ class Normaliser(SqliteNormaliser):
 
 
     def check(self, c) -> None:
-        tables = Tool(c).get_schemas()
+        tables = Tool(c).get_tables()
         v = tables['visits']
         assert 'visit_time' in v, v
         assert 'url'        in v, v # note: url is an int id

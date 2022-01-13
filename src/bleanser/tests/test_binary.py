@@ -1,5 +1,3 @@
-from common import skip_if_not_karlicoss as pytestmark
-
 from pathlib import Path
 from typing import List
 
@@ -7,7 +5,8 @@ import pytest
 
 from bleanser.modules.binary import Normaliser
 
-from common import TESTDATA, actions, hack_attribute
+from bleanser.tests.common import TESTDATA, actions, hack_attribute
+# TODO ugh. how to make relative imports work? pytest doesn't like them...
 
 
 def via_fdupes(path: Path) -> List[str]:
@@ -31,10 +30,12 @@ def via_fdupes(path: Path) -> List[str]:
     TESTDATA / 'hypothesis_xz',
 ])
 def test_all(data: Path) -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     paths = list(sorted(data.glob('*.json*')))
     assert len(paths) > 20, paths  # precondition
 
-    with hack_attribute(Normaliser, 'DIFF_FILTER', None):
+    with hack_attribute(Normaliser, '_DIFF_FILTER', None):
         res = actions(paths=paths, Normaliser=Normaliser)
 
     expected_deleted = [Path(p) for p in via_fdupes(path=data)]

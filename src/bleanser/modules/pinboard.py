@@ -1,16 +1,14 @@
-from common import skip_if_not_karlicoss as pytestmark
-
-from pathlib import Path
-from typing import List
-
-import pytest
-
-from bleanser.modules.json_new import Normaliser
-
-from common import TESTDATA, actions, hack_attribute
+#!/usr/bin/env python3
+from bleanser.modules.json_new import JsonNormaliser
 
 
-# TODO actually implement some artificial json test
+class Normaliser(JsonNormaliser):
+    MULTIWAY = True
+    DELETE_DOMINATED = True
+
+
+if __name__ == '__main__':
+    Normaliser.main()
 
 
 # TODO pinboard: tag summaries might be flaky
@@ -19,12 +17,14 @@ from common import TESTDATA, actions, hack_attribute
 #     del j['tags']
 
 def test_pinboard() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
+    from bleanser.tests.common import TESTDATA, actions
     data = TESTDATA / 'pinboard'
 
     paths = list(sorted(data.glob('*.json')))
 
-    with hack_attribute(Normaliser, 'MULTIWAY', True), hack_attribute(Normaliser, 'DELETE_DOMINATED', True):
-        res = actions(paths=paths, Normaliser=Normaliser)
+    res = actions(paths=paths, Normaliser=Normaliser)
 
     # note: some items duplicate in pinboard...
     # e.g. in bookmarks_2019-08-06.json.xz
@@ -77,40 +77,3 @@ def test_pinboard() -> None:
         # 'pinboard_20210221T011013Z.json' , : MOVE
         'pinboard_20220103T011019Z.json' , #: will keep
     ]
-
-
-def test_nonidempotence(tmp_path: Path) -> None:
-    '''
-    Just demonstrates that multiway processing might be
-    It's probably going to be very hard to fix, likely finding 'minimal' cover (at least in terms of partial ordering) is NP hard?
-    '''
-
-    sets = [
-        [],
-        ['a'],
-        ['a', 'b'],
-        [     'b', 'c'],
-        ['a', 'b', 'c'],
-    ]
-    import json
-    for i, s in enumerate(sets):
-        p = tmp_path / f'{i}.json'
-        p.write_text(json.dumps(s))
-
-    with hack_attribute(Normaliser, 'MULTIWAY', True), hack_attribute(Normaliser, 'DELETE_DOMINATED', True):
-        paths = list(sorted(tmp_path.glob('*.json')))
-        res = actions(paths=paths, Normaliser=Normaliser)
-
-        assert [p.name for p in res.remaining] == [
-            '0.json', # keeping as boundary
-            '2.json', # keeping because item a has rolled over
-            '4.json', # keeping as boundary
-        ]
-
-        paths = list(res.remaining)
-        res = actions(paths=paths, Normaliser=Normaliser)
-        assert [p.name for p in res.remaining] == [
-            '0.json',
-            # note: 2.json is removed because fully contained in 4.json
-            '4.json',
-        ]

@@ -2,15 +2,14 @@ import os
 
 import pytest
 
-V = 'TEST_AS_KARLICOSS'
-
-skip_if_not_karlicoss = pytest.mark.skipif(
-    V not in os.environ, reason=f'test only works on @karlicoss data for now. Set env variable {V}=true to override.',
-)
-
-
 from pathlib import Path
 TESTDATA = Path(__file__).absolute().parent / 'testdata'
+
+
+def skip_if_no_data() -> None:
+    if 'CI' in os.environ and not TESTDATA.exists():
+        pytest.skip(f'test only works on @karlicoss private data for now')
+
 
 from typing import List
 from dataclasses import dataclass
@@ -58,7 +57,7 @@ from contextlib import contextmanager
 def hack_attribute(Normaliser, key, value):
     prev = getattr(Normaliser, key)
     try:
-        # FIXME meh.. maybe instead instantiate an instance instead of class?
+        # TODO meh.. maybe instead instantiate an instance instead of class?
         setattr(Normaliser, key, value)
         yield
     finally:

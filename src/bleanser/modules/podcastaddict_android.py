@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
 from bleanser.core.sqlite import SqliteNormaliser, Tool
-from bleanser.core.utils import get_tables
 
 
 class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     DELETE_DOMINATED = True
 
+    ALLOWED_BLOBS = {
+        ('fts_virtual_episode_segments', 'block'),
+        ('fts_virtual_episode_segdir', 'root'),
+        ('fts_virtual_episode_docsize', 'size'),
+        ('fts_virtual_episode_stat', 'value'),
+    }
+
+
+    # TODO this would be useful as a base class method
+    # could be called before cleanup/extract etc
     def check(self, c) -> None:
-        tables = Tool(c).get_schemas()
+        tables = Tool(c).get_tables()
         assert 'podcasts' in tables, tables
         eps = tables['episodes']
         # to make sure it's safe to use multiway/delete dominated:
         assert 'playbackDate' in eps
         assert 'position_to_resume' in eps
 
-    # TODO I guess the point is that they run before even trying to cleanup the database, as sanity checks
-    # guess makes more sense to implement base 'check' mehod
-
-    # def __init__(self, db: Path) -> None:
-    #     with self.checked(db) as conn:
-    #         self.tables = get_tables(conn)
-    #
 
     def cleanup(self, c) -> None:
         self.check(c)
@@ -69,11 +71,11 @@ class Normaliser(SqliteNormaliser):
         return
 
         ## probably unnecessary?
-        tool.drop('chapters')
-        tool.drop('teams')
-        tool.drop('topics')
-        tool.drop('relatedPodcasts')
-        tool.drop('content_policy_violation')  # lol
+        # tool.drop('chapters')
+        # tool.drop('teams')
+        # tool.drop('topics')
+        # tool.drop('relatedPodcasts')
+        # tool.drop('content_policy_violation')  # lol
         ##
 
 
@@ -82,6 +84,8 @@ if __name__ == '__main__':
 
 
 def test_podcastaddict() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions2
     res = actions2(path=TESTDATA / 'podcastaddict_android', rglob='*.db*', Normaliser=Normaliser)
     assert res.remaining == [

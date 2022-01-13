@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from bleanser.modules.json_new import Normaliser as JsonNormaliser, Json
+from bleanser.modules.json_new import JsonNormaliser, Json
 
 
 class Normaliser(JsonNormaliser):
@@ -25,8 +25,9 @@ def test_lastfm() -> None:
     """
     This test also highlights how multiway cleanup is more efficient than twoway
     """
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions, hack_attribute
-    # todo test as karlicoss?
 
     data = TESTDATA / 'lastfm'
     paths = list(sorted(data.glob('*.json')))

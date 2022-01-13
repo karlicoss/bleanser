@@ -17,7 +17,7 @@ class Normaliser(SqliteNormaliser):
 
     def is_old_firefox(self, c) -> bool:
         tool = Tool(c)
-        tables = tool.get_schemas()
+        tables = tool.get_tables()
         if 'bookmarks' in tables:
             return True
         if 'moz_bookmarks' in tables:
@@ -27,7 +27,7 @@ class Normaliser(SqliteNormaliser):
 
     def check(self, c) -> None:
         tool = Tool(c)
-        tables = tool.get_schemas()
+        tables = tool.get_tables()
         if self.is_old_firefox(c):
             v = tables['visits']
             assert 'history_guid' in v, v
@@ -196,6 +196,8 @@ if __name__ == '__main__':
 # TODO need to make sure we test 'rolling' visits
 # these look like they are completely cumulative in terms of history
 def test_fenix() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions2
     res = actions2(path=TESTDATA / 'fenix', rglob='*.sqlite*', Normaliser=Normaliser)
     assert res.remaining == [

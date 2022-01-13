@@ -1,12 +1,10 @@
-from common import skip_if_not_karlicoss as pytestmark
-
 from pathlib import Path
 
 import pytest
 
-from bleanser.core.json import JsonNormaliser as Normaliser
+from bleanser.modules.json_new import JsonNormaliser as Normaliser
 
-from common import TESTDATA, actions, hack_attribute
+from bleanser.tests.common import TESTDATA, actions, hack_attribute
 
 data = TESTDATA / 'hypothesis'
 
@@ -14,6 +12,7 @@ data = TESTDATA / 'hypothesis'
 # total time about 5s?
 @pytest.mark.parametrize('num', range(10))
 def test_normalise_one(tmp_path: Path, num) -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
     path = data / 'hypothesis_20210625T220028Z.json'
     n = Normaliser()
     with n.do_cleanup(path, wdir=tmp_path):
@@ -22,6 +21,8 @@ def test_normalise_one(tmp_path: Path, num) -> None:
 
 # TODO less verbose mode for tests?
 def test_all() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     # todo share with main
     paths = list(sorted(data.glob('*.json')))
     assert len(paths) > 80, paths  # precondition

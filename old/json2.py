@@ -113,7 +113,7 @@ def compare(p1: str, p2: str):
     c2 = cc(p2)
     # wrap = ' -c "windo set wrap" '#  -- eh, not super convenient?
     wrap = ''
-    # FIXME pipefail? doesn't work well..
+    # TODO pipefail? doesn't work well..
     cmd = f'vimdiff {wrap} <({c1}) <({c2})'
     check_call(cmd, shell=True, executable='/bin/bash')
 

@@ -6,6 +6,28 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     DELETE_DOMINATED = True
 
+    ALLOWED_BLOBS = {
+        ('contextual_match', 'by_opener'),
+        ('contextual_match', 'by_closer'),
+        *(('match_person', x) for x in ['gender', 'photos', 'badges', 'jobs', 'schools', 'city']),
+        ('pending_media', 'media_template'),
+        ('profile_descriptor', 'descriptor'),
+        ('profile_media', 'media_template'),
+        ('top_pick_teaser', 'tags'),
+        ('sponsored_match_creative_values', 'photos'),
+        ('sponsored_match_creative_values', 'match_screen_image'),
+        *(('profile_user', x) for x in ['gender', 'photos', 'badges', 'jobs', 'schools', 'city', 'sexual_orientations']),
+        ('profile_add_loop', 'loops'),
+        ('instagram_new_media', 'media'),
+        ('profile_change_school', 'schools'),
+        ('activity_feed_artist', 'images'),
+        ('activity_feed_album', 'images'),
+        ('profile_change_work', 'works'),
+        ('profile_add_photo', 'photos'),
+        ('instagram_connect', 'photos'),
+    }
+
+
     def cleanup(self, c) -> None:
         t = Tool(c)
         t.drop('instagram_broken_links')
@@ -34,6 +56,8 @@ if __name__ == '__main__':
 
 
 def test_tinder() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions2
     res = actions2(path=TESTDATA / 'tinder_android', rglob='*.db*', Normaliser=Normaliser)
 

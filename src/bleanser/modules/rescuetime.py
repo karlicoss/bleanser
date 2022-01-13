@@ -1,22 +1,23 @@
-from common import skip_if_not_karlicoss as pytestmark
+#!/usr/bin/env python3
+from bleanser.modules.json_new import JsonNormaliser
 
-from pathlib import Path
 
-import pytest
+class Normaliser(JsonNormaliser):
+    MULTIWAY = True
+    DELETE_DOMINATED = True
 
-from bleanser.modules.json_new import Normaliser
 
-from bleanser.tests.common import TESTDATA, actions, hack_attribute
+if __name__ == '__main__':
+    Normaliser.main()
 
 
 def test_rescuetime() -> None:
-    data = TESTDATA / 'rescuetime'
-    paths = list(sorted(data.glob('*.json*')))
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
-    with hack_attribute(Normaliser, 'MULTIWAY', True), hack_attribute(Normaliser, 'DELETE_DOMINATED', True):
-        res = actions(paths=paths, Normaliser=Normaliser)
+    from bleanser.tests.common import TESTDATA, actions2
 
-    assert [p.name for p in res.remaining] == [
+    res = actions2(path=TESTDATA / 'rescuetime', rglob='*.json*', Normaliser=Normaliser)
+    assert res.remaining == [
         'rescuetime_2018-01-02.json.xz',
         'rescuetime_2018-01-04.json.xz',
         'rescuetime_2018-01-07.json.xz',

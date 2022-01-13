@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-from bleanser.core.json import delkeys
-from bleanser.modules.json_new import Normaliser as JsonNormaliser, Json
+from bleanser.modules.json_new import JsonNormaliser, Json, delkeys
 
 
 REDDIT_IGNORE_KEYS = {
@@ -167,9 +166,6 @@ REDDIT_IGNORE_KEYS = {
 }
 
 class Normaliser(JsonNormaliser):
-    # filter out additions; keep the rest
-    DIFF_FILTER =  '> '
-
     # NOTE: we don't want to delete dominated/use multiway in reddit, because that way we lose timestamps for changes!!!
     DELETE_DOMINATED = False
 
@@ -194,6 +190,8 @@ if __name__ == '__main__':
 
 
 def test_reddit_1() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions, hack_attribute
     # TODO add a test for multiway
 
@@ -225,6 +223,8 @@ def test_reddit_1() -> None:
 
 
 def test_reddit_2() -> None:
+    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+
     from bleanser.tests.common import TESTDATA, actions, hack_attribute
     data = TESTDATA / 'reddit2'
     paths = list(sorted(data.glob('*.json*')))

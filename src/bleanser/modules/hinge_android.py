@@ -8,7 +8,7 @@ class Normaliser(SqliteNormaliser):
 
 
     def check(self, c) -> None:
-        tables = Tool(c).get_schemas()
+        tables = Tool(c).get_tables()
         msgs = tables['chat_messages']
         # TODO hmm, maybe 'created' just means created in the db?
         assert 'sent' in msgs, msgs

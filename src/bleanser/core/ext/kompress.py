@@ -32,8 +32,8 @@ def kopen(path: PathIsh, *args, mode: str='rt', **kwargs) -> IO[str]:
         r = lzma.open(pp, mode, *args, **kwargs)
         # should only happen for binary mode?
         # file:///usr/share/doc/python3/html/library/lzma.html?highlight=lzma#lzma.open
-        # assert not isinstance(r, lzma.LZMAFile), r
-        return r
+        # assert not isinstance(r, lzma.LZMAFile), r # TODO still helpful to prevent mypy from complaining... need to test it
+        return r  # type: ignore[return-value]
     elif suf in {'.zip'}:
         # eh. this behaviour is a bit dodgy...
         from zipfile import ZipFile

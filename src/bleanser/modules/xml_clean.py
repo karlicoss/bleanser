@@ -3,7 +3,7 @@
 Ugh, wtf?? If I name it simply 'xml', I get all sorts of weird behaviours... presumably because it conflicts with some system modules..
 """
 
-from lxml import etree
+from lxml import etree  # type: ignore[import]
 
 from contextlib import contextmanager
 from pathlib import Path
@@ -14,10 +14,6 @@ from bleanser.core.processor import BaseNormaliser
 
 
 class Normaliser(BaseNormaliser):
-    # TODO not sure if should override here? rely on parent class not having defaults
-    # filter out additions; keep the rest
-    DIFF_FILTER =  '> '
-
     DELETE_DOMINATED = False
 
     def cleanup(self, t: etree._Element) -> etree._Element:

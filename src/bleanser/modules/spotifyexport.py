@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-from bleanser.core.json import JsonNormaliser, delkeys, Json
+from bleanser.modules.json_new import JsonNormaliser, delkeys, Json
 
 
 class Normaliser(JsonNormaliser):
-    # TODO hmm. do_cleanup should run in a parallel process.. otherwise it's basically not parallelizing here?
     def cleanup(self, j: Json) -> None:
         ## these change for no reason, and probably no one cares about them
         delkeys(j, keys={

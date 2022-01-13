@@ -4,10 +4,9 @@ from pathlib import Path
 from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple, Dict, Iterable, Optional, Union
 
 from .utils import assert_never
+from .ext.logging import LazyLogger
 
 
-# meh. get rid of this...
-from kython.klogging2 import LazyLogger
 logger = LazyLogger(__name__, level='debug')
 
 

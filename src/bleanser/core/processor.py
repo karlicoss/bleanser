@@ -14,8 +14,9 @@ from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Uni
 
 from .common import Diff, Relation, Group, logger, Config, parametrize
 from .common import Instruction, Keep, Delete
-from .kompress import CPath
-from .utils import DummyExecutor, total_dir_size
+from .utils import total_dir_size
+from .ext.kompress import CPath
+from .ext.dummy_executor import DummyExecutor
 
 
 import more_itertools
@@ -24,13 +25,14 @@ from plumbum import local # type: ignore
 
 
 class BaseNormaliser:
-    # FIXME make default = None?
-    DIFF_FILTER: ClassVar[Optional[str]]
-
     ## user overridable configs
     DELETE_DOMINATED: ClassVar[bool] = False
     MULTIWAY: ClassVar[bool] = False
     ##
+
+
+    # todo maybe get rid of it? might be overridden by subclasses but probs. shouldn't
+    _DIFF_FILTER: ClassVar[Optional[str]] = '> '
 
     # take in input path
     # output file descriptor (could be tmp dir based or in-memory?)
@@ -76,7 +78,7 @@ def compute_groups(
         paths: Sequence[Path],
         *,
         cleanup: Cleaner,
-        max_workers: Optional[int]=None,
+        max_workers: int=0,
         diff_filter: Optional[str],
         config: Config,
         _wdir: Optional[Path]=None,
@@ -86,7 +88,7 @@ def compute_groups(
 
     # if wdir is passed will use this dir instead of a temporary
     # messy but makes debugging a bit easier..
-    from concurrent.futures import ProcessPoolExecutor as Pool
+    from concurrent.futures import ProcessPoolExecutor as Pool, Future
     pool = DummyExecutor() if max_workers == 0 else Pool(max_workers=max_workers)
     with pool:
         workers = getattr(pool, '_max_workers')
@@ -94,7 +96,7 @@ def compute_groups(
         logger.info('using %d workers', workers)
 
         chunks = []
-        futures = []
+        futures: List[Future] = []
         for paths_chunk in more_itertools.divide(workers, paths):
             pp = list(paths_chunk)
             if len(pp) == 0:
@@ -105,7 +107,7 @@ def compute_groups(
             # in addition, multiprocess would fail to pickle returned iterator
             func = _compute_groups_serial_as_list if max_workers > 0 else _compute_groups_serial
             futures.append(pool.submit(
-                func,
+                func,  # type: ignore[arg-type]
                 paths=pp,
                 cleanup=cleanup,
                 diff_filter=diff_filter,
@@ -981,7 +983,7 @@ def compute_instructions(
         paths: Sequence[Path],
         *,
         Normaliser: Type[BaseNormaliser],
-        max_workers: Optional[int],
+        max_workers: int,
 ) -> Iterator[Instruction]:
     import functools
     # meh.. makes sure it's picklable
@@ -994,7 +996,7 @@ def compute_instructions(
     groups: Iterable[Group] = compute_groups(
         paths=paths,
         cleanup=cleanup,
-        diff_filter=Normaliser.DIFF_FILTER,
+        diff_filter=Normaliser._DIFF_FILTER,
         config=cfg,
         max_workers=max_workers,
     )

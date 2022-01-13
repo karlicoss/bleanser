@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from bleanser.core.json import JsonNormaliser, delkey, Json
+from bleanser.modules.json_new import JsonNormaliser, Json
 
 
 class Normaliser(JsonNormaliser):

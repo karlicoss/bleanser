@@ -27,12 +27,12 @@ def main():
 
         install_requires=[
             'more-itertools',
-            'click',
-            'plumbum',
-            'python-magic', # better mimetype decetion
+            'click'        , # nicer cli
+            'plumbum'      , # nicer command composition/piping
+            'python-magic' , # better mimetype decetion
+            'logzero'      , # nider logging
+            'lxml'         , # TODO for xml module, make optional later
 
-            'kython @ git+https://github.com/karlicoss/kython',  # TODO meh.
-            'typing-extensions', # todo meh. needed by kython
             # vvv example of git repo dependency
             # 'repo @ git+https://github.com/karlicoss/repo.git',
 
