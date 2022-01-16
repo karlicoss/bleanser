@@ -12,18 +12,23 @@ import click # type: ignore
 # TODO use context and default_map
 # https://click.palletsprojects.com/en/7.x/commands/#overriding-defaults
 def main(*, Normaliser) -> None:
-    @click.group()
+    # meh.. by default the width is stupid, like 80 chars
+    context_settings = {
+        'max_content_width': 120,
+        'show_default': True,
+    }
+    @click.group(context_settings=context_settings)
     def call_main() -> None:
         pass
 
     _DEFAULT = object()
 
-    @call_main.command(name='diff', short_help='diff two files after cleanup')
-    @click.argument('path1', type=Path)
-    @click.argument('path2', default=_DEFAULT)
-    @click.option('--vim', is_flag=True, default=False, show_default=True, help='Use vimdiff')
-    @click.option('--from', 'from_', required=False, type=int, default=None)
-    @click.option('--to'           , required=False, type=int, default=None)
+    @call_main.command(name='diff', short_help='cleanup two files and diff')
+    @click.argument('path1'          , type=Path)
+    @click.argument('path2'                        , default=_DEFAULT)
+    @click.option  ('--vim'          , is_flag=True, default=False                   , help='Use vimdiff')
+    @click.option  ('--from', 'from_', type=int    , default=None    , required=False)
+    @click.option  ('--to'           , type=int    , default=None    , required=False)
     def diff(path1: Path, path2: Path, *, from_: Optional[int], to: Optional[int], vim: bool) -> None:
         # TODO meh. how to do nargs='?' in click?
         if path2 is _DEFAULT:
@@ -43,14 +48,12 @@ def main(*, Normaliser) -> None:
             print(line)
 
     # todo ugh, name sucks
-    @call_main.command(name='cleaned', short_help='dump file after cleanup to stdout')
+    @call_main.command(name='cleaned', short_help='cleanup file and dump to stdout')
     @click.argument('path', type=Path)
     @click.option('--stdout', is_flag=True)
     def cleaned(path: Path, stdout: bool) -> None:
         n = Normaliser()
         from tempfile import TemporaryDirectory
-        # TODO might be nice to print time...
-        # TODO for json, we want to print the thing after jq processing? hmm
         with TemporaryDirectory() as td, n.do_cleanup(path, wdir=Path(td)) as cleaned:
             if stdout:
                 print(cleaned.read_text())
@@ -59,17 +62,21 @@ def main(*, Normaliser) -> None:
                 click.pause(info="Press any key when you've finished")
 
 
-    @call_main.command(name='clean', short_help='process & cleanup files')
-    @click.argument('path', type=Path)
-    @click.option('--dry', is_flag=True, default=None, show_default=True, help='Do not delete/move the input files, just print what would happen')
-    @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
-    @click.option('--remove', is_flag=True, default=None, show_default=True, help='Controls whether files will be actually deleted')
-    @click.option('--max-workers', required=False, type=int, default=0, help='Passed down to PoolExecutor. Use 0 for serial execution')
-    @click.option('--from', 'from_', required=False, type=int, default=None)
-    @click.option('--to'           , required=False, type=int, default=None)
-    @click.option('--multiway', is_flag=True, default=None, help='force "multiway" cleanup')
-    @click.option('--delete-dominated', is_flag=True, default=None)
-    def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: int, from_: Optional[int], to: Optional[int], multiway: Optional[bool], delete_dominated: Optional[bool]) -> None:
+    @call_main.command(name='prune', short_help='process & prune files')
+    @click.argument('path'              , type=Path)
+    ##
+    @click.option  ('--dry'             , is_flag=True, default=None                , help='Do not prune the input files, just print what would happen after pruning.')
+    @click.option  ('--remove'          , is_flag=True, default=None                , help='Prune the input files by REMOVING them (be careful!)')
+    @click.option  ('--move'            , type=Path                 , required=False, help='Prune the input files by MOVING them to the specified path. A bit safer than --remove mode.')
+    ##
+    @click.option  ('--max-workers'     , type=int    , default=0   , required=False, help='Passed down to PoolExecutor. Use 0 for serial execution')
+    ##
+    @click.option  ('--from', 'from_'   , type=int    , default=None, required=False)
+    @click.option  ('--to'              , type=int    , default=None, required=False)
+    ##
+    @click.option  ('--multiway'        , is_flag=True, default=None                , help='force "multiway" cleanup')
+    @click.option  ('--delete-dominated', is_flag=True, default=None)
+    def prune(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: int, from_: Optional[int], to: Optional[int], multiway: Optional[bool], delete_dominated: Optional[bool]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -81,6 +88,8 @@ def main(*, Normaliser) -> None:
             modes.append(Dry())
         assert len(modes) == 1, f'please specify exactly one of modes (got {modes})'
         [mode] = modes
+        # TODO eh, would be nice to use some package for mutually exclusive args..
+        # e.g. https://stackoverflow.com/questions/37310718/mutually-exclusive-option-groups-in-python-click
 
         paths = _get_paths(path=path, from_=from_, to=to)
 
