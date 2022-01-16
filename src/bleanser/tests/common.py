@@ -11,7 +11,7 @@ def skip_if_no_data() -> None:
         pytest.skip(f'test only works on @karlicoss private data for now')
 
 
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass
 @dataclass
 class Res:
@@ -19,10 +19,10 @@ class Res:
     remaining: List[Path]
 
 
-def actions(*, paths: List[Path], Normaliser, max_workers=0) -> Res:
+def actions(*, paths: List[Path], Normaliser, threads: Optional[int]=None) -> Res:
     from bleanser.core.processor import compute_instructions
     from bleanser.core.common import Prune, Keep
-    instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers))
+    instructions = list(compute_instructions(paths, Normaliser=Normaliser, threads=threads))
     cleaned   = [] # FIXME rename to pruned
     remaining = []
     for i in instructions:
@@ -41,9 +41,9 @@ class Res2:
     remaining: List[str]
 
 
-def actions2(*, path: Path, rglob: str, Normaliser, max_workers=0) -> Res2:
+def actions2(*, path: Path, rglob: str, Normaliser, threads: Optional[int]=None) -> Res2:
     paths = list(sorted(path.rglob(rglob)))
-    res = actions(paths=paths, Normaliser=Normaliser)
+    res = actions(paths=paths, Normaliser=Normaliser, threads=threads)
     cleaned   = res.cleaned
     remaining = res.remaining
     return Res2(

@@ -71,11 +71,10 @@ def _test_aux(path: Path, *, wdir: Path) -> ContextManager[Path]:
 
 def test_sqlite_simple(tmp_path: Path) -> None:
     config = Config(multiway=False, prune_dominated=True)
-    # use single thread for test purposes
     func = lambda paths: compute_groups(
         paths,
         cleanup=_test_aux,
-        diff_filter=SqliteNormaliser._DIFF_FILTER, max_workers=1,
+        diff_filter=SqliteNormaliser._DIFF_FILTER,
         config=config,
     )
 
@@ -136,7 +135,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     instrs = compute_instructions(
         dbs,
         Normaliser=SqliteNormaliser,
-        max_workers=0
+        threads=None,
     )
     assert list(map(type, instrs)) == [
         Keep,   # 1
@@ -164,7 +163,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     instrs = compute_instructions(
         dbs,
         Normaliser=SqliteNormaliser,
-        max_workers=0
+        threads=None,
     )
     assert list(map(type, instrs)) == [
         Keep,   # 1
@@ -200,7 +199,7 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
     instrs = list(compute_instructions(
         paths,
         Normaliser=SqliteNormaliser,
-        max_workers=0
+        threads=None,
     ))
 
 

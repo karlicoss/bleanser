@@ -69,14 +69,19 @@ def main(*, Normaliser) -> None:
     @click.option  ('--remove'          , is_flag=True, default=None                , help='Prune the input files by REMOVING them (be careful!)')
     @click.option  ('--move'            , type=Path                 , required=False, help='Prune the input files by MOVING them to the specified path. A bit safer than --remove mode.')
     ##
-    @click.option  ('--max-workers'     , type=int    , default=0   , required=False, help='Passed down to PoolExecutor. Use 0 for serial execution')
+    @click.option(
+        '--threads',
+        type=int, is_flag=False, flag_value=0, default=None,
+        required=False,
+        help="Number of threads (processes) to use. Without the flag won't use any, with the flag will try using all available, can also take a specififc value. Passed down to PoolExecutor.",
+    )
     ##
     @click.option  ('--from', 'from_'   , type=int    , default=None, required=False)
     @click.option  ('--to'              , type=int    , default=None, required=False)
     ##
     @click.option  ('--multiway'        , is_flag=True, default=None                , help='force "multiway" cleanup')
     @click.option  ('--prune-dominated' , is_flag=True, default=None)
-    def prune(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: int, from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool]) -> None:
+    def prune(path: Path, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -98,7 +103,7 @@ def main(*, Normaliser) -> None:
         if prune_dominated is not None:
             Normaliser.PRUNE_DOMINATED = prune_dominated
 
-        instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers))
+        instructions = list(compute_instructions(paths, Normaliser=Normaliser, threads=threads))
         # NOTE: for now, forcing list() to make sure instructions compute before path check
         # not strictly necessary
         for p in paths:

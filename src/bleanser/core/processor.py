@@ -78,7 +78,7 @@ def compute_groups(
         paths: Sequence[Path],
         *,
         cleanup: Cleaner,
-        max_workers: int=0,
+        threads: Optional[int]=None,
         diff_filter: Optional[str],
         config: Config,
         _wdir: Optional[Path]=None,
@@ -89,7 +89,7 @@ def compute_groups(
     # if wdir is passed will use this dir instead of a temporary
     # messy but makes debugging a bit easier..
     from concurrent.futures import ProcessPoolExecutor as Pool, Future
-    pool = DummyExecutor() if max_workers == 0 else Pool(max_workers=max_workers)
+    pool = DummyExecutor() if threads is None else Pool(max_workers=None if threads == 0 else threads)
     with pool:
         workers = getattr(pool, '_max_workers')
         workers = min(workers, len(paths))  # no point in using too many workers
@@ -105,7 +105,7 @@ def compute_groups(
             # force iterator if we're using more than one thread
             # otherwise it'll still be basically serial execution
             # in addition, multiprocess would fail to pickle returned iterator
-            func = _compute_groups_serial_as_list if max_workers > 0 else _compute_groups_serial
+            func = _compute_groups_serial_as_list if threads is not None else _compute_groups_serial
             futures.append(pool.submit(
                 func,  # type: ignore[arg-type]
                 paths=pp,
@@ -612,7 +612,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
         yield tp
 
     config = Config(multiway=multiway, prune_dominated=True)
-    func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config, _wdir=gwdir)
+    func = lambda paths: compute_groups(paths, cleanup=dummy, diff_filter=_FILTER_ALL_ADDED, config=config, _wdir=gwdir)
 
     # force it to compute
     groups = list(func(inputs))
@@ -651,7 +651,7 @@ def test_many_files(multiway: bool, tmp_path: Path) -> None:
         p.write_text(str(i % 10 > 5) + '\n')
 
     groups = []
-    for group in compute_groups(paths, cleanup=dummy, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config):
+    for group in compute_groups(paths, cleanup=dummy, diff_filter=_FILTER_ALL_ADDED, config=config):
         groups.append(group)
     # shouldn't crash due to open files or something, at least
     expected = 399 if multiway else 799
@@ -680,7 +680,7 @@ def test_special_characters(tmp_path: Path) -> None:
     gg = [p1, p2, p3, p4]
     groups = list(compute_groups(
         gg,
-        cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED,
+        cleanup=_noop, config=config, diff_filter=_FILTER_ALL_ADDED,
     ))
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
@@ -717,7 +717,7 @@ def test_simple(multiway: bool, tmp_path: Path) -> None:
     ]:
         groups = list(compute_groups(
             gg,
-            cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED,
+            cleanup=_noop, config=config, diff_filter=_FILTER_ALL_ADDED,
         ))
         instructions = groups_to_instructions(groups, config=config)
         assert [type(i) for i in instructions] == [Keep for _ in gg]
@@ -751,7 +751,7 @@ def test_filter(tmp_path: Path) -> None:
     p4.write_text('x\ny\n')
 
 
-    groups = list(compute_groups(paths, cleanup=remove_all_except_a, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED))
+    groups = list(compute_groups(paths, cleanup=remove_all_except_a, config=config, diff_filter=_FILTER_ALL_ADDED))
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,
@@ -790,7 +790,7 @@ def test_twoway(tmp_path: Path, prune_dominated) -> None:
     paths = _prepare(tmp_path)
 
     config = Config(prune_dominated=prune_dominated, multiway=False)
-    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED))
+    groups = list(compute_groups(paths, cleanup=_noop, config=config, diff_filter=_FILTER_ALL_ADDED))
     instructions = list(groups_to_instructions(groups, config=config))
     assert [type(i) for i in instructions] == [
         Keep,
@@ -826,7 +826,7 @@ def test_multiway(tmp_path: Path) -> None:
         prune_dominated=True,
         multiway=True,
     )
-    groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config))
+    groups = list(compute_groups(paths, cleanup=_noop, diff_filter=_FILTER_ALL_ADDED, config=config))
     instructions = groups_to_instructions(groups, config=config)
 
     assert [type(i) for i in instructions] == [
@@ -983,7 +983,7 @@ def compute_instructions(
         paths: Sequence[Path],
         *,
         Normaliser: Type[BaseNormaliser],
-        max_workers: int,
+        threads: Optional[int],
 ) -> Iterator[Instruction]:
     import functools
     # meh.. makes sure it's picklable
@@ -998,7 +998,7 @@ def compute_instructions(
         cleanup=cleanup,
         diff_filter=Normaliser._DIFF_FILTER,
         config=cfg,
-        max_workers=max_workers,
+        threads=threads,
     )
     instructions: Iterable[Instruction] = groups_to_instructions(groups, config=cfg)
     total = len(paths)
