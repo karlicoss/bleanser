@@ -7,7 +7,22 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
+
+    def check(self, c) -> None:
+        tool = Tool(c)
+        tables = tool.get_tables()
+        info_tables = [x for x in tables if x.endswith('_info')]
+        if len(info_tables) == 0:
+            # old db format
+            data = tables['data']
+            assert 'Time'        in data, data
+            assert 'Temperature' in data, data
+        else:
+            # TODO hmm how to add some proper check here without too much duplication?
+            pass
+
     def cleanup(self, c) -> None:
+        self.check(c)
         tool = Tool(c)
 
         tables = tool.get_tables()
@@ -15,8 +30,6 @@ class Normaliser(SqliteNormaliser):
         if len(info_tables) == 0:
             # old db format
             # log_index doesn't correspond to anything real, there are timestamps
-            dtable = tables['data']
-            assert 'Time' in dtable, dtable
             tool.drop_cols(table='data', cols=['log_index'])
             # changes every time db is exported, no point
             tool.drop_cols(table='info', cols=['last_download', 'last_pointer'])
@@ -31,8 +44,10 @@ class Normaliser(SqliteNormaliser):
                 # seems like no data yet
                 return
             last_log = max(last_logs)
-            assert last_log == f'{device}_{ut}_log', last_log
-            tool.drop_cols(table=f'{device}_info', cols=['downloadUnix'])
+            if last_log == f'{device}_{ut}_log':
+                # TODO annoying that it needs to be defensive...
+                # for some dbs it actually does happen, e.g. around 20211102085345
+                tool.drop_cols(table=f'{device}_info', cols=['downloadUnix'])
 
 
 if __name__ == '__main__':
