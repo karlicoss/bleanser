@@ -6,6 +6,11 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
+    ALLOWED_BLOBS = {
+        # hopefully should be fine, all the metadata seems to be present in the table
+        ('chat_messages', 'serialized'),
+        ('channels'     , 'serialized'),
+    }
 
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
@@ -16,6 +21,9 @@ class Normaliser(SqliteNormaliser):
         assert 'messageId' in msgs, msgs
         profiles = tables['profiles']
         assert 'userId' in profiles, profiles
+        # not sure if really useful at all but whatever
+        channels = tables['channels']
+        assert 'subjectId' in channels, channels
 
 
     def cleanup(self, c) -> None:
