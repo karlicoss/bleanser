@@ -27,6 +27,7 @@ class Group:
 
     # TODO attach diff or something
     # cmp: CmpResult
+    error: bool
 
     def __post_init__(self) -> None:
         sp = set(self.pivots)

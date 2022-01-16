@@ -7,9 +7,10 @@ from pprint import pprint
 import re
 import shutil
 from subprocess import DEVNULL, check_call
+import sys
 from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
 from time import time
-from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set, ClassVar, Type, Iterable
+from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set, ClassVar, Type, Iterable, NoReturn
 
 
 from .common import Group, logger, Config, parametrize
@@ -427,6 +428,7 @@ def _compute_groups_serial(
             yield Group(
                 items =[cleaned2orig[lfile]],
                 pivots=[cleaned2orig[lfile]],
+                error=True,
             )
             left += 1
             continue
@@ -458,6 +460,7 @@ def _compute_groups_serial(
                     g =  Group(
                         items =citems,
                         pivots=cpivots,
+                        error=False,
                     )
                     logger.debug('emitting group pivoted on %s, size %d', list(map(str, cpivots)), len(citems))
                     to_unlink = gitems[: len(gitems) if rm_last else -1]
@@ -847,7 +850,7 @@ def test_multiway(tmp_path: Path) -> None:
     ]
 
 
-# TODO config is unused here?? not sure
+# todo config is unused here?
 def groups_to_instructions(groups: Iterable[Group], *, config: Config) -> Iterator[Instruction]:
     done: Dict[Path, Instruction] = {}
 
@@ -883,6 +886,7 @@ def test_groups_to_instructions() -> None:
             Group(
                 items=p,
                 pivots=(p[0], p[-1]),
+                error=False,
             ) for p in ppp
         )
         res = groups_to_instructions(list(grit), config=config)
@@ -1014,7 +1018,7 @@ def compute_instructions(
 # FIXME add a test
 
 from .common import Mode, Dry, Move, Remove
-def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(), need_confirm: bool=True) -> None:
+def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(), need_confirm: bool=True) -> NoReturn:
     import click  # type: ignore
 
     # TODO hmm...
@@ -1044,8 +1048,14 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         rmb = rem_bytes / 2 ** 20
         return f'pruned so far: {int(rmb):>4} Mb /{int(tmb):>4} Mb , {rem_files:>3} /{tot_files:>3} files'
 
+    errored: List[Path] = []
+
     to_delete = []
     for idx, ins in enumerate(instructions):
+        if ins.group.error:
+            # TODO would be nice to print actual error or something.. but for now it's ok
+            errored.append(ins.path)
+
         ip = ins.path
         sz = ip.stat().st_size
         tot_bytes += sz
@@ -1064,19 +1074,24 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
 
     logger.info('SUMMARY: %s', stat())
 
+    for e in errored:
+        logger.error('error while processing %s', e)
+
+    exit_code = 0 if len(errored) == 0 else 1
+
     if isinstance(mode, Dry):
         logger.info('dry mode! not touching anything')
-        return
+        sys.exit(exit_code)
 
     from .utils import under_pytest
     assert not under_pytest  # just a paranoid check to prevent deleting something under tests by accident
 
     if len(to_delete) == 0:
         logger.info('no files to prune!')
-        return
+        sys.exit(exit_code)
 
     if need_confirm and not click.confirm(f'Ready to {rm_action.strip().lower()} {len(to_delete)} files?', abort=True):
-        return
+        sys.exit(exit_code)
 
     move_to: Optional[Path] = None
     if   isinstance(mode, Move):
@@ -1103,6 +1118,8 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         else:
             logger.info('rm %s', p)
             p.unlink()
+
+    sys.exit(exit_code)
 
 
 def compute_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
