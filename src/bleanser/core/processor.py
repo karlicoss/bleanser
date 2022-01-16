@@ -1017,6 +1017,9 @@ from .common import Mode, Dry, Move, Remove
 def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(), need_confirm: bool=True) -> None:
     import click  # type: ignore
 
+    # TODO hmm...
+    # if we keep it as iterator, would be kinda nice, then it'd print cleaning stats as you run it
+    # NOTE: will also need to remove (list) call in 'clean' subcommand
     totals: str
     if not isinstance(mode, Dry):
         # force for safety
@@ -1084,6 +1087,10 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         pass
     else:
         raise RuntimeError(mode, type(mode))
+
+    for i in instructions:
+        # just in case, to make sure no one messed with files in the meantime
+        assert i.path.exists(), i.path
 
     import shutil
     for p in to_delete:

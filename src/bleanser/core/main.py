@@ -95,7 +95,12 @@ def main(*, Normaliser) -> None:
         if delete_dominated is not None:
             Normaliser.DELETE_DOMINATED = delete_dominated
 
-        instructions = compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers)
+        instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers))
+        # NOTE: for now, forcing list() to make sure instructions compute before path check
+        # not strictly necessary
+        for p in paths:
+            # just in case, to make sure no one messed with files in the meantime
+            assert p.exists(), p
         apply_instructions(instructions, mode=mode)
     call_main()
 
