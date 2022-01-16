@@ -228,6 +228,7 @@ class SqliteNormaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        assert path.stat().st_size > 0, path  # just in case
         # TODO maybe, later implement some sort of class variable instead of hardcoding
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
         # otherwise it essentially blocks waiting for all mimes to compute..

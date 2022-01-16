@@ -18,6 +18,8 @@ class JsonNormaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        assert path.stat().st_size > 0, path  # just in case
+
         with self.unpacked(path=path, wdir=wdir) as upath:
             pass
         del path # just to prevent from using by accident
