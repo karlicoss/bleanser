@@ -30,7 +30,7 @@ def test_all() -> None:
     # 4 workers: 64 seconds
     # 4 workers, pool for asdict: 42 seconds..
     # 2 workers: 81 seconds. hmmm
-    with hack_attribute(Normaliser, 'DELETE_DOMINATED', True):
+    with hack_attribute(Normaliser, 'PRUNE_DOMINATED', True):
         res = actions(paths=paths, Normaliser=Normaliser, max_workers=4)
     remaining = {p.name for p in res.remaining}
     assert 0 < len(remaining) < len(paths), remaining  # sanity check

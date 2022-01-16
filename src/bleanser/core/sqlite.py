@@ -11,7 +11,7 @@ from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, 
 
 
 from .common import logger, parametrize, Config
-from .common import Keep, Delete, Group
+from .common import Keep, Prune, Group
 from .processor import compute_groups, compute_instructions, BaseNormaliser
 
 
@@ -70,7 +70,7 @@ def _test_aux(path: Path, *, wdir: Path) -> ContextManager[Path]:
 
 
 def test_sqlite_simple(tmp_path: Path) -> None:
-    config = Config(multiway=False, delete_dominated=True)
+    config = Config(multiway=False, prune_dominated=True)
     # use single thread for test purposes
     func = lambda paths: compute_groups(
         paths,
@@ -143,7 +143,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
         Keep,   # 2
         Keep,   # 3
         Keep,   # 4, keep the boundary
-        Delete, # 5
+        Prune,  # 5
         Keep,   # 6, keep the boundary
     ]
 
@@ -171,7 +171,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
         Keep,   # 2
         Keep,   # 3
         Keep,   # 4, keep the boundary
-        Delete, # 5
+        Prune,  # 5
         Keep,   # 6, keep the boundary
         Keep,   # 7,
     ]
@@ -222,7 +222,7 @@ class SqliteNormaliser(BaseNormaliser):
     # - by default, cleanup doesn't do anything
     # - by default, extract extracts everything
     # TODO needs to return if they are same or dominated?
-    # for BM it's fine to delete dominated though..
+    # for BM it's fine to prune delete dominated though..
     # except... need to keep filenames? this could be useful info...
     # need to decide where to log them...
 

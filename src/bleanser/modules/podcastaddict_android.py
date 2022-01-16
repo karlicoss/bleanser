@@ -4,7 +4,7 @@ from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 class Normaliser(SqliteNormaliser):
     MULTIWAY = True
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
     ALLOWED_BLOBS = {
         ('fts_virtual_episode_segments', 'block'),
@@ -20,7 +20,7 @@ class Normaliser(SqliteNormaliser):
         tables = Tool(c).get_tables()
         assert 'podcasts' in tables, tables
         eps = tables['episodes']
-        # to make sure it's safe to use multiway/delete dominated:
+        # to make sure it's safe to use multiway/prune dominated:
         assert 'playbackDate' in eps
         assert 'position_to_resume' in eps
 

@@ -10,24 +10,6 @@ from .ext.logging import LazyLogger
 logger = LazyLogger(__name__, level='debug')
 
 
-class CmpResult(Enum):
-    DIFFERENT = 'different'
-    SAME      = 'same'
-    DOMINATES = 'dominates'
-    ERROR     = 'error'
-
-
-class Diff(NamedTuple):
-    cmp: CmpResult
-    diff: bytes
-
-
-class Relation(NamedTuple):
-    before: Path
-    diff: Diff
-    after: Path
-
-
 @dataclass
 class Group:
     items: Sequence[Path]
@@ -69,7 +51,7 @@ class Instruction:
 
 
 @dataclass
-class Delete(Instruction):
+class Prune(Instruction):
     pass
 
 @dataclass
@@ -78,8 +60,8 @@ class Keep(Instruction):
 
 
 class Config(NamedTuple):
-    delete_dominated: bool = False
-    multiway: bool = False
+    prune_dominated: bool = False
+    multiway       : bool = False
 
 
 ### helper to define paramertized tests in function's body

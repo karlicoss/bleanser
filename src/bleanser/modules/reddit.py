@@ -166,8 +166,8 @@ REDDIT_IGNORE_KEYS = {
 }
 
 class Normaliser(JsonNormaliser):
-    # NOTE: we don't want to delete dominated/use multiway in reddit, because that way we lose timestamps for changes!!!
-    DELETE_DOMINATED = False
+    # NOTE: we don't want to prune dominated/use multiway in reddit, because that way we lose timestamps for changes!!!
+    PRUNE_DOMINATED = False
 
     def cleanup(self, j: Json) -> Json:
         delkeys(j, keys=REDDIT_IGNORE_KEYS)

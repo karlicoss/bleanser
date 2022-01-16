@@ -3,9 +3,8 @@ from bleanser.modules.json_new import JsonNormaliser, Json
 
 
 class Normaliser(JsonNormaliser):
-
     MULTIWAY = True
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
     def cleanup(self, j: Json) -> Json:
         # ugh sometimes case changes for no reason

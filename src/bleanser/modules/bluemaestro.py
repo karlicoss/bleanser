@@ -5,7 +5,7 @@ from bleanser.core.sqlite import SqliteNormaliser, Tool
 class Normaliser(SqliteNormaliser):
     # multiway is useful at the very least for old db format, it only kept rolling 6K points or something in the db
     MULTIWAY = True
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
     def cleanup(self, c) -> None:
         tool = Tool(c)

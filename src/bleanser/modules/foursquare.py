@@ -59,7 +59,7 @@ SCHEMA = {
 }
 
 class Normaliser(JsonNormaliser):
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
     # hmm, I guess makes sense to make MULTIWAY = False considering it seems to be cumulative... kinda safer this way
     # on the otherhand useful to keep multiway for renamed venues? ugh
     MULTIWAY = True

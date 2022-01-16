@@ -4,7 +4,7 @@ from bleanser.modules.xml_clean import Normaliser as XmlNormaliser
 
 class Normaliser(XmlNormaliser):
     MULTIWAY = True
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
     def cleanup(self, t):
         # volatile attributes

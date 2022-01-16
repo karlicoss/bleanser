@@ -75,8 +75,8 @@ def main(*, Normaliser) -> None:
     @click.option  ('--to'              , type=int    , default=None, required=False)
     ##
     @click.option  ('--multiway'        , is_flag=True, default=None                , help='force "multiway" cleanup')
-    @click.option  ('--delete-dominated', is_flag=True, default=None)
-    def prune(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: int, from_: Optional[int], to: Optional[int], multiway: Optional[bool], delete_dominated: Optional[bool]) -> None:
+    @click.option  ('--prune-dominated' , is_flag=True, default=None)
+    def prune(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: int, from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -95,8 +95,8 @@ def main(*, Normaliser) -> None:
 
         if multiway is not None:
             Normaliser.MULTIWAY = multiway
-        if delete_dominated is not None:
-            Normaliser.DELETE_DOMINATED = delete_dominated
+        if prune_dominated is not None:
+            Normaliser.PRUNE_DOMINATED = prune_dominated
 
         instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers))
         # NOTE: for now, forcing list() to make sure instructions compute before path check

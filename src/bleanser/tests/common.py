@@ -21,12 +21,12 @@ class Res:
 
 def actions(*, paths: List[Path], Normaliser, max_workers=0) -> Res:
     from bleanser.core.processor import compute_instructions
-    from bleanser.core.common import Delete, Keep
+    from bleanser.core.common import Prune, Keep
     instructions = list(compute_instructions(paths, Normaliser=Normaliser, max_workers=max_workers))
-    cleaned   = []
+    cleaned   = [] # FIXME rename to pruned
     remaining = []
     for i in instructions:
-        if isinstance(i, Delete):  # todo rename delete to Clean?
+        if isinstance(i, Prune):
             cleaned.append(i.path)
         elif isinstance(i, Keep):
             remaining.append(i.path)

@@ -10,7 +10,7 @@ from bleanser.core.utils import Json, delkeys # for convenience...
 
 
 class JsonNormaliser(BaseNormaliser):
-    DELETE_DOMINATED = False
+    PRUNE_DOMINATED = False
 
     def cleanup(self, j: Json) -> Json:
         return j
@@ -75,7 +75,7 @@ def test_nonidempotence(tmp_path: Path) -> None:
         p = tmp_path / f'{i}.json'
         p.write_text(json.dumps(s))
 
-    with hack_attribute(JsonNormaliser, 'MULTIWAY', True), hack_attribute(JsonNormaliser, 'DELETE_DOMINATED', True):
+    with hack_attribute(JsonNormaliser, 'MULTIWAY', True), hack_attribute(JsonNormaliser, 'PRUNE_DOMINATED', True):
         paths = list(sorted(tmp_path.glob('*.json')))
         res = actions(paths=paths, Normaliser=JsonNormaliser)
 

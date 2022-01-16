@@ -5,7 +5,7 @@ from bleanser.core.sqlite import SqliteNormaliser, Tool
 class Normaliser(SqliteNormaliser):
     # events are only snapshots, so probs makes sense
     MULTIWAY = True
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
 
     def check(self, c) -> None:

@@ -4,7 +4,7 @@ from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 class Normaliser(SqliteNormaliser):
     MULTIWAY = False  # could use it, but no need really?
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
 
     def check(self, c) -> None:

@@ -4,7 +4,7 @@ from bleanser.modules.json_new import JsonNormaliser
 
 class Normaliser(JsonNormaliser):
     MULTIWAY = True
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
 
 if __name__ == '__main__':

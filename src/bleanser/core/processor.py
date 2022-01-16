@@ -12,8 +12,8 @@ from time import time
 from typing import Dict, Any, Iterator, Sequence, Optional, Tuple, Optional, Union, Callable, ContextManager, Protocol, List, Set, ClassVar, Type, Iterable
 
 
-from .common import Diff, Relation, Group, logger, Config, parametrize
-from .common import Instruction, Keep, Delete
+from .common import Group, logger, Config, parametrize
+from .common import Instruction, Keep, Prune
 from .utils import total_dir_size
 from .ext.kompress import CPath
 from .ext.dummy_executor import DummyExecutor
@@ -26,8 +26,8 @@ from plumbum import local # type: ignore
 
 class BaseNormaliser:
     ## user overridable configs
-    DELETE_DOMINATED: ClassVar[bool] = False
-    MULTIWAY: ClassVar[bool] = False
+    PRUNE_DOMINATED: ClassVar[bool] = False
+    MULTIWAY       : ClassVar[bool] = False
     ##
 
 
@@ -483,7 +483,7 @@ def _compute_groups_serial(
 
                     if config.multiway:
                         # otherwise doesn't make sense?
-                        assert config.delete_dominated
+                        assert config.prune_dominated
 
                         # in multiway mode we check if the boundaries (pivots) contain the rest
                         npivots = rstack.enter_context(fset(lpfile, right_res))
@@ -494,7 +494,7 @@ def _compute_groups_serial(
                         s1 = rstack.enter_context(fset(before_right))
                         s2 = rstack.enter_context(fset(right_res))
 
-                        if not config.delete_dominated:
+                        if not config.prune_dominated:
                             dominated = s1.issame(s2)
                         else:
                             dominated = s1.issubset(s2, diff_filter=diff_filter)
@@ -611,7 +611,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
         check_wdir_space()
         yield tp
 
-    config = Config(multiway=multiway, delete_dominated=True)
+    config = Config(multiway=multiway, prune_dominated=True)
     func = lambda paths: compute_groups(paths, cleanup=dummy, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config, _wdir=gwdir)
 
     # force it to compute
@@ -635,7 +635,7 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
 
 @parametrize('multiway', [False, True])
 def test_many_files(multiway: bool, tmp_path: Path) -> None:
-    config = Config(multiway=multiway, delete_dominated=True)
+    config = Config(multiway=multiway, prune_dominated=True)
     N = 2000
 
     @contextmanager
@@ -674,7 +674,7 @@ def test_special_characters(tmp_path: Path) -> None:
     p4.write_text('A\n')
 
     config = Config(
-        delete_dominated=True,
+        prune_dominated=True,
         multiway=True,
     )
     gg = [p1, p2, p3, p4]
@@ -685,7 +685,7 @@ def test_special_characters(tmp_path: Path) -> None:
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,   # start of group
-        Delete, # same as next
+        Prune,  # same as next
         Keep,   # has unique item: < C > whoops
         Keep,   # end of group
     ]
@@ -694,7 +694,7 @@ def test_special_characters(tmp_path: Path) -> None:
 @parametrize('multiway', [False, True])
 def test_simple(multiway: bool, tmp_path: Path) -> None:
     config = Config(
-        delete_dominated=True,
+        prune_dominated=True,
         multiway=multiway,
     )
 
@@ -725,7 +725,7 @@ def test_simple(multiway: bool, tmp_path: Path) -> None:
 
 def test_filter(tmp_path: Path) -> None:
     config = Config(
-        delete_dominated=False,
+        prune_dominated=False,
         multiway=False,
     )
 
@@ -755,7 +755,7 @@ def test_filter(tmp_path: Path) -> None:
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,
-        Delete,  # should delete because after filtering only A there is no diference in files
+        Prune,  # should prune because after filtering only A there is no diference in files
         Keep,
         Keep
     ]
@@ -765,9 +765,9 @@ def _prepare(tmp_path: Path):
     sets = [
         ['X'],                # keep
         ['B'],                # keep
-        ['B'],                # delete (always, because it's the same)
-        ['B'],                # delete if we delete dominated
-        ['B', 'A'],           # delete if we delete dominated
+        ['B'],                # prune (always, because it's the same)
+        ['B'],                # prune if we prune dominated
+        ['B', 'A'],           # prune if we prune dominated
         ['C', 'B', 'A'],      # keep
         ['A', 'BB', 'C'],     # keep
         ['B', 'A', 'E', 'Y'], # keep
@@ -782,22 +782,22 @@ def _prepare(tmp_path: Path):
     return paths
 
 
-@parametrize('delete_dominated', [
+@parametrize('prune_dominated', [
     True,
     False,
 ])
-def test_twoway(tmp_path: Path, delete_dominated) -> None:
+def test_twoway(tmp_path: Path, prune_dominated) -> None:
     paths = _prepare(tmp_path)
 
-    config = Config(delete_dominated=delete_dominated, multiway=False)
+    config = Config(prune_dominated=prune_dominated, multiway=False)
     groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, config=config, diff_filter=_FILTER_ALL_ADDED))
     instructions = list(groups_to_instructions(groups, config=config))
     assert [type(i) for i in instructions] == [
         Keep,
         Keep,
-        Delete,
-        Delete if delete_dominated else Keep,  # dominated
-        Delete if delete_dominated else Keep,  # dominated by the next set
+        Prune,
+        Prune if prune_dominated else Keep,  # dominated
+        Prune if prune_dominated else Keep,  # dominated by the next set
         Keep,
         Keep,
         Keep
@@ -823,7 +823,7 @@ def test_multiway(tmp_path: Path) -> None:
 
     # TODO grep filter goes into the config?
     config = Config(
-        delete_dominated=True,
+        prune_dominated=True,
         multiway=True,
     )
     groups = list(compute_groups(paths, cleanup=_noop, max_workers=0, diff_filter=_FILTER_ALL_ADDED, config=config))
@@ -831,18 +831,18 @@ def test_multiway(tmp_path: Path) -> None:
 
     assert [type(i) for i in instructions] == [
         Keep,    # X
-        Delete,  # B in CBA
-        Delete,  # B in CBA
-        Delete,  # B in CBA
-        Delete,  # BA in CBA
+        Prune,   # B in CBA
+        Prune,   # B in CBA
+        Prune,   # B in CBA
+        Prune,   # BA in CBA
         Keep,    # keep CBA
         Keep,    # keep because of BB
         Keep,    # Keep because of E,Y
         # extra items now
         Keep,
-        Delete,  #
-        Keep  ,  # in isolation, it's dominated by neighbours.. but if we delete it, we'll lose '33' permanently
-        Delete,  # dominated by neighbours
+        Prune ,  #
+        Keep  ,  # in isolation, it's dominated by neighbours.. but if we prune it, we'll lose '33' permanently
+        Prune ,  # dominated by neighbours
         Keep  ,  # always keep last
     ]
 
@@ -870,7 +870,7 @@ def groups_to_instructions(groups: Iterable[Group], *, config: Config) -> Iterat
                 if i in done:
                     raise RuntimeError(f'{i}: occurs in multiple groups: {group} AND {done[i]}')
                 assert i not in done, (i, done)
-                deli = Delete(path=i, group=group)
+                deli = Prune(path=i, group=group)
                 yield deli
                 done[i] = deli
 
@@ -886,7 +886,7 @@ def test_groups_to_instructions() -> None:
             ) for p in ppp
         )
         res = groups_to_instructions(list(grit), config=config)
-        return [(str(p.path), {Keep: 'keep', Delete: 'delete'}[type(p)]) for p in res]
+        return [(str(p.path), {Keep: 'keep', Prune: 'prune'}[type(p)]) for p in res]
 
     assert do(
         ('a', 'b'),
@@ -899,11 +899,11 @@ def test_groups_to_instructions() -> None:
         ('0', 'a'          ),
         ('a', 'b', 'c', 'd'),
     ) == [
-        ('0', 'keep'  ),
-        ('a', 'keep'  ),
-        ('b', 'delete'),
-        ('c', 'delete'),
-        ('d', 'keep'  ),
+        ('0', 'keep' ),
+        ('a', 'keep' ),
+        ('b', 'prune'),
+        ('c', 'prune'),
+        ('d', 'keep' ),
     ]
 
 
@@ -930,12 +930,12 @@ def test_groups_to_instructions() -> None:
    #    ('h', 'keep'  ),
    #]
    #
-   #assert do(*inputs, config=Config(delete_dominated=True)) == [
+   #assert do(*inputs, config=Config(prune_dominated=True)) == [
    #    ('a', 'keep'  ),
    #    ('b', 'keep'  ),
    #    ('c', 'keep'  ),
-   #    ('d', 'delete'),
-   #    ('e', 'delete'),
+   #    ('d', 'prune' ),
+   #    ('e', 'prune' ),
    #    ('f', 'keep'  ),
    #    ('g', 'keep'  ),
    #    ('h', 'keep'  ),
@@ -990,7 +990,7 @@ def compute_instructions(
     cleanup = functools.partial(_cleanup_aux, Normaliser=Normaliser)
 
     cfg = Config(
-        delete_dominated=Normaliser.DELETE_DOMINATED,
+        prune_dominated=Normaliser.PRUNE_DOMINATED,
         multiway=Normaliser.MULTIWAY,
     )
     groups: Iterable[Group] = compute_groups(
@@ -1042,7 +1042,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
     def stat() -> str:
         tmb = tot_bytes / 2 ** 20
         rmb = rem_bytes / 2 ** 20
-        return f'cleaned so far: {int(rmb):>4} Mb /{int(tmb):>4} Mb , {rem_files:>3} /{tot_files:>3} files'
+        return f'pruned so far: {int(rmb):>4} Mb /{int(tmb):>4} Mb , {rem_files:>3} /{tot_files:>3} files'
 
     to_delete = []
     for idx, ins in enumerate(instructions):
@@ -1053,7 +1053,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         action: str
         if   isinstance(ins, Keep):
             action = click.style('will keep        ', fg='green')
-        elif isinstance(ins, Delete):
+        elif isinstance(ins, Prune):
             action = rm_action
             rem_bytes += sz
             rem_files += 1
@@ -1072,7 +1072,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
     assert not under_pytest  # just a paranoid check to prevent deleting something under tests by accident
 
     if len(to_delete) == 0:
-        logger.info('no files to cleanup!')
+        logger.info('no files to prune!')
         return
 
     if need_confirm and not click.confirm(f'Ready to {rm_action.strip().lower()} {len(to_delete)} files?', abort=True):

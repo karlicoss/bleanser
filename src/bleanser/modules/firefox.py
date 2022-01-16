@@ -4,7 +4,7 @@ from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 class Normaliser(SqliteNormaliser):
     MULTIWAY = True
-    DELETE_DOMINATED = True
+    PRUNE_DOMINATED = True
 
     ALLOWED_BLOBS = {
         ('favicons', 'data'),
