@@ -29,8 +29,8 @@ def main(*, Normaliser) -> None:
     @click.argument('path1'          , type=Path)
     @click.argument('path2'                        , default=_DEFAULT)
     @click.option  ('--vim'          , is_flag=True, default=False                   , help='Use vimdiff')
-    @click.option  ('--from', 'from_', type=int    , default=None    , required=False)
-    @click.option  ('--to'           , type=int    , default=None    , required=False)
+    @click.option  ('--from', 'from_', type=int    , default=None)
+    @click.option  ('--to'           , type=int    , default=None)
     def diff(path1: Path, path2: Path, *, from_: Optional[int], to: Optional[int], vim: bool) -> None:
         if path2 is _DEFAULT:
             paths = _get_paths(path=str(path1), from_=from_, to=to)
@@ -67,23 +67,23 @@ def main(*, Normaliser) -> None:
     @click.argument('path', type=str)
     @click.option('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
     ##
-    @click.option  ('--dry'             , is_flag=True, default=None                , help='Do not prune the input files, just print what would happen after pruning.')
-    @click.option  ('--remove'          , is_flag=True, default=None                , help='Prune the input files by REMOVING them (be careful!)')
-    @click.option  ('--move'            , type=Path                 , required=False, help='Prune the input files by MOVING them to the specified path. A bit safer than --remove mode.')
+    @click.option  ('--dry'   , is_flag=True, default=None, help='Do not prune the input files, just print what would happen after pruning.')
+    @click.option  ('--remove', is_flag=True, default=None, help='Prune the input files by REMOVING them (be careful!)')
+    @click.option  ('--move'  , type=Path                 , help='Prune the input files by MOVING them to the specified path. A bit safer than --remove mode.')
     ##
+    @click.option('--yes', is_flag=True, default=False, help="Do not prompt before pruning files (useful for cron etc)")
     @click.option(
         '--threads',
         type=int, is_flag=False, flag_value=0, default=None,
-        required=False,
         help="Number of threads (processes) to use. Without the flag won't use any, with the flag will try using all available, can also take a specififc value. Passed down to PoolExecutor.",
     )
     ##
-    @click.option  ('--from', 'from_'   , type=int    , default=None, required=False)
-    @click.option  ('--to'              , type=int    , default=None, required=False)
+    @click.option  ('--from', 'from_', type=int    , default=None)
+    @click.option  ('--to'           , type=int    , default=None)
     ##
-    @click.option  ('--multiway'        , is_flag=True, default=None                , help='force "multiway" cleanup')
-    @click.option  ('--prune-dominated' , is_flag=True, default=None)
-    def prune(path: str, glob: bool, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool]) -> None:
+    @click.option  ('--multiway'       , is_flag=True, default=None                , help='force "multiway" cleanup')
+    @click.option  ('--prune-dominated', is_flag=True, default=None)
+    def prune(path: str, glob: bool, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool], yes: bool) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -111,7 +111,9 @@ def main(*, Normaliser) -> None:
         for p in paths:
             # just in case, to make sure no one messed with files in the meantime
             assert p.exists(), p
-        apply_instructions(instructions, mode=mode)
+
+        need_confirm = not yes
+        apply_instructions(instructions, mode=mode, need_confirm=need_confirm)
     call_main()
 
 
