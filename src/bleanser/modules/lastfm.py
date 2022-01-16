@@ -9,8 +9,10 @@ class Normaliser(JsonNormaliser):
     def cleanup(self, j: Json) -> Json:
         # ugh sometimes case changes for no reason
         for x in j:
-            for k, v in x.items():
-                x[k] = v.lower()
+            for k, v in list(x.items()):
+                if isinstance(v, str):
+                    # defensive, there was a date (around 2019-01-16) when dates glitched and were ints...
+                    x[k] = v.lower()
         return j
         # todo would be nice to use jq for that... e.g. older filter was
         # 'sort_by(.date) | map(map_values(ascii_downcase?))'
