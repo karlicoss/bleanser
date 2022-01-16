@@ -39,6 +39,6 @@ def test_all(data: Path) -> None:
         res = actions(paths=paths, Normaliser=Normaliser)
 
     expected_deleted = [Path(p) for p in via_fdupes(path=data)]
-    assert res.cleaned == expected_deleted
+    assert res.pruned == expected_deleted
 
 # FIXME hmm need to make sure --dry is the default (maybe add a cmdline test?)

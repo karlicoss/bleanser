@@ -15,7 +15,7 @@ from typing import List, Optional
 from dataclasses import dataclass
 @dataclass
 class Res:
-    cleaned  : List[Path]
+    pruned   : List[Path]
     remaining: List[Path]
 
 
@@ -23,31 +23,31 @@ def actions(*, paths: List[Path], Normaliser, threads: Optional[int]=None) -> Re
     from bleanser.core.processor import compute_instructions
     from bleanser.core.common import Prune, Keep
     instructions = list(compute_instructions(paths, Normaliser=Normaliser, threads=threads))
-    cleaned   = [] # FIXME rename to pruned
+    pruned    = []
     remaining = []
     for i in instructions:
         if isinstance(i, Prune):
-            cleaned.append(i.path)
+            pruned.append(i.path)
         elif isinstance(i, Keep):
             remaining.append(i.path)
         else:
             raise RuntimeError(type(i))
-    return Res(cleaned=cleaned, remaining=remaining)
+    return Res(pruned=pruned, remaining=remaining)
 
 
 @dataclass
 class Res2:
-    cleaned  : List[str]
+    pruned   : List[str]
     remaining: List[str]
 
 
 def actions2(*, path: Path, rglob: str, Normaliser, threads: Optional[int]=None) -> Res2:
     paths = list(sorted(path.rglob(rglob)))
     res = actions(paths=paths, Normaliser=Normaliser, threads=threads)
-    cleaned   = res.cleaned
+    pruned   = res.pruned
     remaining = res.remaining
     return Res2(
-        cleaned  =[str(c.relative_to(path)) for c in cleaned  ],
+        pruned   =[str(c.relative_to(path)) for c in pruned   ],
         remaining=[str(c.relative_to(path)) for c in remaining],
     )
 

@@ -33,7 +33,7 @@ def test_lastfm() -> None:
 
     with hack_attribute(Normaliser, 'MULTIWAY', False):
         res = actions(paths=paths, Normaliser=Normaliser)
-    assert [p.name for p in res.cleaned] == [
+    assert [p.name for p in res.pruned] == [
         'lastfm_20211107T011431Z.json', # fully contained in lastfm_20211127T011459Z
     ]
 
