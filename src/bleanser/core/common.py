@@ -87,6 +87,9 @@ class Dry(BaseMode):
 class Move(BaseMode):
     path: Path
 
+    def __post_init__(self) -> None:
+        assert self.path.is_dir(), self.path
+
 @dataclass
 class Remove(BaseMode):
     pass
