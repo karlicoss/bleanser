@@ -59,7 +59,7 @@ def test_tinder() -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
-    res = actions2(path=TESTDATA / 'tinder_android', rglob='*.db*', Normaliser=Normaliser)
+    res = actions2(path=TESTDATA / 'tinder_android', rglob='**/*.db*', Normaliser=Normaliser)
 
     assert res.remaining == [
         '20210523193545/tinder-3.db',  # keep, first in group

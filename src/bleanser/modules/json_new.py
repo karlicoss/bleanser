@@ -7,6 +7,7 @@ from typing import Iterator
 
 from bleanser.core.processor import BaseNormaliser
 from bleanser.core.utils import Json, delkeys # for convenience...
+from bleanser.core.utils import mime
 
 
 class JsonNormaliser(BaseNormaliser):
@@ -20,6 +21,16 @@ class JsonNormaliser(BaseNormaliser):
         with self.unpacked(path=path, wdir=wdir) as upath:
             pass
         del path # just to prevent from using by accident
+
+        # TODO maybe, later implement some sort of class variable instead of hardcoding
+        # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
+        # otherwise it essentially blocks waiting for all mimes to compute..
+        # TODO crap. annoying, sometimes mime determines as text/plain for no reason
+        # I guess doesn't matter as much, json.loads is the ultimate check it's ineed json
+        # mp = mime(upath)
+        # assert mp in {
+        #         'application/json',
+        # }, mp
 
         j = json.loads(upath.read_text())
         j = self.cleanup(j)

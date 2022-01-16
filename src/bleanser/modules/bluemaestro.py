@@ -44,7 +44,7 @@ def test_bluemaestro() -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
-    res = actions2(path=TESTDATA / 'bluemaestro', rglob='*.db*', Normaliser=Normaliser)
+    res = actions2(path=TESTDATA / 'bluemaestro', rglob='**/*.db*', Normaliser=Normaliser)
 
     assert res.remaining == [
         '20180720.db',

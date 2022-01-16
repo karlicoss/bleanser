@@ -87,7 +87,7 @@ def test_podcastaddict() -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
-    res = actions2(path=TESTDATA / 'podcastaddict_android', rglob='*.db*', Normaliser=Normaliser)
+    res = actions2(path=TESTDATA / 'podcastaddict_android', rglob='**/*.db*', Normaliser=Normaliser)
     assert res.remaining == [
         '20180106220736/podcastAddict.db',
         '20190227212300/podcastAddict.db',

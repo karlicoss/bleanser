@@ -12,6 +12,7 @@ from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, 
 
 from .common import logger, parametrize, Config
 from .common import Keep, Prune, Group
+from .utils import mime
 from .processor import compute_groups, compute_instructions, BaseNormaliser
 
 
@@ -78,7 +79,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
         config=config,
     )
 
-    d: Dict[str, Any] = dict()
+    d: Dict[str, Any] = {'tq': [['col1', 'col2']]}
     ### just one file
     db1 = _dict2db(d, to=tmp_path / '1.db')
     [g11] = func([db1])
@@ -227,6 +228,16 @@ class SqliteNormaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        # TODO maybe, later implement some sort of class variable instead of hardcoding
+        # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
+        # otherwise it essentially blocks waiting for all mimes to compute..
+        mp = mime(path)
+        assert mp in {
+            'application/x-sqlite3',
+            'application/vnd.sqlite3',
+        }, mp
+        ##
+
         # TODO handle compressed databases later... need to think how to work around checking for no wal etc..
         # with self.unpacked(path=path, wdir=wdir) as upath:
         #     pass

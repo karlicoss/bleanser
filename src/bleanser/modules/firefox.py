@@ -199,7 +199,7 @@ def test_fenix() -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
-    res = actions2(path=TESTDATA / 'fenix', rglob='*.sqlite*', Normaliser=Normaliser)
+    res = actions2(path=TESTDATA / 'fenix', rglob='**/*.sqlite*', Normaliser=Normaliser)
     assert res.remaining == [
         # eh, too lazy to document the reason for keeping them...
         # many of them are just bookmark changes

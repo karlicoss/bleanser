@@ -1,5 +1,7 @@
 # not to confuse with __main__.py... meh
+from glob import glob as do_glob
 from pathlib import Path
+import os
 from typing import Optional, List
 
 from .common import logger, Dry, Move, Remove, Mode
@@ -30,9 +32,8 @@ def main(*, Normaliser) -> None:
     @click.option  ('--from', 'from_', type=int    , default=None    , required=False)
     @click.option  ('--to'           , type=int    , default=None    , required=False)
     def diff(path1: Path, path2: Path, *, from_: Optional[int], to: Optional[int], vim: bool) -> None:
-        # TODO meh. how to do nargs='?' in click?
         if path2 is _DEFAULT:
-            paths = _get_paths(path=path1, from_=from_, to=to)
+            paths = _get_paths(path=str(path1), from_=from_, to=to)
             assert len(paths) == 2, paths
             [path1, path2] = paths
         else:
@@ -63,7 +64,8 @@ def main(*, Normaliser) -> None:
 
 
     @call_main.command(name='prune', short_help='process & prune files')
-    @click.argument('path'              , type=Path)
+    @click.argument('path', type=str)
+    @click.option('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
     ##
     @click.option  ('--dry'             , is_flag=True, default=None                , help='Do not prune the input files, just print what would happen after pruning.')
     @click.option  ('--remove'          , is_flag=True, default=None                , help='Prune the input files by REMOVING them (be careful!)')
@@ -81,7 +83,7 @@ def main(*, Normaliser) -> None:
     ##
     @click.option  ('--multiway'        , is_flag=True, default=None                , help='force "multiway" cleanup')
     @click.option  ('--prune-dominated' , is_flag=True, default=None)
-    def prune(path: Path, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool]) -> None:
+    def prune(path: str, glob: bool, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool]) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -96,7 +98,7 @@ def main(*, Normaliser) -> None:
         # TODO eh, would be nice to use some package for mutually exclusive args..
         # e.g. https://stackoverflow.com/questions/37310718/mutually-exclusive-option-groups-in-python-click
 
-        paths = _get_paths(path=path, from_=from_, to=to)
+        paths = _get_paths(path=path, glob=glob, from_=from_, to=to)
 
         if multiway is not None:
             Normaliser.MULTIWAY = multiway
@@ -113,24 +115,15 @@ def main(*, Normaliser) -> None:
     call_main()
 
 
-def _get_paths(*, path: Path, from_: Optional[int], to: Optional[int]) -> List[Path]:
-    assert path.is_dir(), path
-    # first try json...
-    # meh... need to think how to support archived stuff properly?
-    paths = list(sorted(path.rglob('*.json*')))
-    # second, try sqlite
-    if len(paths) == 0:
-        SQLITE_MIME = 'application/x-sqlite3'
-        # TODO might take a while if there are many paths
-        paths = [p for p in paths if mime(p) == SQLITE_MIME]
-    if len(paths) == 0:
-        # TODO should also move to Normaliser?
-        # todo not sure if this is the best way?
-        paths = [
-            p
-            for p in list(sorted(path.rglob('*')))  # assumes sort order is same as date order? guess it's reasonable
-            if p.is_file()
-        ]
+def _get_paths(*, path: str, from_: Optional[int], to: Optional[int], glob: bool=False) -> List[Path]:
+    if not glob:
+        pp = Path(path)
+        assert pp.is_dir(), pp
+        path = str(pp) + os.sep + '**'
+    paths = [Path(p) for p in do_glob(path, recursive=True)]
+    paths = [p for p in paths if p.is_file()]
+    paths = list(sorted(paths))
+    # assumes sort order is same as date order? guess it's reasonable
 
     if from_ is None:
         from_ = 0
