@@ -16,18 +16,14 @@ def main(*, Normaliser) -> None:
     def call_main() -> None:
         pass
 
-    # TODO view mode?
-    # might make easier to open without creating wals...
-    # sqlite3 'file:places-20190731110302.sqlite?immutable=1' '.dump' | less
-
     _DEFAULT = object()
 
     @call_main.command(name='diff', short_help='diff two files after cleanup')
     @click.argument('path1', type=Path)
     @click.argument('path2', default=_DEFAULT)
     @click.option('--vim', is_flag=True, default=False, show_default=True, help='Use vimdiff')
-    @click.option('--from_', required=False, type=int, default=None)
-    @click.option('--to'  , required=False, type=int, default=None)
+    @click.option('--from', 'from_', required=False, type=int, default=None)
+    @click.option('--to'           , required=False, type=int, default=None)
     def diff(path1: Path, path2: Path, *, from_: Optional[int], to: Optional[int], vim: bool) -> None:
         # TODO meh. how to do nargs='?' in click?
         if path2 is _DEFAULT:
@@ -69,10 +65,8 @@ def main(*, Normaliser) -> None:
     @click.option('--move', type=Path, required=False, help='Path to move the redundant files  (safer than --remove mode)')
     @click.option('--remove', is_flag=True, default=None, show_default=True, help='Controls whether files will be actually deleted')
     @click.option('--max-workers', required=False, type=int, default=0, help='Passed down to PoolExecutor. Use 0 for serial execution')
-    # todo originally, hack for memory leak issue
-    # TODO ugh. how to name it --from? metavar= didn't work
-    @click.option('--from_', required=False, type=int, default=None)
-    @click.option('--to'  , required=False, type=int, default=None)
+    @click.option('--from', 'from_', required=False, type=int, default=None)
+    @click.option('--to'           , required=False, type=int, default=None)
     @click.option('--multiway', is_flag=True, default=None, help='force "multiway" cleanup')
     @click.option('--delete-dominated', is_flag=True, default=None)
     def clean(path: Path, dry: bool, move: Optional[Path], remove: bool, max_workers: int, from_: Optional[int], to: Optional[int], multiway: Optional[bool], delete_dominated: Optional[bool]) -> None:
