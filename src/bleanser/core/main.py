@@ -23,20 +23,24 @@ def main(*, Normaliser) -> None:
     def call_main() -> None:
         pass
 
-    _DEFAULT = object()
+    # meh... would be nice to use object but it gets casted to str by click??
+    _DEFAULT = '<default>'
 
     @call_main.command(name='diff', short_help='cleanup two files and diff')
-    @click.argument('path1'          , type=Path)
+    @click.argument('path1'          , type=str)
     @click.argument('path2'                        , default=_DEFAULT)
+    @click.option  ('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
     @click.option  ('--vim'          , is_flag=True, default=False                   , help='Use vimdiff')
     @click.option  ('--from', 'from_', type=int    , default=None)
     @click.option  ('--to'           , type=int    , default=None)
-    def diff(path1: Path, path2: Path, *, from_: Optional[int], to: Optional[int], vim: bool) -> None:
+    def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool) -> None:
+        path1_: Path
         if path2 is _DEFAULT:
-            paths = _get_paths(path=str(path1), from_=from_, to=to)
+            paths = _get_paths(path=path1, from_=from_, to=to, glob=glob)
             assert len(paths) == 2, paths
-            [path1, path2] = paths
+            [path1_, path2] = paths
         else:
+            path1_ = Path(path1)
             path2 = Path(path2)
 
         from .processor import compute_diff
@@ -45,7 +49,7 @@ def main(*, Normaliser) -> None:
             import os
             os.environ['USE_VIMDIFF'] = 'yes'
 
-        for line in compute_diff(path1, path2, Normaliser=Normaliser):
+        for line in compute_diff(path1_, path2, Normaliser=Normaliser):
             print(line)
 
     # todo ugh, name sucks
