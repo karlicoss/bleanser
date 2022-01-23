@@ -46,16 +46,16 @@ class _Filter:
         return res
 
     def _filter_line(self, sql_line: bytes) -> Optional[bytes]:
-        line = sql_line
+        line = sql_line.strip()  # sometimes might have empty lines etc
 
         allowed = [
-            b'INSERT INTO ',
+            b'INSERT .*INTO ',
             b'DELETE FROM ',
             b'PRAGMA',
             b'BEGIN TRANSACTION',
             b'COMMIT',
         ]
-        if any(line.startswith(s) for s in allowed):
+        if any(re.match(s, line) for s in allowed):
             # meh
             if line.startswith(b'DELETE FROM sqlite_sequence') or line.startswith(b'INSERT INTO sqlite_sequence'):
                 # smth to do with autoincrement
@@ -63,6 +63,11 @@ class _Filter:
             if line.startswith(b'DELETE FROM sqlite_stat') or line.startswith(b'INSERT INTO sqlite_stat'):
                 # smth to do with ANALYZE
                 return b''
+
+            if re.match(b'INSERT .*INTO.*FROM ', line):
+                # meh... prob don't need dynamic statements like this, annoying if they insert from views
+                return b''
+
             return line
 
         if line.startswith(b'CREATE TABLE '):
@@ -118,10 +123,23 @@ def _as_sql_lines(sql_dump: Iterator[bytes]) -> Iterator[bytes]:
         g = []
         return res
 
+    inside_begin = False
     for line in sql_dump:
         assert line.endswith(b'\n'), line
 
-        if line.endswith(b';\n'):
+        is_begin = line.startswith(b'BEGIN\n')
+        is_end = line.endswith(b'END;\n')
+
+        if is_begin:
+            assert not inside_begin
+            inside_begin = True
+
+        if is_end:
+            assert inside_begin
+            inside_begin = False
+
+        should_emit = (inside_begin and is_end) or (not inside_begin and line.endswith(b';\n'))
+        if should_emit:
             g.append(line)
             yield dump()
         else:
@@ -129,6 +147,7 @@ def _as_sql_lines(sql_dump: Iterator[bytes]) -> Iterator[bytes]:
 
     if len(g) > 0:
         yield dump()
+    assert not inside_begin
 
 
 def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
@@ -178,3 +197,5 @@ if __name__ == '__main__':
 # FIXME add some tests, maybe some dbs from testdata with triggers/constraints
 # e.g. KoboReader-20211130.sqlite seems to have
 # CREATE TRIGGER kobo_plus_asset_cleanup
+#
+# TODO fb messenger is a good db to test on... lots of weird shit, e.g. transactions
