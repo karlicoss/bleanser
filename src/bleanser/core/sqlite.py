@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 from sqlite3 import Connection
 from subprocess import check_call
-from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, List, Set, Tuple
+from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, List, Set, Tuple, ClassVar
 
 
 from .common import logger, parametrize, Config
@@ -31,17 +31,21 @@ def checked_db(db: Path, *, allowed_blobs: Set[Tuple[str, str]]) -> Path:
     # integrity check
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
+        # note: .execute only does statement at a time?
         list(conn.execute('PRAGMA schema_version;'))
         list(conn.execute('PRAGMA integrity_check;'))
-
         tool = Tool(conn)
         schemas = tool.get_tables()
+        blobs = []
         for table, schema in schemas.items():
             for n, t in schema.items():
                 if t == 'BLOB':
-                    key = (table, n)
-                    if key not in allowed_blobs:
-                        raise RuntimeError(f'{schema}: {key} has type BLOB -- not supported yet, sometimes dumps as empty string')
+                    key     = (table, n)
+                    any_key = (table, '*')
+                    if key not in allowed_blobs and any_key not in allowed_blobs:
+                        blobs.append((key, schema))
+        if len(blobs) > 0:
+            raise RuntimeError('\n'.join(f'{key}: {schema} has type BLOB -- not supported yet, sometimes dumps as empty string' for key, schema in blobs))
 
     conn.close()
     db = checked_no_wal(db)
