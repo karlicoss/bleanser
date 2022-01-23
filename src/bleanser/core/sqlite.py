@@ -215,6 +215,11 @@ class SqliteNormaliser(BaseNormaliser):
 
     ALLOWED_BLOBS: Set[Tuple[str, str]] = set()
 
+    # virtual tables are using external modules, which might not be present
+    # we probs don't care about them anyway
+    # todo might make sense to make default or something
+    DROP_VIRTUAL_TABLES: ClassVar[bool] = False
+
     @classmethod
     def checked(cls, db: Path) -> Path:
         """common schema checks (for both cleanup/extract)"""
@@ -249,7 +254,15 @@ class SqliteNormaliser(BaseNormaliser):
         upath = path
         del path # just to prevent from using by accident
 
-        from bleanser.core.ext.sqlite_dumben import run as dumben
+        if self.DROP_VIRTUAL_TABLES:
+            upath = checked_no_wal(upath)
+            unique_tmp_dir_2 = wdir / Path(*upath.parts[1:])  # cut off '/' and use relative path
+            unique_tmp_dir_2.mkdir(parents=True, exist_ok=True)  # meh
+
+            dropped_db = unique_tmp_dir_2 / 'without_virtual.db'
+            drop_virtual_tables = sqlite_cmd['-bail', upath, '.dump'] | grep['-vF', 'CREATE VIRTUAL TABLE'] | sqlite_cmd['-bail', dropped_db]
+            drop_virtual_tables()
+            upath = dropped_db
 
         upath = self.checked(upath)
 
@@ -258,6 +271,7 @@ class SqliteNormaliser(BaseNormaliser):
         unique_tmp_dir.mkdir(parents=True, exist_ok=True)  # meh
 
         cleaned_db = unique_tmp_dir / 'cleaned.db'
+        from bleanser.core.ext.sqlite_dumben import run as dumben
         dumben(db=upath, output=cleaned_db, output_as_db=True)
 
         # ugh. in principle could use :memory: database here...
