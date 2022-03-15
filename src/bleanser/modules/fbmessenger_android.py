@@ -44,6 +44,7 @@ class Normaliser(SqliteNormaliser):
         , ('whats_app_group_info', 'extension')
         , ('encrypted_backups_virtual_devices', 'virtual_device_id')
         , ('secure_encrypted_backups_qr_add_device_context', 'temp_ocmf_client_state')
+        , ('advanced_crypto_transport_appdata_messages', 'serialized_payload') # used to be in msys db
     }
 
     DROP_VIRTUAL_TABLES = True
@@ -105,6 +106,9 @@ class Normaliser(SqliteNormaliser):
         t.drop('sync_groups')
         t.drop('orca_upgrade_cql_schema_facets')
         t.drop('secure_message_ab_props_v2') # just weird single value
+        t.drop('pending_tasks') # temporary thing?
+        t.drop('crypto_auth_token')
+        t.drop('logging_events_v2')
 
 
 if __name__ == '__main__':
