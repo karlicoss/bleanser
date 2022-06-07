@@ -181,8 +181,12 @@ def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str
     if print_diff and len(rem) > 0:
         logger.debug(f'diff %s %s', lfile, rfile)
         logger.debug('vvvvvvvvvvvvv DIFF vvvvvvvvvvvvv')
-        for line in rem:
-            logger.debug(line)
+        if sys.stdin.isatty():
+            # only log when running interactively... otherwise spams syslog too much
+            for line in rem:
+                logger.debug(line)
+        else:
+            logger.debug('non-interactive session, skipping diff logging (otherwise spams syslog too much)')
         logger.debug('^^^^^^^^^^^^^ DIFF ^^^^^^^^^^^^^')
     return rem
 
