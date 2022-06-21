@@ -80,7 +80,7 @@ class Normaliser(JsonNormaliser):
             if v is not None:
                 v['contact'].pop('facebook' , None) # don't care
                 v['contact'].pop('instagram', None) # don't care
-                del v['verified'] # don't care
+                v.pop('verified', None) # don't care
                 v.pop('delivery', None) # eh, we don't care about what venue uses for delivery
 
             # todo would be nice to support compose keys for delkeys..
