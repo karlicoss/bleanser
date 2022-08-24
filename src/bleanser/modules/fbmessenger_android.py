@@ -45,6 +45,7 @@ class Normaliser(SqliteNormaliser):
         , ('encrypted_backups_virtual_devices', 'virtual_device_id')
         , ('secure_encrypted_backups_qr_add_device_context', 'temp_ocmf_client_state')
         , ('advanced_crypto_transport_appdata_messages', 'serialized_payload') # used to be in msys db
+        , ('messages_optimistic_context', 'dety_params'),
     }
 
     DROP_VIRTUAL_TABLES = True
