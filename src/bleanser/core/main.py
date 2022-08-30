@@ -70,6 +70,7 @@ def main(*, Normaliser) -> None:
     @call_main.command(name='prune', short_help='process & prune files')
     @click.argument('path', type=str)
     @click.option('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
+    @click.option('--sort-by', type=click.Choice(['size', 'name']), default='name', help='how to sort input files')
     ##
     @click.option  ('--dry'   , is_flag=True, default=None, help='Do not prune the input files, just print what would happen after pruning.')
     @click.option  ('--remove', is_flag=True, default=None, help='Prune the input files by REMOVING them (be careful!)')
@@ -87,7 +88,7 @@ def main(*, Normaliser) -> None:
     ##
     @click.option  ('--multiway'       , is_flag=True, default=None                , help='force "multiway" cleanup')
     @click.option  ('--prune-dominated', is_flag=True, default=None)
-    def prune(path: str, glob: bool, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool], yes: bool) -> None:
+    def prune(path: str, sort_by: str, glob: bool, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool], yes: bool) -> None:
         modes: List[Mode] = []
         if dry is True:
             modes.append(Dry())
@@ -102,7 +103,7 @@ def main(*, Normaliser) -> None:
         # TODO eh, would be nice to use some package for mutually exclusive args..
         # e.g. https://stackoverflow.com/questions/37310718/mutually-exclusive-option-groups-in-python-click
 
-        paths = _get_paths(path=path, glob=glob, from_=from_, to=to)
+        paths = _get_paths(path=path, glob=glob, from_=from_, to=to, sort_by=sort_by)
 
         if multiway is not None:
             Normaliser.MULTIWAY = multiway
@@ -121,15 +122,18 @@ def main(*, Normaliser) -> None:
     call_main()
 
 
-def _get_paths(*, path: str, from_: Optional[int], to: Optional[int], glob: bool=False) -> List[Path]:
+def _get_paths(*, path: str, from_: Optional[int], to: Optional[int], sort_by: str, glob: bool=False) -> List[Path]:
     if not glob:
         pp = Path(path)
         assert pp.is_dir(), pp
         path = str(pp) + os.sep + '**'
     paths = [Path(p) for p in do_glob(path, recursive=True)]
     paths = [p for p in paths if p.is_file()]
-    paths = list(sorted(paths))
-    # assumes sort order is same as date order? guess it's reasonable
+    if sort_by == "name":
+        # assumes sort order is same as date order? guess it's reasonable
+        paths = list(sorted(paths))
+    else:
+        paths = list(sorted(paths, key=lambda s: s.stat().st_size))
 
     if from_ is None:
         from_ = 0
