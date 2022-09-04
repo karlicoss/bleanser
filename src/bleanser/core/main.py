@@ -122,7 +122,7 @@ def main(*, Normaliser) -> None:
     call_main()
 
 
-def _get_paths(*, path: str, from_: Optional[int], to: Optional[int], sort_by: str, glob: bool=False) -> List[Path]:
+def _get_paths(*, path: str, from_: Optional[int], to: Optional[int], sort_by: str = "name", glob: bool=False) -> List[Path]:
     if not glob:
         pp = Path(path)
         assert pp.is_dir(), pp
