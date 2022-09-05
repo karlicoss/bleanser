@@ -6,7 +6,6 @@ from typing import Optional, List
 
 from .common import logger, Dry, Move, Remove, Mode
 from .processor import compute_instructions, apply_instructions
-from .utils import mime
 
 import click # type: ignore
 

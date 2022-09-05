@@ -7,11 +7,11 @@ from pathlib import Path
 import sqlite3
 from sqlite3 import Connection
 from subprocess import check_call
-from typing import Dict, Any, Iterator, Iterable, Sequence, Optional, Callable, ContextManager, List, Set, Tuple, ClassVar
+from typing import Dict, Any, Iterator, Sequence, ContextManager, Set, Tuple, ClassVar
 
 
-from .common import logger, parametrize, Config
-from .common import Keep, Prune, Group
+from .common import parametrize, Config
+from .common import Keep, Prune
 from .utils import mime
 from .processor import compute_groups, compute_instructions, BaseNormaliser
 
