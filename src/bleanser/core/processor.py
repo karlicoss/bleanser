@@ -106,9 +106,14 @@ def compute_groups(
             # force iterator if we're using more than one thread
             # otherwise it'll still be basically serial execution
             # in addition, multiprocess would fail to pickle returned iterator
-            func = _compute_groups_serial_as_list if threads is not None else _compute_groups_serial
+            func: Callable[..., Iterable[Group]]
+            # note: separate declaration and if statement makes mypy happy
+            if threads is not None:
+                func = _compute_groups_serial_as_list
+            else:
+                func = _compute_groups_serial
             futures.append(pool.submit(
-                func,  # type: ignore[arg-type]
+                func,
                 paths=pp,
                 cleanup=cleanup,
                 diff_filter=diff_filter,
@@ -254,7 +259,7 @@ class FileSet:
         (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
         return rc == 0
 
-    def issubset(self, other: 'FileSet', *, diff_filter: str) -> bool:
+    def issubset(self, other: 'FileSet', *, diff_filter: Optional[str]) -> bool:
         # short circuit
         # this doesn't really speed up much though? so guess better to keep the code more uniform..
         # if set(self.items) <= set(other.items):
@@ -337,7 +342,7 @@ def test_fileset(tmp_path: Path) -> None:
 
 
 # just for process pool
-def _compute_groups_serial_as_list(*args, **kwargs):
+def _compute_groups_serial_as_list(*args: Any, **kwargs: Any) -> Iterable[Group]:
     return list(_compute_groups_serial(*args, **kwargs))
 
 # todo these are already normalized paths?
@@ -346,10 +351,10 @@ def _compute_groups_serial(
         paths: Sequence[Path],
         *,
         cleanup: Cleaner,
-        diff_filter: str,
+        diff_filter: Optional[str],
         config: Config,
         _wdir: Optional[Path],
-) -> Iterator[Group]:
+) -> Iterable[Group]:
     assert len(paths) > 0
 
     IRes = Union[Exception, Cleaned]
