@@ -1,7 +1,6 @@
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Sequence, Set, List, Iterator, Tuple, Dict, Iterable, Optional, Union
+from typing import NamedTuple, Sequence, Union
 
 from .utils import assert_never
 from .ext.logging import LazyLogger
