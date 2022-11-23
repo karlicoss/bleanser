@@ -8,146 +8,78 @@
 # this is useful if you want to mess/cleanup the database, but don't want to trip over constraints/triggers
 # NOTE: handling everything as bytes since not sure I wanna mess with encoding here (esp. row data encoding)
 
-import contextlib
-from functools import cached_property
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import re
+import shutil
 import sqlite3
-from subprocess import check_output, Popen, PIPE
+import subprocess
+from subprocess import check_output, check_call
 import sys
-from typing import Iterator, List, Dict, Optional, IO
+from typing import List, Dict, Optional
 
 
-class _Filter:
-    def __init__(self, db: Path) -> None:
-        # TODO check that it's a db?
-        self.db = db
+Tables = Dict[str, Dict[str, str]]
+def _get_tables(db: Path) -> Tables:
+    res: Tables = {}
+    with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
+        tables = []
+        for row in conn.execute('SELECT name, type FROM sqlite_master'):
+            (table, type_) = row
+            if type_ in {'index', 'view', 'trigger'}:
+                # todo log what kind of things we are filtering out?
+                continue
+            assert type_ == 'table', (table, type_)
+            tables.append(table)
 
-    @cached_property
-    def tables(self) -> Dict[str, Dict[str, str]]:
-        res: Dict[str, Dict[str, str]] = {}
-        with sqlite3.connect(f'file:{self.db}?immutable=1', uri=True) as conn:
-            tables = []
-            for row in conn.execute('SELECT name, type FROM sqlite_master'):
-                (table, type_) = row
-                if type_ in {'index', 'view', 'trigger'}:
-                    # todo log what kind of things we are filtering out?
-                    continue
-                assert type_ == 'table', (table, type_)
-                tables.append(table)
-
-            for table in tables:
-                schema: Dict[str, str] = {}
-                for row in conn.execute(f'PRAGMA table_info({table})'):
-                    col   = row[1]
-                    type_ = row[2]
-                    schema[col] = type_
-                res[table] = schema
-        return res
-
-    def _filter_line(self, sql_line: bytes) -> Optional[bytes]:
-        line = sql_line.strip()  # sometimes might have empty lines etc
-
-        allowed = [
-            b'INSERT .*INTO ',
-            b'DELETE FROM ',
-            b'PRAGMA',
-            b'BEGIN TRANSACTION',
-            b'COMMIT',
-        ]
-        if any(re.match(s, line) for s in allowed):
-            # meh
-            if line.startswith(b'DELETE FROM sqlite_sequence') or line.startswith(b'INSERT INTO sqlite_sequence'):
-                # smth to do with autoincrement
-                return b''
-            if line.startswith(b'DELETE FROM sqlite_stat') or line.startswith(b'INSERT INTO sqlite_stat'):
-                # smth to do with ANALYZE
-                return b''
-
-            if re.match(b'INSERT .*INTO.*FROM ', line):
-                # meh... prob don't need dynamic statements like this, annoying if they insert from views
-                return b''
-
-            return line
-
-        if line.startswith(b'CREATE TABLE '):
-            si = line.find(b'(')
-            assert si != -1, line
-            # backticks are quotes (e.g. if table name is a special keyword...)
-            table_name = line[len(b'CREATE TABLE '): si]
-            table_name = table_name.replace(b'IF NOT EXISTS ', b'')
-            table_name = table_name.lstrip()  # sometimes happens
-            table_name = table_name.strip().strip(b"`'\"")
-
-            schema = self.tables[table_name.decode('utf8')]
-            # always escape in case the column is named 'index' or someting
-            line2 = line[:si] + b' (' + b', '.join(f'`{k}` {v}'.encode('utf8') for k, v in schema.items()) + b');\n'
-            return line2
-
-        dropped = [
-            b'CREATE INDEX ', b'CREATE UNIQUE INDEX ',
-            b'CREATE VIEW ',
-            b'CREATE TRIGGER ',
-
-            b'ANALYZE ',  # some optimization thing https://www.sqlite.org/lang_analyze.html
-        ]
-        if any(line.startswith(s) for s in dropped):
-            return b''
-
-        raise RuntimeError(line)
+        for table in tables:
+            schema: Dict[str, str] = {}
+            for row in conn.execute(f'PRAGMA table_info({table})'):
+                col   = row[1]
+                type_ = row[2]
+                schema[col] = type_
+            res[table] = schema
+    return res
 
 
-    def _filtered(self, sql_lines: Iterator[bytes]) -> Iterator[bytes]:
-        for line in sql_lines:
-            res = self._filter_line(line)
-            if res is not None:
-                yield res
+def _sqlite(*cmd):
+    return ['sqlite3', '-bail'] + list(cmd)
 
 
-    def as_sql_lines(self) -> Iterator[bytes]:
-        with Popen(['sqlite3', '-readonly', f'file://{self.db}?immutable=1', '.dump'], stdout=PIPE) as p:
-            out = p.stdout; assert out is not None
-            lines = _as_sql_lines(iter(out))
-            yield from self._filtered(lines)
+def _dumben_db(output_db: Path) -> None:
+    # expected to operate on output_db directly
+    assert output_db.exists(), output_db
 
+    # hmm. CREATE TABLE syntax seems ridiculously complicated https://www.sqlite.org/lang_createtable.html
+    # so seems pretty hopeless to sanitize off the constraints purely via sqlite?
+    # the only easy win is making it single line
+    # "UPDATE sqlite_master SET sql = replace(sql, char(10), ' ');"
 
-def _as_sql_lines(sql_dump: Iterator[bytes]) -> Iterator[bytes]:
-    """
-    Kinda annoying, for some reason sql dump breaks line at table/view creation statements...
-    """
-    g: List[bytes] = []
+    tables = _get_tables(output_db)
 
-    def dump() -> bytes:
-        nonlocal g
-        res = b''.join(g)
-        g = []
-        return res
+    updates = []
+    for name, schema in tables.items():
+        simple_create = f'CREATE TABLE `{name}` (' + ', '.join(f'`{k}` {v}' for k, v in schema.items()) + ')'
+        # TODO dunno if worth keeping autoincrement
+        # without it, all columns with numerical id end up as NULL. although maybe for the best?
+        upd = f'UPDATE sqlite_master SET sql = "{simple_create}" WHERE name = "{name}";'
+        updates.append(upd)
 
-    inside_begin = False
-    for line in sql_dump:
-        assert line.endswith(b'\n'), line
+    cmds = [
+        "PRAGMA writable_schema=ON;",
+        # drop table doesn't work for special sqlite_ tables
+        # sqlite_sequence is something to do with autoincrement, ends up with some indices noise otherwise
+        # sqlite_stat{1,2,3,4} is something to do with ANALYZE query
+        'DELETE FROM sqlite_master WHERE name = "sqlite_sequence" OR name LIKE "sqlite_stat%";',
 
-        is_begin = line.startswith(b'BEGIN\n')
-        is_end = line.endswith(b'END;\n')
+        # virtual tables are basically views, no need to keep them
+        'DELETE FROM sqlite_master WHERE sql LIKE "%CREATE VIRTUAL TABLE%";',
 
-        if is_begin:
-            assert not inside_begin
-            inside_begin = True
-
-        if is_end:
-            assert inside_begin
-            inside_begin = False
-
-        should_emit = (inside_begin and is_end) or (not inside_begin and line.endswith(b';\n'))
-        if should_emit:
-            g.append(line)
-            yield dump()
-        else:
-            g.append(line[:-1] + b' ')
-
-    if len(g) > 0:
-        yield dump()
-    assert not inside_begin
+        'DELETE FROM sqlite_master WHERE type IN ("view", "trigger", "index");',
+        *updates,
+    ]
+    # TODO perhaps instead use python3 interface? so it escapes properly
+    check_call(_sqlite(output_db, ' '.join(cmds)))
 
 
 def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
@@ -155,29 +87,107 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
         assert not output.exists(), output
 
     if output is None:
-        assert output_as_db is False
+        assert output_as_db is False, "can't output to stdout as a binary database"
 
-    popen: Optional[Popen] = None
-    ctx_stack = contextlib.ExitStack()
-    out: IO[bytes]
-    if output is None:
-        out = sys.stdout.buffer
-    else:
-        if output_as_db:
-            popen = ctx_stack.enter_context(Popen(['sqlite3', '-bail', output], stdin=PIPE))
-            pin = popen.stdin; assert pin is not None
-            out = pin
+    if output_as_db:
+        assert output is not None
+        # if we output as db, just operate on that target database directly
+        shutil.copy(db, output)
+        _dumben_db(output)
+        return
+
+    # otherwise, need to create a temporary db to operate on -- and after that can dump it to sql
+    with TemporaryDirectory() as td:
+        tdir = Path(td)
+        tdb = Path(tdir) / 'tmp.db'
+        run(db=db, output=tdb, output_as_db=True)
+        if output is not None:
+            with output.open('w') as out:
+                subprocess.run(_sqlite(tdb, '.dump'), check=True, stdout=out)
         else:
-            out = ctx_stack.enter_context(output.open('wb'))
+            subprocess.run(_sqlite(tdb, '.dump'), check=True, stdout=sys.stdout)
 
-    with ctx_stack:
-        for line in _Filter(db=db).as_sql_lines():
-            out.write(line)
 
-    if popen is not None:
-        popen.wait()
-        ret = popen.returncode
-        assert ret == 0, ret
+def test_dumben(tmp_path: Path) -> None:
+    # TODO would be nice to implement integration style test here straightaway
+    sql = '''
+CREATE TABLE inventory
+( inventory_id INT PRIMARY KEY,
+  product_id INT NOT NULL,
+  quantity INT,
+  min_level INT,
+  max_level INT,
+  CONSTRAINT fk_inv_product_id
+    FOREIGN KEY (product_id)
+    REFERENCES products (product_id)
+    ON DELETE CASCADE
+);
+    '''
+
+    sql = '''
+CREATE TABLE departments
+( department_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  department_name VARCHAR
+);
+
+CREATE TABLE employees
+( employee_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  last_name VARCHAR NOT NULL,
+  first_name VARCHAR,
+  department_id INTEGER,
+  CONSTRAINT fk_departments
+    FOREIGN KEY (department_id)
+    REFERENCES departments(department_id)
+    ON DELETE CASCADE
+);
+
+INSERT INTO departments VALUES (30, 'HR');
+INSERT INTO departments VALUES (999, 'Sales');
+
+INSERT INTO employees VALUES (10000, 'Smith', 'John', 30);
+INSERT INTO employees VALUES (10001, 'Anderson', 'Dave', 999);
+
+CREATE VIEW whatevs AS
+    SELECT * FROM employees;
+'''
+
+    db = tmp_path / 'tmp.db'
+    subprocess.run(_sqlite(db), input=sql.encode('utf8'), check=True)
+
+    ## precondition -- check that db has multiline CREATE statements
+    dbd = check_output(_sqlite( db, '.dump')).decode('utf8').splitlines()
+    assert 'CREATE TABLE employees' in dbd
+    assert '  CONSTRAINT fk_departments' in dbd
+    ##
+
+    ## precondition -- check that with foreign key it will indeed impact other tables
+    check_call(_sqlite(db, 'PRAGMA foreign_keys=on; DELETE FROM departments WHERE department_id = 30;'))
+    ecnt = int(check_output(_sqlite(db, 'SELECT COUNT(*) FROM employees')).decode('utf8').strip())
+    assert ecnt == 1, ecnt
+    ##
+
+    db.unlink()
+    subprocess.run(_sqlite(db), input=sql.encode('utf8'), check=True)
+
+    dumb_sql = tmp_path / 'dumb.sql'
+    run(db=db, output=dumb_sql, output_as_db=False)
+    dump = dumb_sql.read_text()
+    dump_lines = dump.splitlines()
+
+    crt = dump_lines[5] # meh but easiest
+    # make sure it puts the statement on single line
+    assert re.fullmatch(r'CREATE TABLE `employees` \(`employee_id` INTEGER,.*`department_id` INTEGER.*\);', crt)
+    # make sure it strips off constraints
+    assert 'AUTOINCREMENT' not in crt, crt
+    assert 'CONSTRAINT' not in crt, crt
+
+    assert 'CREATE VIEW' not in dump
+
+    dumb_db = tmp_path / 'dumb.db'
+    run(db=db, output=dumb_db, output_as_db=True)
+    check_call(_sqlite(dumb_db, 'PRAGMA foreign_keys=on; DELETE FROM departments WHERE department_id = 30;'))
+    ecnt = int(check_output(_sqlite(dumb_db, 'SELECT COUNT(*) FROM employees')).decode('utf8').strip())
+    assert ecnt == 2, ecnt
 
 
 def main() -> None:
@@ -194,8 +204,10 @@ def main() -> None:
 if __name__ == '__main__':
     main()
 
-# FIXME add some tests, maybe some dbs from testdata with triggers/constraints
-# e.g. KoboReader-20211130.sqlite seems to have
-# CREATE TRIGGER kobo_plus_asset_cleanup
-#
-# TODO fb messenger is a good db to test on... lots of weird shit, e.g. transactions
+
+# some possible inspiration for testin
+# - KoboReader-20211130.sqlite seems to have
+#    CREATE TRIGGER kobo_plus_asset_cleanup
+# - fb messenger android is a good db to test on... lots of weird shit, e.g. transactions
+# - bumble android has search_message_removed trigger
+# - whatsapp android has loads of weird shit
