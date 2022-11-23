@@ -9,7 +9,7 @@
 # NOTE: handling everything as bytes since not sure I wanna mess with encoding here (esp. row data encoding)
 
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, TemporaryFile
 import re
 import shutil
 import sqlite3
@@ -55,6 +55,12 @@ def _dumben_db(output_db: Path) -> None:
     # the only easy win is making it single line
     # "UPDATE sqlite_master SET sql = replace(sql, char(10), ' ');"
 
+
+    # first delete virtual tables -- they might render it impossible to do anything with database at all due to USING
+    # e.g. fb messenger android msys database has this CREATE VIRTUAL TABLE msys_experiment_cache USING experiment_cache
+    # either way virtual tables are basically views, no need to keep them
+    check_call(_sqlite(output_db, 'PRAGMA writable_schema=ON; DELETE FROM sqlite_master WHERE sql LIKE "%CREATE VIRTUAL TABLE%";'))
+
     tables = _get_tables(output_db)
 
     updates = []
@@ -72,14 +78,19 @@ def _dumben_db(output_db: Path) -> None:
         # sqlite_stat{1,2,3,4} is something to do with ANALYZE query
         'DELETE FROM sqlite_master WHERE name = "sqlite_sequence" OR name LIKE "sqlite_stat%";',
 
-        # virtual tables are basically views, no need to keep them
-        'DELETE FROM sqlite_master WHERE sql LIKE "%CREATE VIRTUAL TABLE%";',
-
         'DELETE FROM sqlite_master WHERE type IN ("view", "trigger", "index");',
         *updates,
     ]
-    # TODO perhaps instead use python3 interface? so it escapes properly
-    check_call(_sqlite(output_db, ' '.join(cmds)))
+
+    # using temporary file because the argument list might end up too long
+    # e.g. was the case with facebook android databases, too many tables
+    with TemporaryFile() as tf:
+        for cmd in cmds:
+            tf.write(cmd.encode('utf8') + b'\n')
+        tf.seek(0)
+
+        # TODO perhaps instead use python3 interface? so it escapes properly
+        subprocess.run(_sqlite(output_db), check=True, input=tf.read())
 
 
 def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:

@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 from sqlite3 import Connection
 from subprocess import check_call
-from typing import Dict, Any, Iterator, Sequence, ContextManager, Set, Tuple, ClassVar
+from typing import Dict, Any, Iterator, Sequence, ContextManager, Set, Tuple, ClassVar, Optional
 
 
 from .common import parametrize, Config
@@ -27,25 +27,26 @@ def checked_no_wal(db: Path) -> Path:
     return db
 
 
-def checked_db(db: Path, *, allowed_blobs: Set[Tuple[str, str]]) -> Path:
+def checked_db(db: Path, *, allowed_blobs: Optional[Set[Tuple[str, str]]]) -> Path:
     # integrity check
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
         # note: .execute only does statement at a time?
         list(conn.execute('PRAGMA schema_version;'))
         list(conn.execute('PRAGMA integrity_check;'))
-        tool = Tool(conn)
-        schemas = tool.get_tables()
-        blobs = []
-        for table, schema in schemas.items():
-            for n, t in schema.items():
-                if t == 'BLOB':
-                    key     = (table, n)
-                    any_key = (table, '*')
-                    if key not in allowed_blobs and any_key not in allowed_blobs:
-                        blobs.append((key, schema))
-        if len(blobs) > 0:
-            raise RuntimeError('\n'.join(f'{key}: {schema} has type BLOB -- not supported yet, sometimes dumps as empty string' for key, schema in blobs))
+        if allowed_blobs is not None:
+            tool = Tool(conn)
+            schemas = tool.get_tables()
+            blobs = []
+            for table, schema in schemas.items():
+                for n, t in schema.items():
+                    if t == 'BLOB':
+                        key     = (table, n)
+                        any_key = (table, '*')
+                        if key not in allowed_blobs and any_key not in allowed_blobs:
+                            blobs.append((key, schema))
+            if len(blobs) > 0:
+                raise RuntimeError('\n'.join(f'{key}: {schema} has type BLOB -- not supported yet, sometimes dumps as empty string' for key, schema in blobs))
 
     conn.close()
     db = checked_no_wal(db)
@@ -215,11 +216,6 @@ class SqliteNormaliser(BaseNormaliser):
 
     ALLOWED_BLOBS: Set[Tuple[str, str]] = set()
 
-    # virtual tables are using external modules, which might not be present
-    # we probs don't care about them anyway
-    # todo might make sense to make default or something
-    DROP_VIRTUAL_TABLES: ClassVar[bool] = False
-
     @classmethod
     def checked(cls, db: Path) -> Path:
         """common schema checks (for both cleanup/extract)"""
@@ -255,18 +251,8 @@ class SqliteNormaliser(BaseNormaliser):
         upath = path
         del path # just to prevent from using by accident
 
-        # TODO why are we trying to drop them here? instead of sqlite_dumben??
-        if self.DROP_VIRTUAL_TABLES:
-            upath = checked_no_wal(upath)
-            unique_tmp_dir_2 = wdir / Path(*upath.parts[1:])  # cut off '/' and use relative path
-            unique_tmp_dir_2.mkdir(parents=True, exist_ok=True)  # meh
-
-            dropped_db = unique_tmp_dir_2 / 'without_virtual.db'
-            drop_virtual_tables = sqlite_cmd['-bail', upath, '.dump'] | grep['-vF', 'CREATE VIRTUAL TABLE'] | sqlite_cmd['-bail', dropped_db]
-            drop_virtual_tables()
-            upath = dropped_db
-
-        upath = self.checked(upath)
+        # first, do not check for blobs -- we might not even be able to get the table list in python due to virtual tables
+        upath = checked_db(upath, allowed_blobs=None)
         # NOTE: upath here is still the _original_  path passed to bleanser, so we can't modify in place
 
         assert upath.is_absolute(), upath
@@ -276,6 +262,9 @@ class SqliteNormaliser(BaseNormaliser):
         cleaned_db = unique_tmp_dir / 'cleaned.db'
         from bleanser.core.ext.sqlite_dumben import run as dumben
         dumben(db=upath, output=cleaned_db, output_as_db=True)
+
+        # after dumbening, can actually check for blobs too
+        cleaned_db = self.checked(cleaned_db)
 
         # ugh. in principle could use :memory: database here...
         # but then dumping it via iterdump() takes much more time then sqlite3 .dump command..
