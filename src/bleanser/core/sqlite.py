@@ -237,6 +237,7 @@ class SqliteNormaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        # NOTE: path here is the _original_  path passed to bleanser, so we can't modify in place
         assert path.stat().st_size > 0, path  # just in case
         # TODO maybe, later implement some sort of class variable instead of hardcoding
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
@@ -254,6 +255,7 @@ class SqliteNormaliser(BaseNormaliser):
         upath = path
         del path # just to prevent from using by accident
 
+        # TODO why are we trying to drop them here? instead of sqlite_dumben??
         if self.DROP_VIRTUAL_TABLES:
             upath = checked_no_wal(upath)
             unique_tmp_dir_2 = wdir / Path(*upath.parts[1:])  # cut off '/' and use relative path
@@ -265,6 +267,7 @@ class SqliteNormaliser(BaseNormaliser):
             upath = dropped_db
 
         upath = self.checked(upath)
+        # NOTE: upath here is still the _original_  path passed to bleanser, so we can't modify in place
 
         assert upath.is_absolute(), upath
         unique_tmp_dir = wdir / Path(*upath.parts[1:])  # cut off '/' and use relative path
