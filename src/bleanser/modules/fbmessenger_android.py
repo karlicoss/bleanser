@@ -48,14 +48,15 @@ class Normaliser(SqliteNormaliser):
         , ('messages_optimistic_context', 'dety_params'),
     }
 
-    DROP_VIRTUAL_TABLES = True
-
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
 
         mtable = tables['messages']
         assert 'text'         in mtable, mtable
         assert 'timestamp_ms' in mtable, mtable
+        # TODO check that it has anything in there????
+        #
+        # TODO hmm instead need to check threads database!!! and check that there are some threads inside??
 
     def cleanup(self, c) -> None:
         t = Tool(c)
