@@ -4,7 +4,7 @@
 from setuptools import setup, find_namespace_packages # type: ignore
 
 
-def main():
+def main() -> None:
     # works with both ordinary and namespace packages
     pkgs = find_namespace_packages('src')
     pkg = min(pkgs) # lexicographically smallest is the correct one usually?
@@ -16,6 +16,8 @@ def main():
         },
         setup_requires=['setuptools_scm'],
 
+        # otherwise mypy won't work
+        # https://mypy.readthedocs.io/en/stable/installed_packages.html#making-pep-561-compatible-packages
         zip_safe=False,
 
         packages=pkgs,
