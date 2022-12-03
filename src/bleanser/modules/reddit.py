@@ -149,6 +149,18 @@ REDDIT_IGNORE_KEYS = {
     'whitelist_status', # some ads thing
     'wiki_enabled',
 
+    ## very flaky
+    'link_flair_background_color',
+    'link_flair_text_color',
+    'call_to_action',  # sometimes null, sometimes not present?
+    ##
+    ##
+
+    ## nothing interesting, some subreddit settings
+    'allowed_media_in_comments',
+    'comment_contribution_settings',
+    'should_archive_posts',
+    ##
 
     # TODO ??
     # 'likes',
@@ -181,6 +193,13 @@ class Normaliser(JsonNormaliser):
             for i in v:
                 if 'created_utc' in i:
                     i.pop('created', None)
+
+
+        ## not sure what it is, but flaky from "" to null
+        for u in j['upvoted']:
+            u.pop('category', None)
+        for u in j['downvoted']:
+            u.pop('category', None)
 
         return j
 
