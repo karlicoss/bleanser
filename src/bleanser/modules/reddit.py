@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from itertools import chain
+
 from bleanser.modules.json_new import JsonNormaliser, Json, delkeys
 
 
@@ -195,11 +197,16 @@ class Normaliser(JsonNormaliser):
                     i.pop('created', None)
 
 
-        ## not sure what it is, but flaky from "" to null
-        for u in j['upvoted']:
+        for u in chain(j['upvoted'], j['downvoted']):
+            ## not sure what it is, but flaky from "" to null
             u.pop('category', None)
-        for u in j['downvoted']:
-            u.pop('category', None)
+
+            ## very flaky, often goes from gfycat.com to null
+            media = u.get('media')
+            if media is not None:
+                media.pop('type', None)
+            if media is None or len(media) == 0:
+                u.pop('media', None)
 
         return j
 
