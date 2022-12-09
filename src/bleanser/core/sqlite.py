@@ -283,6 +283,9 @@ class SqliteNormaliser(BaseNormaliser):
             # cleanup might take a bit of time, especially with UPDATE statemens
             # but probably unavoidable?
             self.cleanup(conn)
+
+            # for possible later use
+            master_info = tool.get_sqlite_master()
         conn.close()
         cleaned_db = self.checked(cleaned_db)
 
@@ -294,6 +297,19 @@ class SqliteNormaliser(BaseNormaliser):
         dump_cmd = sqlite_cmd['-readonly', f'file://{cleaned_db}?immutable=1', '.dump']
         cmd = dump_cmd > str(dump_file)
         cmd()
+
+        # alternative way to dump database
+        # could be useful when you have multiline strings or jsons in TEXT/STRING filelds
+        # in this case sqlite .dump prepends them with X and encodes
+        # however, this makes it much harder to spot differences
+        # if we ever use it this way, this should
+        # - pass a custom -newline to sqlite (e.g. \0)
+        # - replace \n in output with space or something
+        # - replace the -newline symbol with actual \n
+        # for table in master_info:
+        #     query_cmd = sqlite_cmd['-readonly', f'file://{cleaned_db}?immutable=1', f'SELECT "{table}", * FROM `{table}`']
+        #     cmd = query_cmd >> str(dump_file)
+        #     cmd()
 
         # hmm seems necessary sometimes.. not sure why
         check_call(['sort', '-o', dump_file, dump_file])

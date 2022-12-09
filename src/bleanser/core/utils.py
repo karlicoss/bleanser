@@ -98,3 +98,18 @@ def delkeys(j: Json, *, keys: Union[str, Collection[str]]) -> None:
             delkeys(v, keys=keys)
     else:
         raise RuntimeError(type(j))
+
+
+def patch_atoms(j: Json, *, patch):
+    if   isinstance(j, (int, float, bool, type(None), str)):
+        return patch(j)
+    elif isinstance(j, list):
+        for i in range(len(j)):
+            j[i] = patch_atoms(j[i], patch=patch)
+        return j
+    elif isinstance(j, dict):
+        for k in list(j.keys()):
+            j[k] = patch_atoms(j[k], patch=patch)
+        return j
+    else:
+        raise RuntimeError(type(j))
