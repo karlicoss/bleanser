@@ -30,9 +30,10 @@ def main(*, Normaliser) -> None:
     @click.argument('path2'                        , default=_DEFAULT)
     @click.option  ('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
     @click.option  ('--vim'          , is_flag=True, default=False                   , help='Use vimdiff')
+    @click.option  ('--difftool'     , type=str                                      , help='Custom difftool to use')
     @click.option  ('--from', 'from_', type=int    , default=None)
     @click.option  ('--to'           , type=int    , default=None)
-    def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool) -> None:
+    def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool, difftool: str) -> None:
         path1_: Path
         if path2 is _DEFAULT:
             paths = _get_paths(path=path1, from_=from_, to=to, glob=glob)
@@ -45,8 +46,10 @@ def main(*, Normaliser) -> None:
         from .processor import compute_diff
         # meh..
         if vim:
-            import os
-            os.environ['USE_VIMDIFF'] = 'yes'
+            difftool = 'vimdiff'
+        if difftool is not None:
+            os.environ['DIFFTOOL'] = difftool
+
 
         for line in compute_diff(path1_, path2, Normaliser=Normaliser):
             print(line)
