@@ -7,6 +7,7 @@ class Normaliser(SqliteNormaliser):
     PRUNE_DOMINATED = True
 
     ALLOWED_BLOBS = {
+        # TODO actually these might be interesting to process???
         ('contextual_match', 'by_opener'),
         ('contextual_match', 'by_closer'),
         *(('match_person', x) for x in ['gender', 'photos', 'badges', 'jobs', 'schools', 'city']),
@@ -31,6 +32,10 @@ class Normaliser(SqliteNormaliser):
     def cleanup(self, c) -> None:
         t = Tool(c)
         t.drop('instagram_broken_links')
+        t.drop('explore_attribution')
+
+        # eh, don't think it impacts anyway
+        # t.drop('contextual_match')
 
         # some odd id that increases with no impact for other data
         t.drop_cols(table='profile_media', cols=['client_sequential_id'])
@@ -38,10 +43,16 @@ class Normaliser(SqliteNormaliser):
         # TODO I guess generally safer to drop specific columns instead of whole tables
         t.drop_cols(table='match_seen_state', cols=['match_id', 'last_message_seen_id'])
 
-        # TODO last_acitivy_date table? only has activity for yourself? not sure...
-        # t.drop('last_activity_date')
-        # this one contributes to _a lot_ of changes, dunno
-        #
+        t.drop('match_your_turn_state')
+
+        # TODO profile_descriptor?? blob containing presumably profile info, and sometimes jumps quite a bit
+
+        # this one contributes to _a lot_ of changes, like 40%
+        # and I guess if we properly wanted to track when app was activated, we'd need a different mechanism anyway
+        t.drop('last_activity_date')
+
+        # hmm what is match_harassing_message??
+
         # match->last_activity_date -- hmmm changing quite a bit? is it interesting? not sure
         #
         # message->is_liked -- not sure if worth keeping... only for finding out the first change?
@@ -49,6 +60,9 @@ class Normaliser(SqliteNormaliser):
         # match_read_receipt -- what is it??
         # match_id	last_seen_message_id	seen_timestamp
         # seems that last last_seen_message_id can be restored from messages table... but seen_timestamp is unique?
+
+        # NOTE: for 'extract' mode
+        # match->is_blocked
 
 
 if __name__ == '__main__':
@@ -68,7 +82,7 @@ def test_tinder() -> None:
         '20210916232749/tinder-3.db',  # keep, some likes changes etc
         '20210917004827/tinder-3.db',
         '20210917014719/tinder-3.db',
-        '20210917015444/tinder-3.db',
+        # '20210917015444/tinder-3.db',
         # '20210917031235/tinder-3.db',  # MOVE
         '20210917060029/tinder-3.db',
 
@@ -76,19 +90,19 @@ def test_tinder() -> None:
         '20211007060802/tinder-3.db',  # keep, first in group
         # '20211007090109/tinder-3.db',
         # '20211007094056/tinder-3.db',
-        '20211007115318/tinder-3.db',  # keep, last_activity
+        # '20211007115318/tinder-3.db',
         # '20211007133114/tinder-3.db',
         # '20211007143940/tinder-3.db',
         # '20211007155908/tinder-3.db',
-        # '20211007165243/tinder-3.db',
+        '20211007165243/tinder-3.db',
         '20211007180708/tinder-3.db',  # keep, bio changed
 
         '20211225050314/tinder-3.db',  # keep: first in group
         # '20211225193930/tinder-3.db',
-        '20211226052237/tinder-3.db',  # keep: last_activity_date changed
+        # '20211226052237/tinder-3.db',
         # '20211226091116/tinder-3.db',
         # '20211226135158/tinder-3.db',
         # '20211227002918/tinder-3.db',
-        '20211227044403/tinder-3.db',  # keep: last_actvivity_date changed
+        # '20211227044403/tinder-3.db',
         '20211227145813/tinder-3.db',  # keep: last in group
     ]
