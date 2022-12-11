@@ -263,8 +263,9 @@ class SqliteNormaliser(BaseNormaliser):
         from bleanser.core.ext.sqlite_dumben import run as dumben
         dumben(db=upath, output=cleaned_db, output_as_db=True)
 
-        # after dumbening, can actually check for blobs too
-        cleaned_db = self.checked(cleaned_db)
+        # eh.. not sure if really necessary
+        # but we don't wanna check for blobs yet, better to do this after the cleanup
+        cleaned_db = checked_db(cleaned_db, allowed_blobs=None)
 
         # ugh. in principle could use :memory: database here...
         # but then dumping it via iterdump() takes much more time then sqlite3 .dump command..
