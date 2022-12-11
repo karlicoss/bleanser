@@ -112,6 +112,10 @@ class Normaliser(SqliteNormaliser):
         t.drop('crypto_auth_token')
         t.drop('logging_events_v2')
 
+        t.drop('quick_promotion_filters')
+        t.drop('quick_promotions')
+        t.drop('presence_states')
+
 
 if __name__ == '__main__':
     Normaliser.main()
