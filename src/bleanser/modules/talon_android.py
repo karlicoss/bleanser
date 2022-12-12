@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+from bleanser.core.sqlite import SqliteNormaliser, Tool
+
+class Normaliser(SqliteNormaliser):
+    MULTIWAY = True
+    PRUNE_DOMINATED = True
+
+    def check(self, c) -> None:
+        tables = Tool(c).get_tables()
+        # TODO add something later
+
+
+    def cleanup(self, c) -> None:
+        self.check(c)
+
+        t = Tool(c)
+        # for some reason flaking between en/en_US
+        t.drop('android_metadata')
+
+
+if __name__ == '__main__':
+    Normaliser.main()
+

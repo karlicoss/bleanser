@@ -145,6 +145,9 @@ class Normaliser(SqliteNormaliser):
 
             'message_system', # random numbers
             'message_system_chat_participant',
+
+            'message_template',
+            'message_send_count',
         ]:
             t.drop(table)
 
@@ -159,6 +162,8 @@ class Normaliser(SqliteNormaliser):
             'unseen_message_count',
             'unseen_row_count',
             'unseen_message_reaction_count',
+            'unseen_important_message_count',
+            'history_sync_progress',
 
             ## newer db versions
             # flaky fields
@@ -171,6 +176,9 @@ class Normaliser(SqliteNormaliser):
             'mod_tag',
 
             # TODO ugh. created_timestamp might be flaky? seen it goign from NULL to actual value??
+
+            ## for 'extract' mode
+            ## archived?
         ])
 
         t.drop_cols(table='message', cols=[
@@ -179,11 +187,21 @@ class Normaliser(SqliteNormaliser):
             'message_add_on_flags',
             'status',
             ##
+
+            ## for 'extract' mode:
+            # received_timestamp
+            # receipt_server_timestamp
         ])
 
         t.drop_cols(table='message_media', cols=[
-            'has_streaming_sidecar', # flaky 0/1
-            'original_file_hash', # ??? sometimes goes from value to NULL
+            'original_file_hash',  # ??? sometimes goes from value to NULL
+
+            ## flaky 0/1
+            'has_streaming_sidecar',
+            'autotransfer_retry_enabled',
+            'transferred',
+            'transcoded'
+            ##
 
             # todo media_name might be flaky?? sometimes sets from NULL to file name?
             # same infor is in file_path though... so idk
