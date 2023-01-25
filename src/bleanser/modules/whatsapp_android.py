@@ -45,6 +45,7 @@ class Normaliser(SqliteNormaliser):
         ('message_quote_invoice', 'attachment_jpeg_thumbnail'),
         ('quoted_message_order', 'thumbnail'),
         ('message_add_on_orphan', 'orphan_message_data'),
+        ('message_orphaned_edit', 'orphan_message_data'),
         ('payment_background', 'media_key'),
         ('message_broadcast_ephemeral', 'shared_secret'),
         ('message_secret', 'message_secret'),
