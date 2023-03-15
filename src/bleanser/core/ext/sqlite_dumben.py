@@ -80,6 +80,9 @@ def _dumben_db(output_db: Path) -> None:
 
         'DELETE FROM sqlite_master WHERE type IN ("view", "trigger", "index");',
         *updates,
+
+        # without vacuum, sometimes ended up with "rootpage disagrees with header error", from sqlite code seemed like it had something to do with autovacuum
+        'VACUUM',
     ]
 
     # using temporary file because the argument list might end up too long
@@ -91,6 +94,9 @@ def _dumben_db(output_db: Path) -> None:
 
         # TODO perhaps instead use python3 interface? so it escapes properly
         subprocess.run(_sqlite(output_db), check=True, input=tf.read())
+
+    # make sure it's not corrupted
+    subprocess.check_call(_sqlite(output_db, 'PRAGMA integrity_check;'))
 
 
 def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
