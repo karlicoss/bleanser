@@ -33,13 +33,13 @@ class Normaliser(SqliteNormaliser):
 
         # TODO not sure if it can be useful at all?? it contains something like 'Today' etc...
         # it generates tons of changes.. so I'd rather drop it I guess
-        t.drop_cols(table='profiles', cols=['lastActiveStatus'])
+        t.drop_cols(table='profiles', cols=['lastActiveStatus', 'lastActiveStatusId'])
 
         # not sure what's the point of updated col here, it just changes for all entries at the same time
-        t.drop_cols(table='channels', cols=['updated'])
+        t.drop_cols(table='channels', cols=['updated', 'serialized'])
 
         # eh, not sure, they appear to be modified without actual changes to other cols?
-        t.drop_cols(table='profiles'     , cols=['created', 'updated'])
+        t.drop_cols(table='profiles'     , cols=['created', 'updated', 'hidden'])
         t.drop_cols(table='answers'      , cols=['created', 'modified'])
         t.drop_cols(table='player_media' , cols=['created'])
         t.drop_cols(table='subject_media', cols=['created'])
@@ -47,7 +47,7 @@ class Normaliser(SqliteNormaliser):
 
         # instagram urls change all the time (they contain some sort of token)
         # and expire quickly anyway.. so just easier to cleanup
-        c.execute('UPDATE subject_media SET photoUrl="" WHERE source = "instagram"')
+        c.execute('UPDATE subject_media SET photoUrl="", thumbnailUrl="", videoUrl="" WHERE source = "instagram"')
         # todo width,height are changing all the time for some reason for subject_media
 
         # TODO pending_ratings??
@@ -57,12 +57,25 @@ class Normaliser(SqliteNormaliser):
         # TODO WTF?? they are collecting some network stats and putting in the db? e.g. metered/vpn/etc
         t.drop(table='networks')
 
+        t.drop(table='preference_choices')  # search prefrences -- change all the time and not interesting
+        t.drop(table='pending_ratings')  # flaky, seems like contains intermediate state
+
+        ## clean up unnecessary profile/media data
+        # seems 3 - seems like if there is a conversation with user, so worth keeping
+        # state 1 - seems like 'liked', probs not worth tracking
+        # state 11 is possibly 'seen', so not super interesting
+        delete_profiles = 'FROM profiles WHERE state in (1, 11)'
+        for tbl in ['subject_media', 'answers']:
+            c.execute(f'DELETE FROM {tbl} WHERE userId IN (SELECT userId {delete_profiles})')
+            # delete orphans too
+            c.execute(f'DELETE FROM {tbl} WHERE userId NOT IN (SELECT userId FROM profiles)')
+        c.execute(f'DELETE {delete_profiles}')
+        ##
+
         ## id seems to be very unstable, as if they are resequenced all the time...
         remove_ids = [
-            'pending_ratings',
             'answers',
             'player_media',
-            'preference_choices',
             'basic_choices',
             'branding',
             'channels',
@@ -74,8 +87,10 @@ class Normaliser(SqliteNormaliser):
         for table in remove_ids:
             t.drop_cols(table=table, cols=['id'])
 
+
+        t.drop(table='standouts_content')  # things are flaky here, even urls are changing between databases -- likely they are expiring
+
         t.drop_cols(table='surveys', cols=['receivedByHinge'])
-        t.drop_cols(table='standouts_content', cols=['position'])
         t.drop_cols(table='call_prompt_packs', cols=['position'])
         # player_media are user pics? might be useful..
         t.drop_cols(table='player_media', cols=['position'])
