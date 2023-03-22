@@ -1,40 +1,72 @@
 """
 Various helpers for compression
 """
+from __future__ import annotations
+
+from datetime import datetime
 import pathlib
 from pathlib import Path
-from typing import Union, IO
+import sys
+from typing import Union, IO, Sequence, Any, Iterator
 import io
 
 PathIsh = Union[Path, str]
 
 
-def _zstd_open(path: Path, *args, **kwargs) -> IO[str]:
+class Ext:
+    xz    = '.xz'
+    zip   = '.zip'
+    lz4   = '.lz4'
+    zstd  = '.zstd'
+    zst   = '.zst'
+    targz = '.tar.gz'
+
+
+def is_compressed(p: Path) -> bool:
+    # todo kinda lame way for now.. use mime ideally?
+    # should cooperate with kompress.kopen?
+    return any(p.name.endswith(ext) for ext in {Ext.xz, Ext.zip, Ext.lz4, Ext.zstd, Ext.zst, Ext.targz})
+
+
+def _zstd_open(path: Path, *args, **kwargs) -> IO:
     import zstandard as zstd # type: ignore
     fh = path.open('rb')
     dctx = zstd.ZstdDecompressor()
     reader = dctx.stream_reader(fh)
-    return io.TextIOWrapper(reader, **kwargs) # meh
+
+    mode = kwargs.get('mode', 'rt')
+    if mode == 'rb':
+        return reader
+    else:
+        # must be text mode
+        kwargs.pop('mode') # TextIOWrapper doesn't like it
+        return io.TextIOWrapper(reader, **kwargs) # meh
 
 
-# TODO returns protocol that we can call 'read' against?
-# TODO use the 'dependent type' trick?
-def kopen(path: PathIsh, *args, mode: str='rt', **kwargs) -> IO[str]:
-    # TODO handle mode in *rags?
-    if 't' in mode: # meh
+# TODO use the 'dependent type' trick for return type?
+def kopen(path: PathIsh, *args, mode: str='rt', **kwargs) -> IO:
+    # just in case, but I think this shouldn't be necessary anymore
+    # since when we cann .read_text, encoding is passed already
+    if mode in {'r', 'rt'}:
         encoding = kwargs.get('encoding', 'utf8')
-        kwargs['encoding'] = encoding
+    else:
+        encoding = None
+    kwargs['encoding'] = encoding
 
     pp = Path(path)
-    suf = pp.suffix
-    if suf in {'.xz'}:
+    name = pp.name
+    if name.endswith(Ext.xz):
         import lzma
-        r = lzma.open(pp, mode, *args, **kwargs)
-        # should only happen for binary mode?
-        # file:///usr/share/doc/python3/html/library/lzma.html?highlight=lzma#lzma.open
-        # assert not isinstance(r, lzma.LZMAFile), r # TODO still helpful to prevent mypy from complaining... need to test it
-        return r  # type: ignore[return-value]
-    elif suf in {'.zip'}:
+
+        # ugh. for lzma, 'r' means 'rb'
+        # https://github.com/python/cpython/blob/d01cf5072be5511595b6d0c35ace6c1b07716f8d/Lib/lzma.py#L97
+        # whereas for regular open, 'r' means 'rt'
+        # https://docs.python.org/3/library/functions.html#open
+        if mode == 'r':
+            mode = 'rt'
+        kwargs['mode'] = mode
+        return lzma.open(pp, *args, **kwargs)
+    elif name.endswith(Ext.zip):
         # eh. this behaviour is a bit dodgy...
         from zipfile import ZipFile
         zfile = ZipFile(pp)
@@ -50,11 +82,19 @@ def kopen(path: PathIsh, *args, mode: str='rt', **kwargs) -> IO[str]:
         # TODO pass all kwargs here??
         # todo 'expected "BinaryIO"'??
         return io.TextIOWrapper(ifile, encoding=encoding) # type: ignore[arg-type]
-    elif suf in {'.lz4'}:
+    elif name.endswith(Ext.lz4):
         import lz4.frame # type: ignore
         return lz4.frame.open(str(pp), mode, *args, **kwargs)
-    elif suf in {'.zstd'}:
-        return _zstd_open(pp, mode, *args, **kwargs)
+    elif name.endswith(Ext.zstd) or name.endswith(Ext.zst):
+        kwargs['mode'] = mode
+        return _zstd_open(pp, *args, **kwargs)
+    elif name.endswith(Ext.targz):
+        import tarfile
+        # FIXME pass mode?
+        tf = tarfile.open(pp)
+        # TODO pass encoding?
+        x = tf.extractfile(*args); assert x is not None
+        return x  # type: ignore[return-value]
     else:
         return pp.open(mode, *args, **kwargs)
 

@@ -44,6 +44,7 @@ def main() -> None:
         extras_require={
             'testing': ['pytest'],
             'linting': ['pytest', 'mypy', 'lxml'], # lxml for mypy coverage report
+            'zstd'   : ['zstandard'],
         },
 
 
