@@ -38,18 +38,40 @@ class Normaliser(SqliteNormaliser):
         ('mutual_friends', 'mutual_friends_ids'),
     }
 
+    def is_vkim(self, c) -> bool:
+        tables = Tool(c).get_tables()
+        if 'messages' in tables:
+            return True
+        else:
+            # otherwise must be vk.db
+            return False
+
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
-        msgs = tables['messages']
-        assert 'vk_id' in msgs, msgs
-        assert 'time' in msgs, msgs
+        if self.is_vkim(c):
+            msgs = tables['messages']
+            assert 'vk_id' in msgs, msgs
+            assert 'time' in msgs, msgs
 
-        dialogs = tables['dialogs']
-        assert 'id' in dialogs, dialogs
+            dialogs = tables['dialogs']
+            assert 'id' in dialogs, dialogs
+        else:
+            users = tables['users']
+            assert 'uid' in users, users
+            assert 'firstname' in users, users
 
+    def cleanup_vk_db(self, c) -> None:
+        t = Tool(c)
+        t.drop(table='friends_hints_order')
+        t.drop_cols(table='users', cols=['last_updated'])
 
     def cleanup(self, c) -> None:
-        self.check(c) # todo could also call 'check' after just in case
+        self.check(c)  # todo could also call 'check' after just in case
+
+        if not self.is_vkim(c):
+            self.cleanup_vk_db(c)
+            return
+
         t = Tool(c)
 
         for table in [
