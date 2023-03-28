@@ -35,8 +35,18 @@ class Normaliser(SqliteNormaliser):
             'new_status',
 
             'downloaded_status_int',
+            'thumbsRating',
         ])
+
+        # no point tracking podcasts we're not following
+        c.execute('DELETE FROM podcasts WHERE subscribed_status = 0')
+
         t.drop_cols(table='podcasts', cols=[
+            ## volatile at times, a bit annoying
+            'author',
+            'description',
+            ##
+
             'last_modified',
             'etag',  # ?? sometimes contains quoted last_modified or something..
             'rating',
@@ -61,6 +71,8 @@ class Normaliser(SqliteNormaliser):
         t.drop('ad_campaign')
         t.drop('bitmaps')
         t.drop('blocking_services')
+        t.drop('content_policy_violation')
+        t.drop('fts_virtual_episode_stat')
         t.drop('fts_virtual_episode_docsize')
         t.drop('fts_virtual_episode_segments')
         t.drop('fts_virtual_episode_segdir')
@@ -68,6 +80,7 @@ class Normaliser(SqliteNormaliser):
         t.drop('statistics') # just some random numbers, mostly empty
         t.drop('radio_search_results')
         t.drop('topics')  # some random topic names.. at some point just disappeared
+        t.drop('iha')  # no idea what is it, contains one entry sometimes; volatile
         return
 
         ## probably unnecessary?
@@ -101,14 +114,14 @@ def test_podcastaddict() -> None:
         # keep: episode position changed
         '20210306165958/podcastAddict.db',
 
-        '20210509141916/podcastAddict.db',
+        # '20210509141916/podcastAddict.db',
         # '20210510070001/podcastAddict.db',
         # '20210511185801/podcastAddict.db',
-        # '20210513164819/podcastAddict.db',
+        '20210513164819/podcastAddict.db',
         # some podcast lengths changed... might be useful
         '20210517000609/podcastAddict.db',
         # '20211226145720/podcastAddict.db',
-        '20211226172310/podcastAddict.db',
+        # '20211226172310/podcastAddict.db',
         # some podcast authors changed... dunno if useful but whatever
         '20211228010151/podcastAddict.db',
     ]
