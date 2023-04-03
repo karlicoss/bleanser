@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json
+import orjson
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -34,7 +34,7 @@ class JsonNormaliser(BaseNormaliser):
         #         'application/json',
         # }, mp
 
-        j = json.loads(upath.read_text())
+        j = orjson.loads(upath.read_text())
         j = self.cleanup(j)
 
         # todo copy paste from SqliteNormaliser
@@ -54,7 +54,7 @@ class JsonNormaliser(BaseNormaliser):
                     v = [v] # meh
                 assert isinstance(v, list), (k, v)
                 for i in v:
-                    print(f'{k} ::: {json.dumps(i, sort_keys=True)}', file=fo)
+                    print(f'{k} ::: {orjson.dumps(i, option=orjson.OPT_SORT_KEYS).decode("utf8")}', file=fo)
 
         # todo meh... see Fileset._union
         # this gives it a bit of a speedup
@@ -86,7 +86,7 @@ def test_nonidempotence(tmp_path: Path) -> None:
     ]
     for i, s in enumerate(sets):
         p = tmp_path / f'{i}.json'
-        p.write_text(json.dumps(s))
+        p.write_text(orjson.dumps(s).decode('utf8'))
 
     with hack_attribute(JsonNormaliser, 'MULTIWAY', True), hack_attribute(JsonNormaliser, 'PRUNE_DOMINATED', True):
         paths = list(sorted(tmp_path.glob('*.json')))
