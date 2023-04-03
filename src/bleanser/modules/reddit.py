@@ -150,6 +150,9 @@ REDDIT_IGNORE_KEYS = {
     'whitelist_status',
     'whitelist_status', # some ads thing
     'wiki_enabled',
+    'snoovatar_img',
+    'snoovatar_size',
+    'allow_talks',
 
     ## very flaky
     'link_flair_background_color',
@@ -196,6 +199,18 @@ class Normaliser(JsonNormaliser):
                 if 'created_utc' in i:
                     i.pop('created', None)
 
+                i.pop('subreddit_type', None)
+
+
+        ## karma is flaky, goes up and down even without actual votes
+        ## so make it a bit smoother
+        profile = j['profile']
+        for kf in ['link_karma', 'total_karma']:
+            k = profile.get(kf)
+            if k is not None:
+                profile[kf] = k // 10 * 10
+        ##
+
 
         for u in chain(j['upvoted'], j['downvoted']):
             ## not sure what it is, but flaky from "" to null
@@ -207,6 +222,12 @@ class Normaliser(JsonNormaliser):
                 media.pop('type', None)
             if media is None or len(media) == 0:
                 u.pop('media', None)
+
+        for s in j['subreddits']:
+            # volatile when we've got enough subreddits -- not worth keeping
+            s.pop('description', None)
+            s.pop('submit_text', None)
+            s.pop('submit_text_html', None)
 
         return j
 
@@ -235,14 +256,7 @@ def test_reddit_1() -> None:
         'reddit_20211230T034059Z.json',  # some items rolled over
         'reddit_20211230T035056Z.json',  # some things legit disappeared due to api limits
 
-        'reddit_20211230T041057Z.json',  # keeping boundary for the next one
-        'reddit_20220101T185059Z.json',  # subreddit description
-
-        'reddit_20220101T191057Z.json',  # ??
-        'reddit_20220101T192056Z.json',  # subreddit description changed
-        'reddit_20220101T193109Z.json',  # also subreddit description
-
-        'reddit_20220102T132059Z.json',  # ??
+        'reddit_20220102T132059Z.json',  # boundary for the next one
         'reddit_20220102T142057Z.json',  # author changed (likely deleted?)
         'reddit_20220102T164059Z.json',  # last in group
     ]
@@ -267,29 +281,6 @@ def test_reddit_2() -> None:
 
         # here: some saved items rolled over
         'reddit_20210803T215050Z.json',
-
-        # ^v -- identical
-
-        'reddit_20210804T085052Z.json',
-
-        # here: some subreddit description changed
-        'reddit_20210804T091050Z.json',
-
-        # ^v -- identical
-
-        'reddit_20210804T161053Z.json',
-
-        # here: some subreddit description changed
-        'reddit_20210804T163053Z.json',
-
-        # ^v -- identical
-
-        'reddit_20210804T191049Z.json',
-
-        # here: subreddit type changed from restricted to public (/r/BCI)
-        'reddit_20210804T193054Z.json',
-
-        # ^v -- identical
 
         'reddit_20210804T213055Z.json',
     ]
