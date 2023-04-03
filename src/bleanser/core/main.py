@@ -34,6 +34,10 @@ def main(*, Normaliser) -> None:
     @click.option  ('--from', 'from_', type=int    , default=None)
     @click.option  ('--to'           , type=int    , default=None)
     def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool, difftool: str) -> None:
+        if to is None:
+            assert from_ is not None
+            to = from_ + 2
+
         path1_: Path
         if path2 is _DEFAULT:
             paths = _get_paths(path=path1, from_=from_, to=to, glob=glob)
