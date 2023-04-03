@@ -34,6 +34,7 @@ def main() -> None:
             'python-magic' , # better mimetype decetion
             'logzero'      , # nider logging
             'lxml'         , # TODO for xml module, make optional later
+            'orjson'       , # faster json processing, could be optional
 
             # vvv example of git repo dependency
             # 'repo @ git+https://github.com/karlicoss/repo.git',
