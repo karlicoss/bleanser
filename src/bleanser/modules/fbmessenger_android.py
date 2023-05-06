@@ -47,6 +47,11 @@ class Normaliser(SqliteNormaliser):
         , ('advanced_crypto_transport_appdata_messages', 'serialized_payload') # used to be in msys db
         , ('messages_optimistic_context', 'dety_params')
         , ('secure_message_poll_secret_v2', 'poll_key')
+
+        , ('secure_acs_configurations', '*')
+        , ('secure_acs_blinded_tokens', '*')
+        , ('secure_acs_tokens', '*')
+        , ('pending_backups_protobufs', 'protobuf_blob')
     }
 
     def check(self, c) -> None:
