@@ -51,6 +51,7 @@ class Normaliser(SqliteNormaliser):
         ('message_secret', 'message_secret'),
         ('message_poll', 'enc_key'),
         ('suggested_replies', 'customer_message_embedding'),
+        ('smart_suggestions_key_value', '*'),
 
 
         # the only interesting ones perhaps? checked manually and it's dumped as hex or something, so should be good
