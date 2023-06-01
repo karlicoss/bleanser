@@ -52,6 +52,9 @@ class Normaliser(SqliteNormaliser):
         , ('secure_acs_blinded_tokens', '*')
         , ('secure_acs_tokens', '*')
         , ('pending_backups_protobufs', 'protobuf_blob')
+        , ('local_message_persistence_store_supplemental', 'protobuf')
+        , ('local_message_persistence_store', 'protobuf')
+        , ('secure_get_secrets_context', 'temp_ocmf_client_state')
     }
 
     def check(self, c) -> None:
