@@ -55,6 +55,9 @@ class Normaliser(SqliteNormaliser):
         , ('local_message_persistence_store_supplemental', 'protobuf')
         , ('local_message_persistence_store', 'protobuf')
         , ('secure_get_secrets_context', 'temp_ocmf_client_state')
+        , ('local_message_persistence_store_deleted_messages', 'deleted_message_payload')
+        , ('local_message_persistence_store_supplemental', 'message_payload')  # hmm? 
+        , ('local_message_persistence_store', 'message_payload') 
     }
 
     def check(self, c) -> None:
