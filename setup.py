@@ -44,7 +44,11 @@ def main() -> None:
         ],
         extras_require={
             'testing': ['pytest'],
-            'linting': ['pytest', 'mypy', 'lxml'], # lxml for mypy coverage report
+            'linting': [
+                'pytest',
+                'mypy', 'lxml',  # lxml for mypy coverage report
+                'types-click',  # kinda odd it doesn't do this automatically in tox?
+            ],
             'zstd'   : ['zstandard'],
         },
 
