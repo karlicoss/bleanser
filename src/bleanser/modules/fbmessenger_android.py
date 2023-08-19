@@ -58,6 +58,7 @@ class Normaliser(SqliteNormaliser):
         , ('local_message_persistence_store_deleted_messages', 'deleted_message_payload')
         , ('local_message_persistence_store_supplemental', 'message_payload')  # hmm? 
         , ('local_message_persistence_store', 'message_payload') 
+        , ('sap_vesta_register_context_v2', '*'),
     }
 
     def check(self, c) -> None:
