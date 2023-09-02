@@ -63,6 +63,9 @@ class Normaliser(SqliteNormaliser):
             cols=[
                 # aggregates, changing all the time
                 'frecency',
+                'recalc_frecency',
+                'alt_frecency',
+                'recalc_alt_frecency',
                 'last_visit_date',
                 'visit_count',
                 # ugh... sometimes changes because of notifications, e.g. twitter/youtube?, or during page load
@@ -108,6 +111,21 @@ class Normaliser(SqliteNormaliser):
             'id',  # id always changes, and they have guid instead
             'serverModified',  # changes without any actual chagnes to bookmark?
         ])
+
+        ## fenix
+        tool.drop_cols('moz_bookmarks_synced_structure', cols=[
+            # I think it's the position in bookmarks list, doesn't matter
+            'position',
+        ])
+        tool.drop('moz_places_metadata_search_queries')
+
+        # TODO total_view_time? seems volatile.. gonna update every time
+        tool.drop_cols('moz_places_metadata', cols=[
+            'total_view_time',
+            'updated_at',
+        ])
+        ##
+
 
         # TODO do we still need it?
         # sanity check just in case... can remove after we get rid of triggers properly...
