@@ -8,6 +8,8 @@
 # this is useful if you want to mess/cleanup the database, but don't want to trip over constraints/triggers
 # NOTE: handling everything as bytes since not sure I wanna mess with encoding here (esp. row data encoding)
 
+import hashlib
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory, TemporaryFile
 import re
@@ -109,9 +111,30 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
 
     if output_as_db:
         assert output is not None
+
+        dumben_cache: Optional[Path] = None
+        _DUMBEN_CACHE_BASE = os.environ.get('SQLITE_DUMBEN_USE_CACHE')
+        if _DUMBEN_CACHE_BASE is not None:
+            DUMBEN_CACHE_BASE = Path(_DUMBEN_CACHE_BASE)
+            DUMBEN_CACHE_BASE.mkdir(parents=True, exist_ok=True)
+
+            fhash = hashlib.md5(
+                # add code of sqlite_dumben just in case we change logic
+                db.read_bytes() + Path(__file__).read_bytes()
+            ).hexdigest()
+
+            dumben_cache = DUMBEN_CACHE_BASE / fhash
+            if dumben_cache.exists():
+                # TODO log it?
+                shutil.copy(dumben_cache, output)
+                return
+
         # if we output as db, just operate on that target database directly
         shutil.copy(db, output)
         _dumben_db(output)
+
+        if dumben_cache is not None:
+            shutil.copy(output, dumben_cache)
         return
 
     # otherwise, need to create a temporary db to operate on -- and after that can dump it to sql
