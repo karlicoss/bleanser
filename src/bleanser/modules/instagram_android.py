@@ -42,6 +42,68 @@ def _cleanup_jsons(s):
         'latest_besties_reel_media',
         'latest_fanclub_reel_media',
         'latest_reel_media',
+
+        'follow_friction_type',
+        'playable_url_info',
+        'preview_url_info',
+        'muting',
+        'biz_thread_throttling_state',
+        'badge_count',
+        'follower_count',
+        'following_count',
+
+        'last_seen_at',
+
+        'client_context',  # seems to be same as client_item_id -- volatile
+
+        'feed_post_reshare_disabled',
+
+        'is_sent_by_viewer',  # very volatile for no reason??
+
+        'followed_by',
+        'account_type',  # sometimes changes between 1 and 2?
+        'fan_club_info',  # seems like page description
+
+        'is_business',
+        'is_following_current_user',
+        'is_interest_account',
+        'wa_addressable',
+
+        'inviter',  # thread inviter? volatile
+
+        # seems like fields in it appear and disappear for no reason without any actual status changes
+        'friendship_status',
+
+        'hide_in_thread',
+        'forward_score',
+
+        ## I think these are properties of messages.user json blob
+        'paid_partnership_info',
+        'biz_user_inbox_state',
+        'has_exclusive_feed_content',
+        'has_encrypted_backup',
+        'is_using_unified_inbox_for_direct',
+        'personal_account_ads_page_id',
+        'personal_account_ads_page_name',
+        'show_account_transparency_details',
+        'organic_tracking_token',
+        'should_show_category',
+        'fundraiser_tag',
+        ##
+
+        'unseen_count',
+        'send_attribution',
+        'send_silently',
+        'smart_suggestion',
+        'idempotence_token',
+
+        ## threads.recipients properties
+        'can_coauthor_posts',
+        'can_coauthor_posts_with_music',
+        ##
+
+        'visual_messages_newest_cursor',
+        'thread_messages_oldest_cursor',
     ])
     j = patch_atoms(j, patch=_patch_volatile_urls)
     return json.dumps(j, sort_keys=True).encode('utf8')
@@ -73,6 +135,18 @@ class Normaliser(SqliteNormaliser):
 
         t = Tool(c)
         t.drop('session')  # super volatile
+
+        for tbl in ['messages', 'threads']:
+            t.drop_cols(tbl, cols=[
+                # changes all the time without changing content
+                '_id',
+
+                # kinda volatile, seems to change some time after it's inserted?
+                # doesn't seem used in any indexes etc
+                'client_item_id',
+            ])
+
+        t.drop_cols('threads', cols=['last_activity_time'])
 
         # so message/thread_info tables also contain a json field with raw data, and it's very volatile
         # to clean it up, tried using this at first:
