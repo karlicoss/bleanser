@@ -82,8 +82,10 @@ class Normaliser(SqliteNormaliser):
         self.check(c)
         t.drop('properties')  # eh, just some weird random key-values
         t.drop('virtual_folders')  # looks like some temporary thing, just a few values
+        t.drop('_shared_version')
+        t.drop('folder_counts')
 
-        for name in ['folders', 'threads', 'thread_participants', 'thread_themes']:
+        for name in ['folders', 'threads', 'thread_participants', 'thread_themes', 'thread_users']:
             t.drop_cols(name, cols=['_id'])  # meh.. sometimes changes for no reason
 
         t.drop_cols('folders', cols=['timestamp_ms'])  # changes all the time
@@ -107,9 +109,20 @@ class Normaliser(SqliteNormaliser):
             'unread_message_count',
             'vanish_mode_selection_timestamp',
 
+            'rtc_room_info',
+            'rtc_call_info',
+
             # todo?
             'snippet_sender',
             'senders',
+        ])
+
+        t.drop_cols('thread_users', cols=[
+            'last_fetch_time',
+            'aloha_proxy_users_owned',
+            'profile_pic_square',
+            'contact_capabilities',
+            'contact_capabilities2',
         ])
 
 
