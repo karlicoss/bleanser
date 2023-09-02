@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Sequence, Union
+from typing import NamedTuple, Sequence, Union, List
 
 from .utils import assert_never
 from .ext.logging import LazyLogger
@@ -95,3 +95,47 @@ class Remove(BaseMode):
 
 
 Mode = Union[Dry, Move, Remove]
+
+
+def divide_by_size(*, buckets: int, paths: Sequence[Path]) -> Sequence[Sequence[Path]]:
+    """
+    Divide paths into approximately equally sized groups, while preserving order
+    """
+    res = []
+    with_size = [(p, p.stat().st_size) for p in paths]
+    bucket_size = sum(sz for _, sz in with_size) / buckets
+
+    group: List[Path] = []
+    group_size = 0
+
+    def dump() -> None:
+        nonlocal group_size, group
+
+        if len(group) == 0:
+            return
+
+        res.append(group)
+        # print(f"dumping group, size {group_size} {len(group)} {group[0]} {group[-1]}")
+
+        group = []
+        group_size = 0
+
+
+    for p, sz in with_size:
+        if group_size >= bucket_size:
+            dump()
+        group.append(p)
+        group_size += sz
+    # last group always needs to be dumped
+    dump()
+
+    assert len(res) <= buckets
+    while len(res) < buckets: # can be less if buckets > len(paths)
+        res.append([])
+
+    flattened = []
+    for r in res:
+        flattened.extend(r)
+    assert paths == flattened, res  # just a safety check
+
+    return res

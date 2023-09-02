@@ -13,6 +13,7 @@ from typing import Dict, Iterator, Sequence, Optional, Tuple, Optional, Union, C
 
 from .common import Group, logger, Config, parametrize
 from .common import Instruction, Keep, Prune
+from .common import divide_by_size
 from .utils import total_dir_size
 from .ext.kompress import CPath
 from .ext.dummy_executor import DummyExecutor
@@ -96,7 +97,7 @@ def compute_groups(
 
         chunks = []
         futures: List[Future] = []
-        for paths_chunk in more_itertools.divide(workers, paths):
+        for paths_chunk in divide_by_size(buckets=workers, paths=paths):
             pp = list(paths_chunk)
             if len(pp) == 0:
                 continue
