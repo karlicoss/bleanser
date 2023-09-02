@@ -150,6 +150,17 @@ class Normaliser(SqliteNormaliser):
         t.drop('secure_message_edge_routing_info_v2')
         t.drop('secure_message_client_state')
         t.drop('secure_message_other_devices')
+        t.drop('reaction_v2_types')
+        t.drop('pending_task_parents')
+        t.drop('hmps_status')
+        t.drop('_cached_participant_thread_info')
+
+
+        t.drop_cols('participants', cols=['last_message_send_timestamp_ms'])
+
+        # TODO not sure about these?
+        # t.drop('sync_group_threads_ranges')
+        # t.drop('threads_ranges__generated')
 
         # TODO move to Tool?
         def drop_cols_containing(tbl_name: str, *, containing: List[str]) -> None:
@@ -159,12 +170,12 @@ class Normaliser(SqliteNormaliser):
             cols_to_drop = [col for col in tbl if any(s in col for s in containing)]
             t.drop_cols(tbl_name, cols=cols_to_drop)
 
-        t.drop('_cached_participant_thread_info')
-
         drop_cols_containing('threads', containing=[
             'thread_picture_url',
             'last_activity_timestamp_ms',
             'last_activity_watermark_timestamp_ms',
+            'last_read_watermark_timestamp_ms',
+            'last_message_cta_id',
         ])
         t.drop_cols('threads', cols=['snippet', 'sort_order_override'])
 
@@ -185,6 +196,11 @@ class Normaliser(SqliteNormaliser):
             'event_picture_url',
             'num_going_users',
             'num_interested_users',
+        ])
+
+        drop_cols_containing('attachments', containing=[
+            'preview_url',
+            'playable_url',
         ])
 
 if __name__ == '__main__':
