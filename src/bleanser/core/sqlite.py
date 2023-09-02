@@ -4,6 +4,8 @@ Helpers for processing sqlite databases
 """
 from contextlib import contextmanager
 from pathlib import Path
+import re
+import shutil
 import sqlite3
 from sqlite3 import Connection
 from subprocess import check_call
@@ -298,6 +300,27 @@ class SqliteNormaliser(BaseNormaliser):
         dump_cmd = sqlite_cmd['-readonly', f'file://{cleaned_db}?immutable=1', '.dump']
         cmd = dump_cmd > str(dump_file)
         cmd()
+
+        ## one issue is that .dump dumps sometimes text colums as hex-encoded and prefixed with X
+        ## this makes sense if you're using .dump output to create another db
+        ## but in our case makes diffs very cryptic
+        dump_file_nohex = unique_tmp_dir / f'dump_nohex.sql'
+        # TODO hmm this might break if it's a legit binary BLOB?
+        with dump_file.open('rb') as fi, dump_file_nohex.open('wb') as fo:
+            for line in fi:
+                assert line.endswith(b'\n')
+                # fixme need to find all in case of multiple hex columns
+                m = re.search(b"X'([0-9a-f]*)'", line)
+                if m is not None:
+                    hh = m.group(1).decode('utf8')
+                    ss = bytes.fromhex(hh)
+                    # replace newlines just in case, otherwise it might mangle the sorting
+                    ss = re.sub(rb'(\r\n|\r|\n)', b'<NEWLINE>', ss)
+                    line = line[:m.start(1)] + ss + line[m.end(1):]
+                fo.write(line)
+        # TODO maybe only do it in diff mode? not sure
+        shutil.move(str(dump_file_nohex), str(dump_file))
+        ##
 
         # alternative way to dump database
         # could be useful when you have multiline strings or jsons in TEXT/STRING filelds
