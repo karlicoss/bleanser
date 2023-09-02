@@ -14,7 +14,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
-from subprocess import check_output, check_call
+from subprocess import check_output, check_call, DEVNULL
 import sys
 from typing import List, Dict, Optional
 
@@ -96,7 +96,8 @@ def _dumben_db(output_db: Path) -> None:
         subprocess.run(_sqlite(output_db), check=True, input=tf.read())
 
     # make sure it's not corrupted
-    subprocess.check_call(_sqlite(output_db, 'PRAGMA integrity_check;'))
+    # redirect output to DEVNULL, otherwise it's printing "ok" which is a bit annoying
+    subprocess.check_call(_sqlite(output_db, 'PRAGMA integrity_check;'), stdout=DEVNULL)
 
 
 def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
