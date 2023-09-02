@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from typing import List
+
 from bleanser.core.sqlite import SqliteNormaliser, Tool
 
 
@@ -116,6 +118,7 @@ class Normaliser(SqliteNormaliser):
         # self.check(c) # TODO
 
         t = Tool(c)
+        tables = t.get_tables()
         t.drop('secure_message_server_time_v2')
         # eh..some technical information
         t.drop('sync_groups')
@@ -129,6 +132,60 @@ class Normaliser(SqliteNormaliser):
         t.drop('quick_promotions')
         t.drop('presence_states')
 
+        ## meh, there is no our own data in these, and changing all the time -- not worth keeping stories
+        t.drop('stories')
+        t.drop('story_buckets')
+        t.drop('story_attribution_ranges')
+        t.drop('story_overlays')
+        t.drop('story_viewers')
+        ##
+
+        t.drop('cm_search_nullstate_metadata')
+        t.drop('thread_themes')
+        t.drop('mailbox_metadata')
+        t.drop('experiment_value')
+        t.drop('family_experiences')
+        t.drop('logging_modules')
+        t.drop('lightspeed_task_context')
+        t.drop('secure_message_edge_routing_info_v2')
+        t.drop('secure_message_client_state')
+        t.drop('secure_message_other_devices')
+
+        # TODO move to Tool?
+        def drop_cols_containing(tbl_name: str, *, containing: List[str]) -> None:
+            tbl = tables.get(tbl_name)
+            if tbl is None:
+                return
+            cols_to_drop = [col for col in tbl if any(s in col for s in containing)]
+            t.drop_cols(tbl_name, cols=cols_to_drop)
+
+        t.drop('_cached_participant_thread_info')
+
+        drop_cols_containing('threads', containing=[
+            'thread_picture_url',
+            'last_activity_timestamp_ms',
+            'last_activity_watermark_timestamp_ms',
+        ])
+        t.drop_cols('threads', cols=['snippet', 'sort_order_override'])
+
+        for tbl_name in ['contacts', 'client_contacts']:
+            # these change all the time and expire
+            drop_cols_containing(tbl_name, containing=[
+                'profile_picture',
+                'profile_ring_color',
+                'avatar_animation',
+                'fb_unblocked_since_timestamp_ms',
+                'profile_ring_state',
+                'wa_connect_status',
+                'restriction_type',
+            ])
+            # TODO montage_thread_fbid? seems to change often?
+
+        drop_cols_containing('fb_events', containing=[
+            'event_picture_url',
+            'num_going_users',
+            'num_interested_users',
+        ])
 
 if __name__ == '__main__':
     Normaliser.main()
