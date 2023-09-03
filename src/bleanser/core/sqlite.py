@@ -314,9 +314,10 @@ class SqliteNormaliser(BaseNormaliser):
                 if m is not None:
                     hh = m.group(1).decode('utf8')
                     ss = bytes.fromhex(hh)
-                    # replace newlines just in case, otherwise it might mangle the sorting
-                    ss = re.sub(rb'(\r\n|\r|\n)', b'<NEWLINE>', ss)
-                    line = line[:m.start(1)] + ss + line[m.end(1):]
+                    if len(ss) > 0 and ss[0] == b'{' and ss[-1] == b'}':  # json-ish
+                        # replace newlines just in case, otherwise it might mangle the sorting
+                        ss = re.sub(rb'(\r\n|\r|\n)', b'<NEWLINE>', ss)
+                        line = line[:m.start(1)] + ss + line[m.end(1):]
                 fo.write(line)
         # TODO maybe only do it in diff mode? not sure
         shutil.move(str(dump_file_nohex), str(dump_file))
