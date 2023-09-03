@@ -167,6 +167,8 @@ REDDIT_IGNORE_KEYS = {
     'should_archive_posts',
     ##
 
+    'awardee_karma',  # sometimes goes to 0 for no reason
+
     # TODO ??
     # 'likes',
     # 'url', # ugh. changed from www.reddit.... to link without reddit domain
@@ -209,6 +211,8 @@ class Normaliser(JsonNormaliser):
             k = profile.get(kf)
             if k is not None:
                 profile[kf] = k // 10 * 10
+        # ugh, total karma is flaking between two values for me consistenly
+        # but removing it completely only gets rid of 10% of files?
         ##
 
 
@@ -223,11 +227,16 @@ class Normaliser(JsonNormaliser):
             if media is None or len(media) == 0:
                 u.pop('media', None)
 
+            # gallery_data is sometimes flaking to none
+
         for s in j['subreddits']:
             # volatile when we've got enough subreddits -- not worth keeping
             s.pop('description', None)
+            s.pop('public_description', None)
+            s.pop('public_description_html', None)
             s.pop('submit_text', None)
             s.pop('submit_text_html', None)
+            s.pop('disable_contributor_requests', None)
 
         return j
 
