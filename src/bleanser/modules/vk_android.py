@@ -63,7 +63,15 @@ class Normaliser(SqliteNormaliser):
     def cleanup_vk_db(self, c) -> None:
         t = Tool(c)
         t.drop(table='friends_hints_order')
-        t.drop_cols(table='users', cols=['last_updated'])
+        t.drop_cols(table='users', cols=[
+            # TODO hmm lately (202309), is_friend seems to be flaky for no reason? even where there are no status changes
+
+            'last_updated',
+            'photo_small',
+
+            'lists',  # very flaky for some reason, sometimes just flips to 0??
+            'name_r',  # seems derived from first/last name, and is very flaky
+        ])
 
     def cleanup(self, c) -> None:
         self.check(c)  # todo could also call 'check' after just in case
@@ -84,6 +92,7 @@ class Normaliser(SqliteNormaliser):
                 'messages_search_segdir',
                 'messages_search_docsize',
                 'messages_search_stat',
+                'messages_search_content',
 
                 'key_value',  # nothing interesting here
                 'integer_generator',  # lol
@@ -98,6 +107,8 @@ class Normaliser(SqliteNormaliser):
 
         t.drop_cols(table='users', cols=[
             'avatar',  # flaky and no point tracking really
+            'image_status',
+
             ## flaky timestamps
             'sync_time_overall',
             'sync_time_online',
@@ -108,6 +119,8 @@ class Normaliser(SqliteNormaliser):
         ])
 
         t.drop_cols(table='contacts', cols=[
+            'avatar',
+
             'sync_time',  # flaky
             'last_seen_status',  # flaky
         ])
@@ -127,6 +140,12 @@ class Normaliser(SqliteNormaliser):
             'count_unread_local',
             'keyboard_visible',
             'draft_msg',
+
+            'bar_name',
+            'bar_exists',
+            'bar_buttons',
+            'bar_text',
+            'bar_icon',
         ])
 
         t.drop_cols(table='messages', cols=[
@@ -135,6 +154,13 @@ class Normaliser(SqliteNormaliser):
             'nested',
             ##
             'phase_id',  # not sure what is it, some internal stuff
+        ])
+
+        t.drop_cols(table='groups', cols=[
+            'avatar',
+
+            'sync_time',
+            'members_count',
         ])
 
 
