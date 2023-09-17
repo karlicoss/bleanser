@@ -55,6 +55,8 @@ class Normaliser(SqliteNormaliser):
         ('message_future', 'future_proof_stanza'),
         ('addon_message_media', 'scans_sidecar'),
         ('addon_message_media', 'media_key'),
+        ('bot_plugin_metadata', '*'),
+        ('message_orphan', '*'),  # not sure what is it but seems empty
 
 
         # the only interesting ones perhaps? checked manually and it's dumped as hex or something, so should be good
