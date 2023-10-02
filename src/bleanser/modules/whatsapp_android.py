@@ -57,6 +57,7 @@ class Normaliser(SqliteNormaliser):
         ('addon_message_media', 'media_key'),
         ('bot_plugin_metadata', '*'),
         ('message_orphan', '*'),  # not sure what is it but seems empty
+        ('bcall_session', 'master_key'),
 
 
         # the only interesting ones perhaps? checked manually and it's dumped as hex or something, so should be good
