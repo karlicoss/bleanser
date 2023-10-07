@@ -11,17 +11,17 @@ def _check_and_extract(x, schema) -> Iterator[Any]:
     if schema is TARGET:
         yield x
         return
-    if type(schema) == type:
+    if type(schema) == type:  # noqa: E721
         assert isinstance(x, schema), x
         return
-    if type(schema) == list:
+    if type(schema) == list:  # noqa: E721
         [sch] = schema
         assert isinstance(x, list), x
         for i in x:
             yield from _check_and_extract(x=i, schema=sch)
         return
 
-    assert type(schema) == dict, schema
+    assert type(schema) == dict, schema  # noqa: E721
     assert isinstance(x, dict), x
 
     xk = x.keys()

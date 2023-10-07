@@ -8,7 +8,7 @@ TESTDATA = Path(__file__).absolute().parent / 'testdata'
 
 def skip_if_no_data() -> None:
     if 'CI' in os.environ and not TESTDATA.exists():
-        pytest.skip(f'test only works on @karlicoss private data for now')
+        pytest.skip('test only works on @karlicoss private data for now')
 
 
 from typing import List, Optional

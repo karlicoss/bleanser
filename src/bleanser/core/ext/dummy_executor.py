@@ -6,7 +6,7 @@ class DummyExecutor(Executor):
         self._shutdown = False
         self._max_workers = max_workers
 
-    def submit(self, fn, *args, **kwargs) -> Future:  # type: ignore[override]
+    def submit(self, fn, *args, **kwargs):
         if self._shutdown:
             raise RuntimeError('cannot schedule new futures after shutdown')
 
@@ -22,5 +22,5 @@ class DummyExecutor(Executor):
 
         return f
 
-    def shutdown(self, wait: bool=True) -> None:  # type: ignore[override]
+    def shutdown(self, wait: bool=True, **kwargs) -> None:
         self._shutdown = True

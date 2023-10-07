@@ -161,7 +161,7 @@ class Normaliser(SqliteNormaliser):
             t.drop(table)
 
         t.drop_cols(table='chat', cols=[
-	        'display_message_row_id',
+            'display_message_row_id',
             'last_message_row_id',
             'last_read_message_row_id',
             'last_read_receipt_sent_message_row_id',

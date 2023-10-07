@@ -7,7 +7,7 @@ from typing import Optional, List
 from .common import logger, Dry, Move, Remove, Mode
 from .processor import compute_instructions, apply_instructions
 
-import click # type: ignore
+import click
 
 
 # TODO use context and default_map
