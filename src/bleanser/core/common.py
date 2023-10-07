@@ -67,7 +67,7 @@ class Config(NamedTuple):
 ### helper to define paramertized tests in function's body
 from .utils import under_pytest
 if under_pytest:
-    import pytest  # type: ignore
+    import pytest
     parametrize = pytest.mark.parametrize
 else:
     parametrize = lambda *args,**kwargs: (lambda f: f)  # type: ignore

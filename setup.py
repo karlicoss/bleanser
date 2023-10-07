@@ -32,7 +32,7 @@ def main() -> None:
             'click'        , # nicer cli
             'plumbum'      , # nicer command composition/piping
             'python-magic' , # better mimetype decetion
-            'logzero'      , # nider logging
+            'logzero'      , # nicer logging
             'lxml'         , # TODO for xml module, make optional later
             'orjson'       , # faster json processing, could be optional
 
@@ -43,11 +43,10 @@ def main() -> None:
             # 'repo @ git+file://DUMMY/path/to/repo',
         ],
         extras_require={
-            'testing': ['pytest'],
-            'linting': [
+            'testing': [
                 'pytest',
+                'ruff',
                 'mypy', 'lxml',  # lxml for mypy coverage report
-                'types-click',  # kinda odd it doesn't do this automatically in tox?
             ],
             'zstd'   : ['zstandard'],
         },

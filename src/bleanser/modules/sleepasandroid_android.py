@@ -17,7 +17,7 @@ class Normaliser(SqliteNormaliser):
         self.check(c)
 
         # if not finished it's gonna constantly change
-        res = c.execute(f'DELETE FROM records WHERE finished = 0')
+        res = c.execute('DELETE FROM records WHERE finished = 0')
         assert res.rowcount <= 1, res.rowcount
 
 

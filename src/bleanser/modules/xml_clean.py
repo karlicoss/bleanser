@@ -3,7 +3,7 @@
 Ugh, wtf?? If I name it simply 'xml', I get all sorts of weird behaviours... presumably because it conflicts with some system modules..
 """
 
-from lxml import etree  # type: ignore[import]
+from lxml import etree
 
 from contextlib import contextmanager
 from pathlib import Path

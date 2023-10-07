@@ -50,7 +50,7 @@ from typing import Callable, Optional
 @lru_cache(1)
 def _magic() -> Callable[[Path], Optional[str]]:
     try:
-        import magic # type: ignore
+        import magic
     except Exception as e:
         # logger.exception(e)
         defensive_msg: Optional[str] = None

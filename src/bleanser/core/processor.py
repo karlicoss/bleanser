@@ -1,5 +1,4 @@
 # TODO later, migrate core to use it?
-import click  # type: ignore
 from contextlib import contextmanager, ExitStack
 import os
 from pathlib import Path
@@ -180,7 +179,7 @@ def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str
     # need grep -C or something like that...
     print_diff = True
     if print_diff and len(rem) > 0:
-        logger.debug(f'diff %s %s', lfile, rfile)
+        logger.debug('diff %s %s', lfile, rfile)
         logger.debug('vvvvvvvvvvvvv DIFF vvvvvvvvvvvvv')
         if sys.stdin.isatty():
             # only log when running interactively... otherwise spams syslog too much
@@ -399,7 +398,7 @@ def _compute_groups_serial(
 
 
     def fset(*paths: Path) -> FileSet:
-        return FileSet(paths, wdir=wdir)
+        return FileSet(paths, wdir=wdir)  # noqa: F821  # wdir is guaranteed to be initialized by iter_results
 
     def unlink_tmp_output(cleaned: Path) -> None:
         # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
@@ -953,7 +952,7 @@ def test_groups_to_instructions() -> None:
    #    ('h', 'keep'  ),
    #]
 
-    import pytest  # type: ignore
+    import pytest
 
     with pytest.raises(RuntimeError, match='duplicate items'):
         # x appears twice in the same group
@@ -1027,7 +1026,7 @@ def compute_instructions(
 
 from .common import Mode, Dry, Move, Remove
 def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(), need_confirm: bool=True) -> NoReturn:
-    import click  # type: ignore
+    import click
 
     # TODO hmm...
     # if we keep it as iterator, would be kinda nice, then it'd print cleaning stats as you run it

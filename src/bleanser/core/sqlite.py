@@ -294,7 +294,7 @@ class SqliteNormaliser(BaseNormaliser):
 
         ### dump to text file
         ## prepare a fake path for dump, just to preserve original file paths at least to some extent
-        dump_file = unique_tmp_dir / f'dump.sql'
+        dump_file = unique_tmp_dir / 'dump.sql'
 
         # dumping also takes a bit of time for big databases...
         dump_cmd = sqlite_cmd['-readonly', f'file://{cleaned_db}?immutable=1', '.dump']
@@ -304,7 +304,7 @@ class SqliteNormaliser(BaseNormaliser):
         ## one issue is that .dump dumps sometimes text colums as hex-encoded and prefixed with X
         ## this makes sense if you're using .dump output to create another db
         ## but in our case makes diffs very cryptic
-        dump_file_nohex = unique_tmp_dir / f'dump_nohex.sql'
+        dump_file_nohex = unique_tmp_dir / 'dump_nohex.sql'
         # TODO hmm this might break if it's a legit binary BLOB?
         with dump_file.open('rb') as fi, dump_file_nohex.open('wb') as fo:
             for line in fi:
@@ -314,7 +314,8 @@ class SqliteNormaliser(BaseNormaliser):
                 if m is not None:
                     hh = m.group(1).decode('utf8')
                     ss = bytes.fromhex(hh)
-                    if len(ss) > 0 and ss[0] == b'{' and ss[-1] == b'}':  # json-ish
+                    if len(ss) > 0 and ss[0] == b'{' and ss[-1] == b'}':  # type: ignore[comparison-overlap]
+                        # json-ish
                         # replace newlines just in case, otherwise it might mangle the sorting
                         ss = re.sub(rb'(\r\n|\r|\n)', b'<NEWLINE>', ss)
                         line = line[:m.start(1)] + ss + line[m.end(1):]
