@@ -157,6 +157,8 @@ class Normaliser(SqliteNormaliser):
 
             'message_template',
             'message_send_count',
+
+            'backup_changes',  # some internal state handling, doesn't have anything useful
         ]:
             t.drop(table)
 
