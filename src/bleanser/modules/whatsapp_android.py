@@ -159,10 +159,20 @@ class Normaliser(SqliteNormaliser):
             'message_send_count',
 
             'backup_changes',  # some internal state handling, doesn't have anything useful
+            'message_system_initial_privacy_provider',
+
+            'message_link',  # seems like an index of urls in messages
+            'message_status_psa_campaign',
+
+            'deleted_chat_job',
+
+            # TODO group_past_participant_user not sure if useful? kinda volatile
         ]:
             t.drop(table)
 
         t.drop_cols(table='chat', cols=[
+            'hidden',  # kinda volatile and not that interesting to track
+
             'display_message_row_id',
             'last_message_row_id',
             'last_read_message_row_id',
@@ -186,7 +196,12 @@ class Normaliser(SqliteNormaliser):
             'last_seen_message_reaction_row_id',
             'mod_tag',
 
-            # TODO ugh. created_timestamp might be flaky? seen it goign from NULL to actual value??
+            'has_new_community_admin_dialog_been_acknowled',
+            'history_sync_progress',
+
+            # NOTE ugh. created_timestamp is a bit flaky? often goes from NULL to the actual value
+            # this might be an interesting usecase/test for extract mode?
+            'created_timestamp',
 
             ## for 'extract' mode
             ## archived?
@@ -203,6 +218,10 @@ class Normaliser(SqliteNormaliser):
             # received_timestamp
             # receipt_server_timestamp
         ])
+
+        # if it's not transferred yet gonna be volatile (e.g. size, no path etc)
+        # so best to just ignore it
+        c.execute('DELETE FROM message_media WHERE transferred != 1')
 
         t.drop_cols(table='message_media', cols=[
             'original_file_hash',  # ??? sometimes goes from value to NULL
@@ -222,3 +241,6 @@ class Normaliser(SqliteNormaliser):
 if __name__ == '__main__':
     Normaliser.main()
 
+
+# TODO message_quoted could be kinda useful? not sure if anything else contains reference to the original message
+# message_ephemeral -- expiring messages? not sure if interesting
