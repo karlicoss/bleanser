@@ -31,10 +31,11 @@ def main() -> None:
             'more-itertools',
             'click'        , # nicer cli
             'plumbum'      , # nicer command composition/piping
-            'python-magic' , # better mimetype decetion
+            'python-magic' , # better mimetype detection (could be optional?)
             'logzero'      , # nicer logging
             'lxml'         , # TODO for xml module, make optional later
             'orjson'       , # faster json processing, could be optional
+            'kompress'     , # for compressed files processing (could be optional if they don't use compressed files?)
 
             # vvv example of git repo dependency
             # 'repo @ git+https://github.com/karlicoss/repo.git',
@@ -48,7 +49,7 @@ def main() -> None:
                 'ruff',
                 'mypy', 'lxml',  # lxml for mypy coverage report
             ],
-            'zstd'   : ['zstandard'],
+            'zstd'   : ['kompress[zstd]'],
         },
 
 
