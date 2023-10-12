@@ -58,7 +58,7 @@ class Normaliser(BaseNormaliser):
             # a temporary file we write 'clean' data to, that can be easily diffed/compared
             cleaned = unique_file_in_tempdir(input_filepath=upath, wdir=wdir)
 
-            # some custom code here per-module that writes to 'clean'
+            # some custom code here per-module that writes to 'cleaned'
 
         yield cleaned
 
