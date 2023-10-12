@@ -15,10 +15,10 @@ from .common import Group, logger, Config, parametrize
 from .common import Instruction, Keep, Prune
 from .common import divide_by_size
 from .utils import total_dir_size
-from .ext.kompress import CPath
 from .ext.dummy_executor import DummyExecutor
 
 
+from kompress import CPath
 import more_itertools
 from plumbum import local # type: ignore
 
@@ -116,6 +116,9 @@ class BaseNormaliser(NormaliserHelpers):
         # not sure what to do about it
         with CPath(str(path)).open(mode='rb') as fo:
             res = fo.read()
+
+        # TODO maybe keep track of original files in the Normaliser and assert before removing anything
+        # this would ensure the logic for using extra files is safe
 
         # TODO not sure if cleaned path _has_ to be in wdir? can we return the orig path?
         # maybe if the cleanup method is not implemented?
