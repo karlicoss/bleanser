@@ -51,7 +51,6 @@ def unique_file_in_tempdir(*, input_filepath: Path, wdir: Path, suffix: Optional
 
 # meh... see Fileset._union
 # this gives it a bit of a speedup when comparing
-@staticmethod
 def sort_file(filepath: Union[str, Path]) -> None:
     check_call(['sort', '-o', str(filepath), str(filepath)])
 
