@@ -41,9 +41,6 @@ class Normaliser(BaseNormaliser):
         et = self.cleanup(et)
 
         cleaned = self.unique_file_in_tempdir(upath, wdir, suffix='.xml')
-        jpath = upath.absolute().resolve()
-        cleaned = wdir / Path(*jpath.parts[1:]) / (jpath.name + '-cleaned')
-        cleaned.parent.mkdir(parents=True, exist_ok=True)
         cleaned.write_text(etree.tounicode(et))
 
         # TODO what is the assumption about shape?
