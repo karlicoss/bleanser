@@ -18,7 +18,7 @@ class JsonNormaliser(BaseNormaliser):
         subclasses should override this function, to do the actual cleanup
 
         cleanup in this context means removing extra JSON keys which are not
-        needed to produce a unique 'fingerprint' for a file
+        needed to produce a unique 'snapshot' for a file
         '''
         return j
 

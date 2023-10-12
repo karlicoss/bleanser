@@ -21,7 +21,7 @@ As an example of an incremental export, imagine the service you were using only 
 | B     | C     | D     |
 | C     | D     | E     |
 
-To parse this in your [data access layer](https://beepb00p.xyz/exports.html#dal), you could image something like this:
+To parse this in your [data access layer](https://beepb00p.xyz/exports.html#dal), you could imagine something like this:
 
 ```python
 events = set()
@@ -33,7 +33,7 @@ for file in inputs:
 
 You might notice that if you removed 'Day 2', you'd still have an accurate backup, and we'd still have all 5 items, but its not obvious you can remove it since none of these are supersets of each other.
 
-`bleanser` is meant to solve this problem in a data agnostic way, so any export can be converted to a unique 'snapshot' or 'fingerprint', and those can be sorted/compared against each other to find redundant data
+`bleanser` is meant to solve this problem in a data agnostic way, so any export can be converted to a unique 'snapshot', and those can be sorted/compared against each other to find redundant data
 
 ## How it works
 
@@ -50,7 +50,7 @@ class Normaliser(BaseNormaliser):
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        # decompress if the data is stored as compressed on disk
+        # temporarily decompress if the data is stored as compressed on disk
         with self.unpacked(path=path, wdir=wdir) as upath:
 
             # a temporary file we write 'clean' data to, that can be easily diffed/compared
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     Normaliser.main()
 ```
 
-This **always** acts on copies of the data, it is not modifying the files itself. Once it determines an input file can be pruned, it will warn you by default, and you can specify `--move` or `--remove` with the CLI (see below) to remove it.
+This is **always** acting on the data loaded into memory/temporary files, it is not modifying the files itself. Once it determines an input file can be pruned, it will warn you by default, and you can specify `--move` or `--remove` with the CLI (see below) to remove it.
 
 There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/modules/json_new.py), [`xml`](./src/bleanser/modules/xml_clean.py), [`sqlite`](./src/bleanser/core/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
 
@@ -80,7 +80,7 @@ There are two ways you can think about `do_cleanup` (creating a 'cleaned'/snapsh
 
 As an example say you had a JSON export:
 
-```yaml
+```json
 [
   { id: 5, images: [{ ... }], href: "..." },
   { id: 6, images: [{ ... }], href: "..." },
@@ -96,9 +96,9 @@ When comparing this, you could possibly:
 
 There is a trade-off to be made here. For especially noisy exports with lots of metadata that might change over time that you're not interested in, number 3 means every couple months you might have to check and add new keys to delete (as an example see [spotify](./src/bleanser/modules/spotify.py). This could be seen as a positive as well, as it means when the schema for the API/data changes underneath you, you may notice it quicker
 
-With option 2, you are more likely to remove redundant data if additional metadata fields are added, and if you only really care about the `id` and `href` and you don't think the export format will change often, this is fine.
+With option 2, you are more likely to remove redundant data files if additional metadata fields are added, and if you only really care about the `id` and `href` and you don't think the export format will change often, this is fine.
 
-However, option 3. means you're more confident that you're not removing files that may possibly contain new fields you want to preserve.
+Option 3. is generally the safest, but most verbose/tedious, it makes sure you're not removing files that may possibly contain new fields you want to preserve/parse.
 
 Ideally you meet somewhere in the middle, it depends a lot on the specific export data you're comparing.
 
@@ -108,7 +108,7 @@ As it can be a bit difficult to follow, generally this is doing something like.
 - Creating a temporary file to write data to (`unique_file_in_tempdir` in [`BaseNormaliser`](./src/bleanser/core/processor.py))
 - Parse the `cleaned` file into python objects (`JsonNormaliser`, `XmlNormaliser`, or something custom)
 - Let the user `cleanup` the data to remove noisy keys/data (specific modules, e.g. [spotify](./src/bleanser/modules/spotify.py))
-- Diff those against each other to find files which dont contribute new data
+- Diff those against each other to find and/or remove files which dont contribute new data (module agnostic, run in `main`)
 
 ### Subclassing
 
