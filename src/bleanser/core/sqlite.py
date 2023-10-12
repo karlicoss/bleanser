@@ -277,13 +277,13 @@ class SqliteNormaliser(BaseNormaliser):
 
             # extra paranoid checks...
             # TODO maybe also get create statements from sqlite_master and assert no constraints etc
-            # and double chech it by passing something without dumbing down
+            # and double check it by passing something without dumbing down
             tool = Tool(conn)
             master_info = tool.get_sqlite_master()
             assert all(x == 'table' for x in master_info.values()), master_info
             # TODO how to check there are no more triggers etc for real? do we need to commit or smth?
 
-            # cleanup might take a bit of time, especially with UPDATE statemens
+            # cleanup might take a bit of time, especially with UPDATE statements
             # but probably unavoidable?
             self.cleanup(conn)
 
@@ -301,7 +301,7 @@ class SqliteNormaliser(BaseNormaliser):
         cmd = dump_cmd > str(dump_file)
         cmd()
 
-        ## one issue is that .dump dumps sometimes text colums as hex-encoded and prefixed with X
+        ## one issue is that .dump dumps sometimes text columns as hex-encoded and prefixed with X
         ## this makes sense if you're using .dump output to create another db
         ## but in our case makes diffs very cryptic
         dump_file_nohex = unique_tmp_dir / 'dump_nohex.sql'
@@ -325,7 +325,7 @@ class SqliteNormaliser(BaseNormaliser):
         ##
 
         # alternative way to dump database
-        # could be useful when you have multiline strings or jsons in TEXT/STRING filelds
+        # could be useful when you have multiline strings or jsons in TEXT/STRING fields
         # in this case sqlite .dump prepends them with X and encodes
         # however, this makes it much harder to spot differences
         # if we ever use it this way, this should
@@ -385,7 +385,7 @@ class Tool:
         self.connection.execute(f'DROP INDEX IF EXISTS `{index}`')
 
     def update(self, table: str, **kwargs) -> None:
-        # note: seems that can't paremeterize col name in sqlite
+        # note: seems that can't parameterize col name in sqlite
         kws = ', '.join(f'`{k}`=?' for k, v in kwargs.items())
         self.connection.execute(f'UPDATE {table} SET {kws}', list(kwargs.values()))
 

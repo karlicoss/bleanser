@@ -75,7 +75,7 @@ class Normaliser(SqliteNormaliser):
                 'description',
                 'preview_image_url',
 
-                'foreign_count', # jus some internal refcount thing... https://bugzilla.mozilla.org/show_bug.cgi?id=1017502
+                'foreign_count', # just some internal refcount thing... https://bugzilla.mozilla.org/show_bug.cgi?id=1017502
 
                 ## mobile only
                 'visit_count_local',
@@ -109,7 +109,7 @@ class Normaliser(SqliteNormaliser):
 
         tool.drop_cols('moz_bookmarks_synced', cols=[
             'id',  # id always changes, and they have guid instead
-            'serverModified',  # changes without any actual chagnes to bookmark?
+            'serverModified',  # changes without any actual changes to bookmark?
         ])
 
         ## fenix

@@ -70,7 +70,7 @@ def test_bluemaestro() -> None:
 
         '20190723100032.db', # keep, everything changed
         # TODO need to investigate, some values have changed a bit, like 1st digit after decimal point
-        # even timestmaps chagned sometimes (e.g. just last second)
+        # even timestamps changed sometimes (e.g. just last second)
         # hpi bluemaestro module has something for handling this, I think
         '20190724101707.db',
         # same as above

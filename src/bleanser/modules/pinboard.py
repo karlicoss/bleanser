@@ -36,7 +36,7 @@ def test_pinboard() -> None:
         # fully contained in the next
         # 'bookmarks_2019-08-07.json'      , : MOVE
 
-        # has to keep thie next because for example this bookmark is flaky:
+        # has to keep the next because for example this bookmark is flaky:
         # rg 'An Easy Explaination Of First And Follow Sets' | sort
         # bookmarks_2019-08-07.json:{"href":"http:\/\/www.jambe.co.nz\/UNI\/FirstAndFollowSets.html","description":"An Easy Explaination Of First And Follow Sets","extended":"","meta":"c68c6b649d587543bae12367e6fce8ec","hash":"3688a0bcfb0ee9f7cb7fbda43aabe131","time":"2014-02-09T01:03:03Z","shared":"yes","toread":"no","tags":"cs parsing"},
         # bookmarks_20190924T010105Z.json:{"href":"http:\/\/www.jambe.co.nz\/UNI\/FirstAndFollowSets.html","description":"An Easy Explaination Of First And Follow Sets","extended":"","meta":"c68c6b649d587543bae12367e6fce8ec","hash":"3688a0bcfb0ee9f7cb7fbda43aabe131","time":"2014-02-09T01:03:03Z","shared":"yes","toread":"no","tags":"cs parsing"},

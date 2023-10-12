@@ -8,9 +8,9 @@ from bleanser.core.processor import BaseNormaliser
 
 class IterNormaliser(BaseNormaliser):
     """
-    This is meant to be overrided by a subclass
+    This is meant to be overridden by a subclass
 
-    parse_file recieves an input file, and should yield data/objects that when converted
+    parse_file receives an input file, and should yield data/objects that when converted
     to a string, produces some comparable data/object to the cleaned output file
 
     possible things this could return is a unique key/id, or a tuple of (key, data), or a
@@ -31,7 +31,7 @@ class IterNormaliser(BaseNormaliser):
 
     def _emit_history(self, upath: Path, cleaned) -> None:
         """
-        calls parse_file to extract lines from te unpacked path
+        calls parse_file to extract lines from the unpacked path
         subclasses should override that to yield some kind of object
         out to here
         """

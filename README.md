@@ -145,7 +145,7 @@ Options:
   --move PATH            Prune the input files by MOVING them to the specified path. A bit safer than --remove mode.
   --yes                  Do not prompt before pruning files (useful for cron etc)
   --threads INTEGER      Number of threads (processes) to use. Without the flag won't use any, with the flag will try
-                         using all available, can also take a specififc value. Passed down to PoolExecutor.
+                         using all available, can also take a specific value. Passed down to PoolExecutor.
   --from INTEGER
   --to INTEGER
   --multiway             force "multiway" cleanup

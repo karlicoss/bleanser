@@ -135,7 +135,7 @@ class Normaliser(SqliteNormaliser):
             'messages_vcards_jids',
             'mms_thumbnail_metadata',
             'primary_device_version', # just some random numbers??
-            'props', # some random metdata, changes all the time
+            'props', # some random metadata, changes all the time
             'receipt_device',
             'receipt_orphaned',
             'receipt_user',
@@ -234,7 +234,7 @@ class Normaliser(SqliteNormaliser):
             ##
 
             # todo media_name might be flaky?? sometimes sets from NULL to file name?
-            # same infor is in file_path though... so idk
+            # same info is in file_path though... so idk
         ])
 
 

@@ -5,7 +5,7 @@ from subprocess import check_call
 
 import json
 
-# todo hmm, seems that ther isn't that much perf difference, at least on hyperfine
+# todo hmm, seems that there isn't that much perf difference, at least on hyperfine
 # although on the profile, when running with orjson, seems to finish faster??
 # maybe double check later
 # import orjson as json

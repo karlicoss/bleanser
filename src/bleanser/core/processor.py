@@ -28,7 +28,7 @@ class NormaliserHelpers:
     @staticmethod
     def unique_file_in_tempdir(unpacked_filepath: Path, wdir: Path, *, suffix: Optional[str] = None) -> Path:
         '''
-        this doesnt actually create the temp dir, wdir is already made/cleaned up somewhere above
+        this doesn't actually create the temp dir, wdir is already made/cleaned up somewhere above
 
         say for a file like /home/user/data/something/else.json
         this creates a file like:
@@ -42,7 +42,7 @@ class NormaliserHelpers:
         assert wdir.is_absolute()
 
         # is useful to keep the suffix the same, or let the user customize
-        # incase some library code elsewhere a user might
+        # in case some library code elsewhere a user might
         # use to process this uses the filetype to detect the filetype
         suffix = suffix or ''
         cleaned_dir = wdir / Path(*unpacked_filepath.parts[1:])
@@ -335,9 +335,9 @@ class FileSet:
         rfile = other.merged
         # upd: hmm, this function is actually super fast... guess diff is quite a bit optimized
 
-        # TODO tbh shoudl just use cmp/comm for the rest... considering it's all sorted
+        # TODO tbh should just use cmp/comm for the rest... considering it's all sorted
         # first check if they are identical (should be super fast, stops at the first byte difference)
-        # TODO this is more or less usefless ATM.. because files in fileset are always differnet
+        # TODO this is more or less usefless ATM.. because files in fileset are always different
         (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
         if rc == 0:
             return True
@@ -830,7 +830,7 @@ def test_filter(tmp_path: Path) -> None:
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,
-        Prune,  # should prune because after filtering only A there is no diference in files
+        Prune,  # should prune because after filtering only A there is no difference in files
         Keep,
         Keep
     ]

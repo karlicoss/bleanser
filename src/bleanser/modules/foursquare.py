@@ -65,7 +65,7 @@ class Normaliser(JsonNormaliser):
     MULTIWAY = True
 
     def cleanup(self, j: Json) -> Json:
-        # ok, a bit nasty -- foursquare export seems to be a list of some sort of responces..
+        # ok, a bit nasty -- foursquare export seems to be a list of some sort of responses..
         assert isinstance(j, list)
 
         res = []
