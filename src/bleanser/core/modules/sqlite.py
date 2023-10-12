@@ -12,10 +12,10 @@ from subprocess import check_call
 from typing import Dict, Any, Iterator, Sequence, ContextManager, Set, Tuple, ClassVar, Optional
 
 
-from .common import parametrize, Config
-from .common import Keep, Prune
-from .utils import mime
-from .processor import compute_groups, compute_instructions, BaseNormaliser, unique_file_in_tempdir, sort_file
+from ..common import parametrize, Config
+from ..common import Keep, Prune
+from ..utils import mime
+from ..processor import compute_groups, compute_instructions, BaseNormaliser, unique_file_in_tempdir, sort_file
 
 
 from plumbum import local # type: ignore
