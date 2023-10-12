@@ -15,7 +15,7 @@ from typing import Dict, Any, Iterator, Sequence, ContextManager, Set, Tuple, Cl
 from .common import parametrize, Config
 from .common import Keep, Prune
 from .utils import mime
-from .processor import compute_groups, compute_instructions, BaseNormaliser
+from .processor import compute_groups, compute_instructions, BaseNormaliser, unique_file_in_tempdir, sort_file
 
 
 from plumbum import local # type: ignore
@@ -259,7 +259,7 @@ class SqliteNormaliser(BaseNormaliser):
 
         assert upath.is_absolute(), f'{upath} is not an absolute path'
 
-        cleaned_db = self.unique_file_in_tempdir(upath, wdir, suffix='.db')
+        cleaned_db = unique_file_in_tempdir(input_filepath=upath, wdir=wdir, suffix='.db')
         unique_tmp_dir = cleaned_db.parent
 
         from bleanser.core.ext.sqlite_dumben import run as dumben
@@ -338,7 +338,7 @@ class SqliteNormaliser(BaseNormaliser):
         #     cmd()
 
         # hmm seems necessary sometimes.. not sure why
-        self.sort_file(dump_file)
+        sort_file(dump_file)
 
         cleaned_db.unlink()
         ###

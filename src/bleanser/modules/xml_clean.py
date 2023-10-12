@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Iterator
 
 
-from bleanser.core.processor import BaseNormaliser
+from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file
 
 
 class Normaliser(BaseNormaliser):
@@ -40,7 +40,7 @@ class Normaliser(BaseNormaliser):
 
         et = self.cleanup(et)
 
-        cleaned = self.unique_file_in_tempdir(upath, wdir, suffix='.xml')
+        cleaned = unique_file_in_tempdir(input_filepath=upath, wdir=wdir, suffix='.xml')
         cleaned.write_text(etree.tounicode(et))
 
         # TODO what is the assumption about shape?
@@ -49,7 +49,7 @@ class Normaliser(BaseNormaliser):
 
         # todo meh... see Fileset._union
         # this gives it a bit of a speedup
-        self.sort_file(cleaned)
+        sort_file(cleaned)
         yield cleaned
 
 

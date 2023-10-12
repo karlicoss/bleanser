@@ -33,7 +33,9 @@ for file in inputs:
 
 You might notice that if you removed 'Day 2', you'd still have an accurate backup, and we'd still have all 5 items, but its not obvious you can remove it since none of these are supersets of each other.
 
-`bleanser` is meant to solve this problem in a data agnostic way, so any export can be converted to a unique 'snapshot', and those can be sorted/compared against each other to find redundant data
+`bleanser` is meant to solve this problem in a data agnostic way, so any export can be converted to a normalised representation, and those can be compared against each other to find redundant data
+
+Sidenote: in particular this is describing how `--multiway` finds redundant files, see [`options.md`](./options.md) for more info
 
 ## How it works
 
@@ -44,7 +46,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from bleanser.core.processor import BaseNormaliser
+from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir
 
 class Normaliser(BaseNormaliser):
 
@@ -54,7 +56,7 @@ class Normaliser(BaseNormaliser):
         with self.unpacked(path=path, wdir=wdir) as upath:
 
             # a temporary file we write 'clean' data to, that can be easily diffed/compared
-            cleaned = self.unique_file_in_tempdir(upath, wdir)
+            cleaned = unique_file_in_tempdir(input_filepath=upath, wdir=wdir)
 
             # some custom code here per-module that writes to 'clean'
 
@@ -73,7 +75,7 @@ There are particular normalisers for different filetypes, e.g. [`json`](./src/bl
 
 ### do_cleanup
 
-There are two ways you can think about `do_cleanup` (creating a 'cleaned'/snapshot file) -- by specifying an 'upper' or 'lower' bound:
+There are two ways you can think about `do_cleanup` (creating a 'cleaned'/normalised representation of an input file) -- by specifying an 'upper' or 'lower' bound:
 
 - upper: specify which data you want to drop, dumping everything else to `cleaned`
 - lower: specify which keys/data you want to keep, e.g. only returning a few keys which uniquely identify events in the data
@@ -91,8 +93,8 @@ As an example say you had a JSON export:
 When comparing this, you could possibly:
 
 1. Just write the `id` to the file. This is somewhat risky as you don't know if the `href` will always remain the same, so you may be losing data
-1. Write the `id` and the `href`, by specifying those two keys you're interested in
-1. Write the `id` and the `href`, by deleting the `images` key (this is different from 2!)
+2. Write the `id` and the `href`, by specifying those two keys you're interested in
+3. Write the `id` and the `href`, by deleting the `images` key (this is different from 2!)
 
 There is a trade-off to be made here. For especially noisy exports with lots of metadata that might change over time that you're not interested in, number 3 means every couple months you might have to check and add new keys to delete (as an example see [spotify](./src/bleanser/modules/spotify.py). This could be seen as a positive as well, as it means when the schema for the API/data changes underneath you, you may notice it quicker
 
@@ -155,18 +157,18 @@ Options:
 
 You'd provide input paths/globs to this file, and possibly `--remove` or `--move /tmp/removed` to remove/move files
 
-If you're not able to subclass one of the those, you might be able to subclass [iter](./src/bleanser/modules/iter.py), which lets you just yield any sort of string-afiable data, which is then used to diff/compare the input files. For example, if you only wanted to return the `id` and `href` in the JSON example above, you could just return a tuple:
+If you're not able to subclass one of the those, you might be able to subclass [extract](./src/bleanser/modules/extract.py), which lets you just yield any sort of string-afiable data, which is then used to diff/compare the input files. For example, if you only wanted to return the `id` and `href` in the JSON example above, you could just return a tuple:
 
 ```python
 import json
 from pathlib import Path
 from typing import Iterator
 
-from bleanser.modules.iter import IterNormaliser
+from bleanser.modules.extract import ExtractObjectsNormaliser
 
 
-class Normaliser(IterNormaliser):
-    def parse_file(self, path: Path):
+class Normaliser(ExtractObjectsNormaliser):
+    def extract_objects(self, path: Path):
         data = json.loads(file_path.read_text())
         for blob in data:
             yield (blob["id"], blob["href"])
