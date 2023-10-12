@@ -35,7 +35,7 @@ You might notice that if you removed 'Day 2', you'd still have an accurate backu
 
 `bleanser` is meant to solve this problem in a data agnostic way, so any export can be converted to a normalised representation, and those can be compared against each other to find redundant data
 
-Sidenote: in particular this is describing how `--multiway` finds redundant files, see [`options.md`](./options.md) for more info
+Sidenote: in particular this is describing how `--multiway` finds redundant files, see [`options.md`](./doc/options.md) for more info
 
 ## How it works
 
