@@ -40,7 +40,7 @@ class Normaliser(BaseNormaliser):
 
         et = self.cleanup(et)
 
-        # todo copy paste from SqliteNormaliser
+        cleaned = self.unique_file_in_tempdir(upath, wdir, suffix='.xml')
         jpath = upath.absolute().resolve()
         cleaned = wdir / Path(*jpath.parts[1:]) / (jpath.name + '-cleaned')
         cleaned.parent.mkdir(parents=True, exist_ok=True)
@@ -52,8 +52,7 @@ class Normaliser(BaseNormaliser):
 
         # todo meh... see Fileset._union
         # this gives it a bit of a speedup
-        from subprocess import check_call
-        check_call(['sort', '-o', cleaned, cleaned])
+        self.sort_file(cleaned)
         yield cleaned
 
 

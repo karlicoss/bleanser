@@ -257,11 +257,11 @@ class SqliteNormaliser(BaseNormaliser):
         upath = checked_db(upath, allowed_blobs=None)
         # NOTE: upath here is still the _original_  path passed to bleanser, so we can't modify in place
 
-        assert upath.is_absolute(), upath
-        unique_tmp_dir = wdir / Path(*upath.parts[1:])  # cut off '/' and use relative path
-        unique_tmp_dir.mkdir(parents=True, exist_ok=True)  # meh
+        assert upath.is_absolute(), f'{upath} is not an absolute path'
 
-        cleaned_db = unique_tmp_dir / 'cleaned.db'
+        cleaned_db = self.unique_file_in_tempdir(upath, wdir, suffix='.db')
+        unique_tmp_dir = cleaned_db.parent
+
         from bleanser.core.ext.sqlite_dumben import run as dumben
         dumben(db=upath, output=cleaned_db, output_as_db=True)
 
@@ -338,7 +338,7 @@ class SqliteNormaliser(BaseNormaliser):
         #     cmd()
 
         # hmm seems necessary sometimes.. not sure why
-        check_call(['sort', '-o', dump_file, dump_file])
+        self.sort_file(dump_file)
 
         cleaned_db.unlink()
         ###

@@ -14,6 +14,12 @@ class JsonNormaliser(BaseNormaliser):
     PRUNE_DOMINATED = False
 
     def cleanup(self, j: Json) -> Json:
+        '''
+        subclasses should override this function, to do the actual cleanup
+
+        cleanup in this context means removing extra JSON keys which are not
+        needed to produce a unique 'fingerprint' for a file
+        '''
         return j
 
     @contextmanager
@@ -37,10 +43,8 @@ class JsonNormaliser(BaseNormaliser):
         j = orjson.loads(upath.read_text())
         j = self.cleanup(j)
 
-        # todo copy paste from SqliteNormaliser
-        jpath = upath.absolute().resolve()
-        cleaned = wdir / Path(*jpath.parts[1:]) / (jpath.name + '-cleaned')
-        cleaned.parent.mkdir(parents=True, exist_ok=True)
+        # create a tempfile to write flattened data to
+        cleaned = self.unique_file_in_tempdir(upath, wdir, suffix='.json')
 
         with cleaned.open('w') as fo:
             if isinstance(j, list):
@@ -57,9 +61,8 @@ class JsonNormaliser(BaseNormaliser):
                     print(f'{k} ::: {orjson.dumps(i, option=orjson.OPT_SORT_KEYS).decode("utf8")}', file=fo)
 
         # todo meh... see Fileset._union
-        # this gives it a bit of a speedup
-        from subprocess import check_call
-        check_call(['sort', '-o', cleaned, cleaned])
+        # this gives it a bit of a speedup, just calls out to unix sort
+        self.sort_file(cleaned)
 
         yield cleaned
 
