@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
 This is **always** acting on the data loaded into memory/temporary files, it is not modifying the files itself. Once it determines an input file can be pruned, it will warn you by default, and you can specify `--move` or `--remove` with the CLI (see below) to remove it.
 
-There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/modules/json_new.py), [`xml`](./src/bleanser/modules/xml_clean.py), [`sqlite`](./src/bleanser/core/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
+There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/core/modules/json_new.py), [`xml`](./src/bleanser/core/modules/xml_clean.py), [`sqlite`](./src/bleanser/core/modules/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
 
 ### do_cleanup
 
@@ -157,7 +157,7 @@ Options:
 
 You'd provide input paths/globs to this file, and possibly `--remove` or `--move /tmp/removed` to remove/move files
 
-If you're not able to subclass one of the those, you might be able to subclass [extract](./src/bleanser/modules/extract.py), which lets you just yield any sort of string-afiable data, which is then used to diff/compare the input files. For example, if you only wanted to return the `id` and `href` in the JSON example above, you could just return a tuple:
+If you're not able to subclass one of the those, you might be able to subclass [extract](./src/bleanser/core/modules/extract.py), which lets you just yield any sort of string-afiable data, which is then used to diff/compare the input files. For example, if you only wanted to return the `id` and `href` in the JSON example above, you could just return a tuple:
 
 ```python
 import json
