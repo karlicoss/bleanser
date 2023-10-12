@@ -82,9 +82,9 @@ As an example say you had a JSON export:
 
 ```json
 [
-  { id: 5, images: [{ ... }], href: "..." },
-  { id: 6, images: [{ ... }], href: "..." },
-  { id: 7, images: [{ ... }], href: "..." },
+  { "id": 5, "images": [{}], "href": "..." },
+  { "id": 6, "images": [{}], "href": "..." },
+  { "id": 7, "images": [{}], "href": "..." }
 ]
 ```
 
