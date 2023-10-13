@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from bleanser.modules.json_new import delkeys, patch_atoms
-from bleanser.core.sqlite import SqliteNormaliser, Tool
+from bleanser.core.modules.json_new import delkeys, patch_atoms
+from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 import json
 

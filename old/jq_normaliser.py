@@ -7,7 +7,7 @@ from subprocess import check_output, check_call, PIPE, run, Popen
 import sys
 from typing import Optional, List, Iterator, Iterable, Tuple, Optional, Union, NamedTuple, Sequence
 from tempfile import TemporaryDirectory
-# make sure doesn't conain '<'
+# make sure doesn't contain '<'
 
 from .common import CmpResult, Diff, Relation
 

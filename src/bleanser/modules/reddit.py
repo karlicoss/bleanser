@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from itertools import chain
 
-from bleanser.modules.json_new import JsonNormaliser, Json, delkeys
+from bleanser.core.modules.json_new import JsonNormaliser, Json, delkeys
 
 
 REDDIT_IGNORE_KEYS = {
@@ -211,7 +211,7 @@ class Normaliser(JsonNormaliser):
             k = profile.get(kf)
             if k is not None:
                 profile[kf] = k // 10 * 10
-        # ugh, total karma is flaking between two values for me consistenly
+        # ugh, total karma is flaking between two values for me consistently
         # but removing it completely only gets rid of 10% of files?
         ##
 

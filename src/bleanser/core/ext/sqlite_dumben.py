@@ -4,7 +4,7 @@
 # - views
 # - indices
 # - triggers
-# - contstraints
+# - constraints
 # this is useful if you want to mess/cleanup the database, but don't want to trip over constraints/triggers
 # NOTE: handling everything as bytes since not sure I wanna mess with encoding here (esp. row data encoding)
 
@@ -150,7 +150,7 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
 
 
 def test_dumben(tmp_path: Path) -> None:
-    # TODO would be nice to implement integration style test here straightaway
+    # TODO would be nice to implement integration style test here straight away
     sql = '''
 CREATE TABLE inventory
 ( inventory_id INT PRIMARY KEY,
@@ -246,7 +246,7 @@ if __name__ == '__main__':
     main()
 
 
-# some possible inspiration for testin
+# some possible inspiration for testing
 # - KoboReader-20211130.sqlite seems to have
 #    CREATE TRIGGER kobo_plus_asset_cleanup
 # - fb messenger android is a good db to test on... lots of weird shit, e.g. transactions

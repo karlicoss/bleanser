@@ -86,7 +86,7 @@ def main(*, Normaliser) -> None:
     @click.option(
         '--threads',
         type=int, is_flag=False, flag_value=0, default=None,
-        help="Number of threads (processes) to use. Without the flag won't use any, with the flag will try using all available, can also take a specififc value. Passed down to PoolExecutor.",
+        help="Number of threads (processes) to use. Without the flag won't use any, with the flag will try using all available, can also take a specific value. Passed down to PoolExecutor.",
     )
     ##
     @click.option  ('--from', 'from_', type=int    , default=None)

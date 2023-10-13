@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+from subprocess import check_call
 from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
 from time import time
 from typing import Dict, Iterator, Sequence, Optional, Tuple, Optional, Union, ContextManager, Protocol, List, Set, ClassVar, Type, Iterable, NoReturn, Any, Callable
@@ -20,6 +21,38 @@ from .ext.dummy_executor import DummyExecutor
 from kompress import CPath
 import more_itertools
 from plumbum import local # type: ignore
+
+# helper functions for normalisers
+def unique_file_in_tempdir(*, input_filepath: Path, wdir: Path, suffix: Optional[str] = None) -> Path:
+    '''
+    this doesn't actually create the temp dir, wdir is already made/cleaned up somewhere above
+
+    say for a file like /home/user/data/something/else.json
+    this creates a file like:
+
+    /tmpdir/home/user/data/something/else-cleaned
+
+    If suffix is not provided, it is NOT assumed/added automatically
+    '''
+    # make sure these are absolute
+    input_filepath = input_filepath.absolute().resolve()
+    assert wdir.is_absolute()
+
+    # is useful to keep the suffix the same, or let the user customize
+    # in case some library code elsewhere a user might
+    # use to process this uses the filetype to detect the filetype
+    suffix = suffix or ''
+    cleaned_dir = wdir / Path(*input_filepath.parts[1:])
+    cleaned_path = cleaned_dir / (input_filepath.stem + '-cleaned' + suffix)
+
+    # if this already exists somehow, use tempfile to add some random noise to the filename
+    cleaned_path.parent.mkdir(parents=True, exist_ok=True)
+    return cleaned_path
+
+# meh... see Fileset._union
+# this gives it a bit of a speedup when comparing
+def sort_file(filepath: Union[str, Path]) -> None:
+    check_call(['sort', '-o', str(filepath), str(filepath)])
 
 
 
@@ -40,11 +73,39 @@ class BaseNormaliser:
 
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        with self.unpacked(path=path, wdir=wdir) as path:
-            yield path
+        '''
+        path: input filepath. could possibly be compressed
+        wdir: working directory, where temporary files are written
+
+        currently, this just returns the entire file after possible decompressing it
+
+        subclasses would typically override this, reading from 'upath' as the input file
+
+        '''
+        with self.unpacked(path=path, wdir=wdir) as upath:
+            yield upath
+
+        # e.g., subclasses might read/parse upath, write to some unique tempfile
+        # and yield the 'cleaned' path
+        #
+        # for an example, see modules/json_new.py
+
 
     @contextmanager
     def unpacked(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+        '''
+        path: input filepath. this could be compressed or not, CPath with transparently decompress
+        wdir: working directory, where temporary files are written
+
+        this takes the input file from the user, and uses CPath to decompress it if its a compressed file
+        otherwise, this just reads the file as normal and writes to the temporary directory
+
+        subclasses could override this to do some custom type of unpacking. e.g. if its a zipfile
+        and you need to extract it and return a particular file as the 'cleaned_path', you can
+        do that here
+
+        Then, in do_cleanup, it uses the unpacked/extracted file from here
+        '''
         # todo ok, kinda annoying that a lot of time is spent unpacking xz files...
         # not sure what to do about it
         with CPath(str(path)).open(mode='rb') as fo:
@@ -55,9 +116,7 @@ class BaseNormaliser:
 
         # TODO not sure if cleaned path _has_ to be in wdir? can we return the orig path?
         # maybe if the cleanup method is not implemented?
-        path = path.absolute().resolve()
-        cleaned_path = wdir / Path(*path.parts[1:]) / (path.name + '-cleaned')
-        cleaned_path.parent.mkdir(parents=True, exist_ok=True)
+        cleaned_path = unique_file_in_tempdir(input_filepath=path, wdir=wdir)
         cleaned_path.write_bytes(res)
         # writing to tmp does take a while... hmm
         yield cleaned_path
@@ -273,9 +332,9 @@ class FileSet:
         rfile = other.merged
         # upd: hmm, this function is actually super fast... guess diff is quite a bit optimized
 
-        # TODO tbh shoudl just use cmp/comm for the rest... considering it's all sorted
+        # TODO tbh should just use cmp/comm for the rest... considering it's all sorted
         # first check if they are identical (should be super fast, stops at the first byte difference)
-        # TODO this is more or less usefless ATM.. because files in fileset are always differnet
+        # TODO this is more or less usefless ATM.. because files in fileset are always different
         (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
         if rc == 0:
             return True
@@ -768,7 +827,7 @@ def test_filter(tmp_path: Path) -> None:
     instructions = groups_to_instructions(groups, config=config)
     assert [type(i) for i in instructions] == [
         Keep,
-        Prune,  # should prune because after filtering only A there is no diference in files
+        Prune,  # should prune because after filtering only A there is no difference in files
         Keep,
         Keep
     ]

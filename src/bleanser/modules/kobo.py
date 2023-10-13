@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from bleanser.core.sqlite import SqliteNormaliser, Tool
+from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
@@ -29,7 +29,7 @@ class Normaliser(SqliteNormaliser):
 
         tool.drop_cols(table='Event', cols=['Checksum'])
 
-        # pointless, they are changeing all the time
+        # pointless, they are changing all the time
         c.execute('UPDATE Activity SET Date = NULL WHERE Id = "SomeFakeRecommendedTabId"')
         # TODO not sure about RecentBook?
         c.execute('UPDATE Activity SET Date = NULL WHERE Type IN ("TopPicksTab", "Top50")')

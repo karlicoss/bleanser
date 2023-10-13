@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from bleanser.modules.json_new import JsonNormaliser, Json, delkeys
+from bleanser.core.modules.json_new import JsonNormaliser, Json, delkeys
 
 
 TARGET = object()
@@ -65,7 +65,7 @@ class Normaliser(JsonNormaliser):
     MULTIWAY = True
 
     def cleanup(self, j: Json) -> Json:
-        # ok, a bit nasty -- foursquare export seems to be a list of some sort of responces..
+        # ok, a bit nasty -- foursquare export seems to be a list of some sort of responses..
         assert isinstance(j, list)
 
         res = []
