@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import json
 
-from bleanser.core.sqlite import SqliteNormaliser, Tool
-from bleanser.modules.json_new import delkeys
+from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
+from bleanser.core.modules.json_new import delkeys
 
 
 class Normaliser(SqliteNormaliser):

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from bleanser.modules.json_new import JsonNormaliser as Normaliser
+from bleanser.core.modules.json_new import JsonNormaliser as Normaliser
 
 from bleanser.tests.common import TESTDATA, actions, hack_attribute
 

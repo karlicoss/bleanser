@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from typing import List
 
-from bleanser.core.sqlite import SqliteNormaliser, Tool
+from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
 class Normaliser(SqliteNormaliser):
