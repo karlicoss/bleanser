@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from bleanser.core.modules.xml_clean import Normaliser as XmlNormaliser
+from bleanser.core.modules.xml import Normaliser as XmlNormaliser
 
 
 class Normaliser(XmlNormaliser):

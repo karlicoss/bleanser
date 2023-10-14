@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
 This is **always** acting on the data loaded into memory/temporary files, it is not modifying the files itself. Once it determines an input file can be pruned, it will warn you by default, and you can specify `--move` or `--remove` with the CLI (see below) to remove it.
 
-There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/core/modules/json_new.py), [`xml`](./src/bleanser/core/modules/xml_clean.py), [`sqlite`](./src/bleanser/core/modules/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
+There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/core/modules.json.py), [`xml`](./src/bleanser/core/modules/xml_clean.py), [`sqlite`](./src/bleanser/core/modules/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
 
 ### do_cleanup
 
@@ -117,7 +117,7 @@ As it can be a bit difficult to follow, generally this is doing something like.
 For example, the JSON normaliser calls a `cleanup` function before it starts processing the data. If you wanted to remove the `images` key like shown above, you could do so like:
 
 ```python
-from bleanser.core.modules.json_new import JsonNormaliser, delkeys, Json
+from bleanser.core.modules.json import JsonNormaliser, delkeys, Json
 
 
 class Normaliser(JsonNormaliser):
@@ -136,8 +136,8 @@ if __name__ == '__main__':
 For common formats, the helper classes handle all the tedious bits like loading/parsing data, managing the temporary files. The `Normaliser.main` calls the CLI, which looks like this:
 
 ```
- $ python3 -m bleanser.core.modules.json_new prune --help
-Usage: python -m bleanser.core.modules.json_new prune [OPTIONS] PATH
+ $ python3 -m bleanser.core.modules.json prune --help
+Usage: python -m bleanser.core.modules.json prune [OPTIONS] PATH
 
 Options:
   --glob                 Treat the path as glob (in the glob.glob sense)
