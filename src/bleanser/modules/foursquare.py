@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from bleanser.core.modules.json_new import JsonNormaliser, Json, delkeys
+from bleanser.core.modules.json import JsonNormaliser, Json, delkeys
 
 
 TARGET = object()

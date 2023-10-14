@@ -2,7 +2,7 @@
 import json
 
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
-from bleanser.core.modules.json_new import delkeys
+from bleanser.core.modules.json import delkeys
 
 
 class Normaliser(SqliteNormaliser):
