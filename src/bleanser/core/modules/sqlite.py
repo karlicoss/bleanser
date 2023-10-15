@@ -12,7 +12,7 @@ from subprocess import check_call
 from typing import Dict, Any, Iterator, Sequence, ContextManager, Set, Tuple, ClassVar, Optional
 
 
-from ..common import parametrize, Config
+from ..common import parametrize
 from ..common import Keep, Prune
 from ..utils import mime
 from ..processor import compute_groups, compute_instructions, BaseNormaliser, unique_file_in_tempdir, sort_file
@@ -71,20 +71,12 @@ def _dict2db(d: Dict, *, to: Path) -> Path:
     return to  # just for convenience
 
 
-def _test_aux(path: Path, *, wdir: Path) -> ContextManager[Path]:
-    # TODO this assumes they are already cleaned up?
-    n = SqliteNormaliser()
-    return n.do_cleanup(path=path, wdir=wdir)
-
-
 def test_sqlite_simple(tmp_path: Path) -> None:
-    config = Config(multiway=False, prune_dominated=True)
-    func = lambda paths: compute_groups(
-        paths,
-        cleanup=_test_aux,
-        diff_filter=SqliteNormaliser._DIFF_FILTER,
-        config=config,
-    )
+    class TestNormaliser(SqliteNormaliser):
+        MULTIWAY = False
+        PRUNE_DOMINATED = True
+
+    func = lambda paths: compute_groups(paths, Normaliser=TestNormaliser)
 
     d: Dict[str, Any] = {'tq': [['col1', 'col2']]}
     ### just one file
@@ -185,13 +177,12 @@ def test_sqlite_simple(tmp_path: Path) -> None:
 
 
 @parametrize('multiway', [False, True])
-def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
-    config = Config(multiway=multiway)
-    N = 2000
+def test_sqlite_many(tmp_path: Path, multiway: bool) -> None:
+    class TestNormaliser(SqliteNormaliser):
+        MULTIWAY = multiway
+        PRUNE_DOMINATED = True
 
-    def ident(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = SqliteNormaliser()
-        return n.do_cleanup(path=path, wdir=wdir)
+    N = 2000
 
     paths = []
     d: Dict[str, Any] =  {}
@@ -204,9 +195,9 @@ def test_sqlite_many(multiway: bool, tmp_path: Path) -> None:
         paths.append(p)
 
     # shouldn't crash
-    instrs = list(compute_instructions(
+    instructions = list(compute_instructions(
         paths,
-        Normaliser=SqliteNormaliser,
+        Normaliser=TestNormaliser,
         threads=None,
     ))
 
@@ -236,8 +227,6 @@ class SqliteNormaliser(BaseNormaliser):
     @contextmanager
     def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
         # NOTE: path here is the _original_  path passed to bleanser, so we can't modify in place
-        assert path.stat().st_size > 0, path  # just in case
-        # TODO maybe, later implement some sort of class variable instead of hardcoding
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
         # otherwise it essentially blocks waiting for all mimes to compute..
         mp = mime(path)

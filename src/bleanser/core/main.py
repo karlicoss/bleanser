@@ -5,7 +5,7 @@ import os
 from typing import Optional, List
 
 from .common import logger, Dry, Move, Remove, Mode
-from .processor import compute_instructions, apply_instructions
+from .processor import compute_instructions, apply_instructions, bleanser_tmp_directory
 
 import click
 
@@ -54,23 +54,21 @@ def main(*, Normaliser) -> None:
         if difftool is not None:
             os.environ['DIFFTOOL'] = difftool
 
-
         for line in compute_diff(path1_, path2, Normaliser=Normaliser):
             print(line)
 
-    # todo ugh, name sucks
-    @call_main.command(name='cleaned', short_help='cleanup file and dump to stdout')
+    @call_main.command(name='normalised', short_help='normalise file and dump to stdout')
     @click.argument('path', type=Path)
-    @click.option('--stdout', is_flag=True)
-    def cleaned(path: Path, stdout: bool) -> None:
-        n = Normaliser()
-        from tempfile import TemporaryDirectory
-        with TemporaryDirectory() as td, n.do_cleanup(path, wdir=Path(td)) as cleaned:
-            if stdout:
-                print(cleaned.read_text())
-            else:
-                click.secho(f'You can examine cleaned file: {cleaned}', fg='green')
-                click.pause(info="Press any key when you've finished")
+    @click.option('--stdout', is_flag=True, help='print normalised files to stdout instead of printing the path to it')
+    def normalised(path: Path, stdout: bool) -> None:
+        with bleanser_tmp_directory() as base_tmp_dir:
+            n = Normaliser(input=path, base_tmp_dir=base_tmp_dir)
+            with n.do_normalise() as cleaned:
+                if stdout:
+                    print(cleaned.read_text())
+                else:
+                    click.secho(f'You can examine normalised file: {cleaned}', fg='green')
+                    click.pause(info="Press any key when you've finished")
 
 
     @call_main.command(name='prune', short_help='process & prune files')

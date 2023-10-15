@@ -1,6 +1,6 @@
 An explanation of the `--multiway`/`--prune-dominated` options, modified from [zulip chat](https://memex.zulipchat.com/#narrow/stream/279601-hpi/topic/bleanser/near/258276779)
 
-Say you had a bunch of sqlite databases and mapped them onto text dumps using `do_cleanup`. The idea is to figure out which dumps are redundant.
+Say you had a bunch of sqlite databases and mapped them onto text dumps using `normalise`. The idea is to figure out which dumps are redundant.
 
 Say you've got dumps `C.sql` and `B.sql` -- and you diff them (like literally, [`diff`](https://man7.org/linux/man-pages/man1/diff.1.html))
 
