@@ -8,14 +8,13 @@ import re
 import shutil
 import sqlite3
 from sqlite3 import Connection
-from subprocess import check_call
-from typing import Dict, Any, Iterator, Sequence, ContextManager, Set, Tuple, ClassVar, Optional
+from typing import Dict, Any, Iterator, Sequence, Set, Tuple, Optional
 
 
 from ..common import parametrize
 from ..common import Keep, Prune
 from ..utils import mime
-from ..processor import compute_groups, compute_instructions, BaseNormaliser, unique_file_in_tempdir, sort_file
+from ..processor import compute_groups, compute_instructions, BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
 
 
 from plumbum import local # type: ignore
@@ -225,8 +224,7 @@ class SqliteNormaliser(BaseNormaliser):
     # need to decide where to log them...
 
     @contextmanager
-    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        # NOTE: path here is the _original_  path passed to bleanser, so we can't modify in place
+    def normalise(self, *, path: Path) -> Iterator[Normalised]:
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
         # otherwise it essentially blocks waiting for all mimes to compute..
         mp = mime(path)
@@ -237,8 +235,6 @@ class SqliteNormaliser(BaseNormaliser):
         ##
 
         # TODO handle compressed databases later... need to think how to work around checking for no wal etc..
-        # with self.unpacked(path=path, wdir=wdir) as upath:
-        #     pass
         upath = path
         del path # just to prevent from using by accident
 
@@ -248,7 +244,7 @@ class SqliteNormaliser(BaseNormaliser):
 
         assert upath.is_absolute(), f'{upath} is not an absolute path'
 
-        cleaned_db = unique_file_in_tempdir(input_filepath=upath, wdir=wdir, suffix='.db')
+        cleaned_db = unique_file_in_tempdir(input_filepath=upath, dir=self.tmp_dir, suffix='.db')
         unique_tmp_dir = cleaned_db.parent
 
         from bleanser.core.ext.sqlite_dumben import run as dumben

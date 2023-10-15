@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterator, Any
 
 
-from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file
+from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
 
 
 class ExtractObjectsNormaliser(BaseNormaliser):
@@ -42,13 +42,11 @@ class ExtractObjectsNormaliser(BaseNormaliser):
                 f.write("\n")
 
     @contextmanager
-    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        with self.unpacked(path, wdir=wdir) as upath:
-            cleaned = unique_file_in_tempdir(input_filepath=path, wdir=wdir, suffix=path.suffix)
-            del path
+    def normalise(self, *, path: Path) -> Iterator[Normalised]:
+        cleaned = unique_file_in_tempdir(input_filepath=path, dir=self.tmp_dir, suffix=path.suffix)
 
-            self._emit_history(upath, cleaned)
-            sort_file(cleaned)
+        self._emit_history(path, cleaned)
+        sort_file(cleaned)
 
         yield cleaned
 
