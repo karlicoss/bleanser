@@ -1,5 +1,6 @@
-# TODO later, migrate core to use it?
+from concurrent.futures import ProcessPoolExecutor, Future
 from contextlib import contextmanager, ExitStack
+import inspect
 import os
 from pathlib import Path
 import re
@@ -8,24 +9,32 @@ import sys
 from subprocess import check_call
 from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
 from time import time
-from typing import Dict, Iterator, Sequence, Optional, Tuple, Optional, Union, ContextManager, Protocol, List, Set, ClassVar, Type, Iterable, NoReturn, Any, Callable
+from typing import TYPE_CHECKING, Dict, Iterator, Sequence, Optional, Tuple, Optional, Union, ContextManager, List, Set, ClassVar, Type, Iterable, NoReturn, Any, Callable
+import warnings
 
-
-from .common import Group, logger, Config, parametrize
+from .common import Group, logger, parametrize
 from .common import Instruction, Keep, Prune
 from .common import divide_by_size
 from .utils import total_dir_size
 from .ext.dummy_executor import DummyExecutor
 
 
-from kompress import CPath
+from kompress import CPath, is_compressed
 import more_itertools
-from plumbum import local # type: ignore
+from plumbum import local  # type: ignore
+
+
+@contextmanager
+def bleanser_tmp_directory() -> Iterator[Path]:
+    # TODO add a --tmp-dir cli setting and use it here?
+    with TemporaryDirectory(prefix='bleanser') as tdir:
+        yield Path(tdir)
+
 
 # helper functions for normalisers
-def unique_file_in_tempdir(*, input_filepath: Path, wdir: Path, suffix: Optional[str] = None) -> Path:
+def unique_file_in_tempdir(*, input_filepath: Path, dir: Path, suffix: Optional[str] = None) -> Path:
     '''
-    this doesn't actually create the temp dir, wdir is already made/cleaned up somewhere above
+    this doesn't actually create the temp dir, dir is already made/cleaned up somewhere above
 
     say for a file like /home/user/data/something/else.json
     this creates a file like:
@@ -36,18 +45,20 @@ def unique_file_in_tempdir(*, input_filepath: Path, wdir: Path, suffix: Optional
     '''
     # make sure these are absolute
     input_filepath = input_filepath.absolute().resolve()
-    assert wdir.is_absolute()
+    assert dir.is_absolute()
 
     # is useful to keep the suffix the same, or let the user customize
     # in case some library code elsewhere a user might
     # use to process this uses the filetype to detect the filetype
     suffix = suffix or ''
-    cleaned_dir = wdir / Path(*input_filepath.parts[1:])
+    cleaned_dir = dir / Path(*input_filepath.parts[1:])
     cleaned_path = cleaned_dir / (input_filepath.stem + '-cleaned' + suffix)
 
+    # FIXME vvv where is this happening?...
     # if this already exists somehow, use tempfile to add some random noise to the filename
     cleaned_path.parent.mkdir(parents=True, exist_ok=True)
     return cleaned_path
+
 
 # meh... see Fileset._union
 # this gives it a bit of a speedup when comparing
@@ -55,41 +66,102 @@ def sort_file(filepath: Union[str, Path]) -> None:
     check_call(['sort', '-o', str(filepath), str(filepath)])
 
 
+Input = Path
+Normalised = Path
+
+_FILTER_ALL_ADDED = '> '
+
 
 class BaseNormaliser:
     ## user overridable configs
     PRUNE_DOMINATED: ClassVar[bool] = False
-    MULTIWAY       : ClassVar[bool] = False
+    MULTIWAY: ClassVar[bool] = False
     ##
 
-
     # todo maybe get rid of it? might be overridden by subclasses but probs. shouldn't
-    _DIFF_FILTER: ClassVar[Optional[str]] = '> '
+    _DIFF_FILTER: ClassVar[Optional[str]] = _FILTER_ALL_ADDED
 
-    # take in input path
-    # output file descriptor (could be tmp dir based or in-memory?)
-    # would be perfect time to unpack it?
-    # or allow outputting either Path or fd? dunno
+    def __init__(self, *, original: Input, base_tmp_dir: Path) -> None:
+        ## some sanity checks just in case
+        assert original.is_absolute(), original
+        assert original.exists(), original
+        assert original.stat().st_size > 0, original
+        ###
+
+        """
+        Original filepath, could possibly be compressed
+        """
+        self.original = original
+
+        """
+        "Base" temporary directory used by all of this Normaliser instances
+        """
+        # add the full class name for convenience while debugging
+        self._base_tmp_dir = base_tmp_dir / self._relative_base_tmp_dir()
+
+        """
+        Temporary directory used during normalisation of one specific source file
+
+        It's guaranteed to exist by the time "normalise" is called, and will be cleaned up after.
+        So you can create temporary files in it if necessary without the need to clean up
+        """
+        without_root = Path(*self.original.parts[1:])
+        self.tmp_dir = self._base_tmp_dir / without_root
+
+    @classmethod
+    def _relative_base_tmp_dir(cls) -> Path:
+        mm = inspect.getmodule(cls)
+        assert mm is not None
+        spec = mm.__spec__
+        assert spec is not None
+        mname = spec.name
+        parts = mname.split('.') + [cls.__name__]
+        rpath = Path(*parts)
+        assert not rpath.is_absolute()  # just in case
+        return rpath
 
     @contextmanager
-    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+    def normalise(self, *, path: Path) -> Iterator[Normalised]:
         '''
-        path: input filepath. could possibly be compressed
-        wdir: working directory, where temporary files are written
+        path: input file to clean up
+              Note that it's not necessarily the same as self.original, e.g. if the original file was compressed
 
-        currently, this just returns the entire file after possible decompressing it
-
-        subclasses would typically override this, reading from 'upath' as the input file
-
+        subclasses would typically override this, reading from 'path' as the input file
         '''
-        with self.unpacked(path=path, wdir=wdir) as upath:
-            yield upath
+        yield path
 
         # e.g., subclasses might read/parse upath, write to some unique tempfile
         # and yield the 'cleaned' path
         #
         # for an example, see modules/json_new.py
 
+    @contextmanager
+    def do_normalise(self) -> Iterator[Normalised]:
+        """
+        This method does set up for normalise method, and generally shouldn't require overriding
+        """
+        self.tmp_dir.mkdir(parents=True)
+        try:
+            # FIXME write a test for compressed stuff
+            with self.unpacked(path=self.original, wdir=self.tmp_dir) as unpacked:
+                ## backwards compatibility -- do_cleanup used to take input path and tmp dir
+                do_cleanup = getattr(self, 'do_cleanup', None)
+                if do_cleanup is None:
+                    with self.normalise(path=unpacked) as normalised:
+                        yield normalised
+                else:
+                    warnings.warn("'do_cleanup' is deprecated. Remove wdir argument and rename it to 'normalise'")
+                    with do_cleanup(path=unpacked, wdir=self.tmp_dir) as normalised:
+                        yield normalised
+        finally:
+            # ugh, kinda annoying that TemporaryDirectory doesn't allow creating a dir with exact name
+            # so here we at least reuse its cleanup method
+            TemporaryDirectory._rmtree(str(self.tmp_dir))  # type: ignore[attr-defined]
+
+    if TYPE_CHECKING:
+        # deliberately keep this during type checking to indicate users need to migrate to normalise()
+        def do_cleanup(self) -> None:
+            ...
 
     @contextmanager
     def unpacked(self, path: Path, *, wdir: Path) -> Iterator[Path]:
@@ -104,8 +176,13 @@ class BaseNormaliser:
         and you need to extract it and return a particular file as the 'cleaned_path', you can
         do that here
 
-        Then, in do_cleanup, it uses the unpacked/extracted file from here
+        Then, in do_normalise, it uses the unpacked/extracted file from here
         '''
+        if not is_compressed(path):
+            # if not compressed, no need to create copies
+            yield path
+            return
+
         # todo ok, kinda annoying that a lot of time is spent unpacking xz files...
         # not sure what to do about it
         with CPath(str(path)).open(mode='rb') as fo:
@@ -116,7 +193,7 @@ class BaseNormaliser:
 
         # TODO not sure if cleaned path _has_ to be in wdir? can we return the orig path?
         # maybe if the cleanup method is not implemented?
-        cleaned_path = unique_file_in_tempdir(input_filepath=path, wdir=wdir)
+        cleaned_path = unique_file_in_tempdir(input_filepath=path, dir=wdir)
         cleaned_path.write_bytes(res)
         # writing to tmp does take a while... hmm
         yield cleaned_path
@@ -127,31 +204,17 @@ class BaseNormaliser:
         run_main(Normaliser=cls)
 
 
-Input = Path
-Cleaned = Path
-
-class Cleaner(Protocol):
-    def __call__(self, path: Input, *, wdir: Path) -> ContextManager[Cleaned]:
-        pass
-
-
 def compute_groups(
-        paths: Sequence[Path],
-        *,
-        cleanup: Cleaner,
-        threads: Optional[int]=None,
-        diff_filter: Optional[str],
-        config: Config,
-        _wdir: Optional[Path]=None,
+    paths: Sequence[Path],
+    *,
+    Normaliser: Type[BaseNormaliser],
+    threads: Optional[int] = None,
 ) -> Iterator[Group]:
     assert len(paths) == len(set(paths)), paths  # just in case
     assert len(paths) > 0 # just in case
 
-    # if wdir is passed will use this dir instead of a temporary
-    # messy but makes debugging a bit easier..
-    from concurrent.futures import ProcessPoolExecutor as Pool, Future
-    pool = DummyExecutor() if threads is None else Pool(max_workers=None if threads == 0 else threads)
-    with pool:
+    pool = DummyExecutor() if threads is None else ProcessPoolExecutor(max_workers=None if threads == 0 else threads)
+    with pool, bleanser_tmp_directory() as base_tmp_dir:
         workers = getattr(pool, '_max_workers')
         workers = min(workers, len(paths))  # no point in using too many workers
         logger.info('using %d workers', workers)
@@ -172,14 +235,14 @@ def compute_groups(
                 func = _compute_groups_serial_as_list
             else:
                 func = _compute_groups_serial
-            futures.append(pool.submit(
-                func,
-                paths=pp,
-                cleanup=cleanup,
-                diff_filter=diff_filter,
-                config=config,
-                _wdir=_wdir,
-            ))
+            futures.append(
+                pool.submit(
+                    func,
+                    paths=pp,
+                    Normaliser=Normaliser,
+                    base_tmp_dir=base_tmp_dir,
+                )
+            )
         emitted: Set[Path] = set()
         for chunk, f in zip(chunks, futures):
             last = chunk[0]
@@ -357,10 +420,6 @@ class FileSet:
         self.merged.unlink(missing_ok=True)
 
 
-# TODO reuse it in normalisers
-_FILTER_ALL_ADDED = '> '
-
-
 def test_fileset(tmp_path: Path) -> None:
     wdir = tmp_path / 'wdir'
     wdir.mkdir()
@@ -409,61 +468,58 @@ def test_fileset(tmp_path: Path) -> None:
 def _compute_groups_serial_as_list(*args: Any, **kwargs: Any) -> Iterable[Group]:
     return list(_compute_groups_serial(*args, **kwargs))
 
+
+IRes = Union[Exception, Normalised]
+
+
 # todo these are already normalized paths?
 # although then harder to handle exceptions... ugh
 def _compute_groups_serial(
-        paths: Sequence[Path],
-        *,
-        cleanup: Cleaner,
-        diff_filter: Optional[str],
-        config: Config,
-        _wdir: Optional[Path],
+    paths: Sequence[Path],
+    *,
+    Normaliser: Type[BaseNormaliser],
+    base_tmp_dir: Path,
 ) -> Iterable[Group]:
     assert len(paths) > 0
 
-    IRes = Union[Exception, Cleaned]
     cleaned2orig: Dict[IRes, Path] = {}
     cleaned = []
 
-    wdir: Path
-
     def iter_results() -> Iterator[IRes]:
-        with ExitStack() as istack:
-            # ugh. what a mess
-            nonlocal wdir
-            if _wdir is None:
-                wdir = Path(istack.enter_context(TemporaryDirectory()))
-            else:
-                wdir = _wdir
-            for i, p in enumerate(paths):
-                logger.info('processing %s (%d/%d)', p, i, len(paths))
+        with ExitStack() as exit_stack:
+            for idx, input in enumerate(paths):
+                normaliser = Normaliser(original=input, base_tmp_dir=base_tmp_dir)
+
+                logger.info('processing %s (%d/%d)', input, idx, len(paths))
 
                 res: IRes
                 # ds = total_dir_size(wdir)
                 # logger.debug('total wdir(%s) size: %s', wdir, ds)
                 before = time()
-                # pass it a unique dir so they don't mess up each other
-                pwdir = Path(istack.enter_context(TemporaryDirectory(dir=wdir)))
                 try:
-                    res = istack.enter_context(cleanup(p, wdir=pwdir))
+                    res = exit_stack.enter_context(normaliser.do_normalise())
                 except Exception as e:
                     logger.exception(e)
                     res = e
                 after = time()
-                logger.debug('cleanup(%s): took %.2f seconds', p, after - before)
+                logger.debug('cleanup(%s): took %.2f seconds', input, after - before)
                 # TODO ugh. Exception isn't hashable in general, so at least assert to avoid ambiguity
                 # not sure what would be the proper fix...
                 assert res not in cleaned2orig, res
-                cleaned2orig[res] = p
+                cleaned2orig[res] = input
                 cleaned.append(res)
                 yield res
 
 
+    fileset_wdir = base_tmp_dir / 'fileset'
+    fileset_wdir.mkdir(parents=True, exist_ok=True)
+
     def fset(*paths: Path) -> FileSet:
-        return FileSet(paths, wdir=wdir)  # noqa: F821  # wdir is guaranteed to be initialized by iter_results
+        return FileSet(paths, wdir=fileset_wdir)
 
     def unlink_tmp_output(cleaned: Path) -> None:
         # meh. unlink is a bit manual, but bounds the filesystem use by two dumps
+        # todo maybe unlink whole tmp_dir for normaliser?
         orig = cleaned2orig[cleaned]
         if orig == cleaned:
             # handle 'identity' cleanup -- shouldn't try to remove user files
@@ -553,23 +609,23 @@ def _compute_groups_serial(
                 else:
                     nitems  = items.union(right_res)
 
-                    if config.multiway:
+                    if Normaliser.MULTIWAY:
                         # otherwise doesn't make sense?
-                        assert config.prune_dominated
+                        assert Normaliser.PRUNE_DOMINATED
 
                         # in multiway mode we check if the boundaries (pivots) contain the rest
                         npivots = rstack.enter_context(fset(lpfile, right_res))
-                        dominated = nitems.issubset(npivots, diff_filter=diff_filter)
+                        dominated = nitems.issubset(npivots, diff_filter=Normaliser._DIFF_FILTER)
                     else:
                         # in two-way mode we check if successive paths include each other
                         before_right = nitems.items[-2]
                         s1 = rstack.enter_context(fset(before_right))
                         s2 = rstack.enter_context(fset(right_res))
 
-                        if not config.prune_dominated:
+                        if not Normaliser.PRUNE_DOMINATED:
                             dominated = s1.issame(s2)
                         else:
-                            dominated = s1.issubset(s2, diff_filter=diff_filter)
+                            dominated = s1.issubset(s2, diff_filter=Normaliser._DIFF_FILTER)
 
                     if dominated:
                         next_state = (nitems, right_res)
@@ -609,6 +665,10 @@ def _compute_groups_serial(
     cached = len(getattr(ires, '_cache'))
     assert cached == total, 'Iterator should be fully processed!'
 
+    stale_files = [p for p in base_tmp_dir.rglob('*') if p.is_file()]
+    # TODO at the moment this assert fails sometimes -- need to investigate
+    # assert len(stale_files) == 0, stale_files
+
 
 # note: also some tests in sqlite.py
 
@@ -619,20 +679,17 @@ def _compute_groups_serial(
     (True , True ),
     (False, True ),
 ])
-def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> None:
+def test_bounded_resources(tmp_path: Path, multiway: bool, randomize: bool) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
     """
-
     # max size of each file
     one_mb = 1_000_000
     text = 'x' * one_mb + '\n'
 
 
-    idir = tmp_path / 'idir'
-    gwdir = tmp_path / 'wdir'  # 'global' wdir
+    idir = tmp_path / 'inputs'
     idir.mkdir()
-    gwdir.mkdir()
 
     from random import Random
     import string
@@ -652,11 +709,12 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
     ##
 
     idx = 0
-    wdir_spaces = []
-    def check_wdir_space() -> None:
+    tmp_dir_spaces = []
+
+    def check_tmp_dir_space(tmp_dir: Path) -> None:
         nonlocal idx
         # logger.warning('ITERATION: %s', idx)
-        ds = total_dir_size(gwdir)
+        ds = total_dir_size(tmp_dir)
 
         # 7 is a bit much... but currently it is what it is, can be tighter later
         # basically
@@ -671,20 +729,22 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
         if ds > threshold:
             raise BaseException("working dir takes too much space")
 
-        wdir_spaces.append(ds)
+        tmp_dir_spaces.append(ds)
         idx += 1
 
+    class TestNormaliser(BaseNormaliser):
+        MULTIWAY = multiway
+        PRUNE_DOMINATED = True
 
-    @contextmanager
-    def dummy(path: Path, *, wdir: Path) -> Iterator[Path]:
-        tp = wdir / (path.name + '-dump')
-        tp.write_text(path.read_text())
-        # ugh. it's the only place we can hook in to do frequent checks..
-        check_wdir_space()
-        yield tp
+        @contextmanager
+        def normalise(self, *, path: Path) -> Iterator[Normalised]:
+            normalised = self.tmp_dir / 'normalised'
+            normalised.write_text(path.read_text())
+            # ugh. it's the only place we can hook in to do frequent checks..
+            check_tmp_dir_space(self._base_tmp_dir)
+            yield normalised
 
-    config = Config(multiway=multiway, prune_dominated=True)
-    func = lambda paths: compute_groups(paths, cleanup=dummy, diff_filter=_FILTER_ALL_ADDED, config=config, _wdir=gwdir)
+    func = lambda paths: compute_groups(paths, Normaliser=TestNormaliser)
 
     # force it to compute
     groups = list(func(inputs))
@@ -701,20 +761,18 @@ def test_bounded_resources(multiway: bool, randomize: bool, tmp_path: Path) -> N
 
     # check working dir spaces
     # in 'steady' mode should take some space? more of a sanity check..
-    took_space = len([x for x in wdir_spaces if x > one_mb])
+    took_space = len([x for x in tmp_dir_spaces if x > one_mb])
     assert took_space > 20
 
 
 @parametrize('multiway', [False, True])
-def test_many_files(multiway: bool, tmp_path: Path) -> None:
-    config = Config(multiway=multiway, prune_dominated=True)
+def test_many_files(tmp_path: Path, multiway: bool) -> None:
     N = 2000
 
-    @contextmanager
-    def dummy(path: Path, *, wdir: Path) -> Iterator[Path]:
-        tp = wdir / (path.name + '-dump')
-        tp.write_text(path.read_text())
-        yield tp
+    # BaseNormaliser is just emitting original file by default, which is what we want here
+    class TestNormaliser(BaseNormaliser):
+        MULTIWAY = multiway
+        PRUNE_DOMINATED = True
 
     paths = []
     for i in range(N):
@@ -723,19 +781,18 @@ def test_many_files(multiway: bool, tmp_path: Path) -> None:
         p.write_text(str(i % 10 > 5) + '\n')
 
     groups = []
-    for group in compute_groups(paths, cleanup=dummy, diff_filter=_FILTER_ALL_ADDED, config=config):
+    for group in compute_groups(paths, Normaliser=TestNormaliser):
         groups.append(group)
     # shouldn't crash due to open files or something, at least
     expected = 399 if multiway else 799
     assert len(groups) == expected
 
 
-@contextmanager
-def _noop(path: Path, *, wdir: Path) -> Iterator[Path]:
-    yield path
-
-
 def test_special_characters(tmp_path: Path) -> None:
+    class TestNormaliser(BaseNormaliser):
+        MULTIWAY = True
+        PRUNE_DOMINATED = True
+
     p1 = tmp_path / 'p1'
     p1.write_text('A\n')
     p2 = tmp_path / 'p2'
@@ -745,16 +802,10 @@ def test_special_characters(tmp_path: Path) -> None:
     p4 = tmp_path / 'p4'
     p4.write_text('A\n')
 
-    config = Config(
-        prune_dominated=True,
-        multiway=True,
-    )
+
     gg = [p1, p2, p3, p4]
-    groups = list(compute_groups(
-        gg,
-        cleanup=_noop, config=config, diff_filter=_FILTER_ALL_ADDED,
-    ))
-    instructions = groups_to_instructions(groups, config=config)
+    groups = list(compute_groups(gg, Normaliser=TestNormaliser))
+    instructions = groups_to_instructions(groups)
     assert [type(i) for i in instructions] == [
         Keep,   # start of group
         Prune,  # same as next
@@ -764,11 +815,10 @@ def test_special_characters(tmp_path: Path) -> None:
 
 
 @parametrize('multiway', [False, True])
-def test_simple(multiway: bool, tmp_path: Path) -> None:
-    config = Config(
-        prune_dominated=True,
-        multiway=multiway,
-    )
+def test_simple(tmp_path: Path, multiway: bool) -> None:
+    class TestNormaliser(BaseNormaliser):
+        PRUNE_DOMINATED = True
+        MULTIWAY = multiway
 
     p1 = tmp_path / 'p1'
     p2 = tmp_path / 'p2'
@@ -787,28 +837,26 @@ def test_simple(multiway: bool, tmp_path: Path) -> None:
             [p1, p2, p3],
             [p1, p2, p3, p4],
     ]:
-        groups = list(compute_groups(
-            gg,
-            cleanup=_noop, config=config, diff_filter=_FILTER_ALL_ADDED,
-        ))
-        instructions = groups_to_instructions(groups, config=config)
+        groups = list(compute_groups(gg, Normaliser=TestNormaliser))
+        instructions = groups_to_instructions(groups)
         assert [type(i) for i in instructions] == [Keep for _ in gg]
 
 
 def test_filter(tmp_path: Path) -> None:
-    config = Config(
-        prune_dominated=False,
-        multiway=False,
-    )
+    class TestNormaliser(BaseNormaliser):
+        PRUNE_DOMINATED = False
+        MULTIWAY = False
 
-    @contextmanager
-    def remove_all_except_a(path: Path, *, wdir: Path) -> Iterator[Path]:
-        clean = wdir / (path.name + '-clean')
-        with path.open('r') as fo, clean.open('w') as co:
-            for line in fo:
-                if line == 'A\n':
-                    co.write(line)
-        yield clean
+        @contextmanager
+        def normalise(self, *, path: Path) -> Iterator[Normalised]:
+            normalised = self.tmp_dir / 'normalised'
+            with path.open('r') as fr, normalised.open('w') as fw:
+                for line in fr:
+                    # drop all lines except "A"
+                    if line == 'A\n':
+                        fw.write(line)
+            yield normalised
+
 
     p1 = tmp_path / 'p1'
     p2 = tmp_path / 'p2'
@@ -816,15 +864,16 @@ def test_filter(tmp_path: Path) -> None:
     p4 = tmp_path / 'p4'
     paths = [p1, p2, p3, p4]
 
-    ## these files are same as long as the filter concerned
+    ## p1, p2 and p3 are same as long as the filter concerned
+    ## NOTE: p2 is the same because unique lines are ignored? this is a bit confusing here..
     p1.write_text('b\nA\nc\n')
     p2.write_text('A\nx\nA\nu\n')
     p3.write_text('A\nd\n')
     p4.write_text('x\ny\n')
 
 
-    groups = list(compute_groups(paths, cleanup=remove_all_except_a, config=config, diff_filter=_FILTER_ALL_ADDED))
-    instructions = groups_to_instructions(groups, config=config)
+    groups = list(compute_groups(paths, Normaliser=TestNormaliser))
+    instructions = groups_to_instructions(groups)
     assert [type(i) for i in instructions] == [
         Keep,
         Prune,  # should prune because after filtering only A there is no difference in files
@@ -858,12 +907,18 @@ def _prepare(tmp_path: Path):
     True,
     False,
 ])
-def test_twoway(tmp_path: Path, prune_dominated) -> None:
+def test_twoway(tmp_path: Path, prune_dominated: bool) -> None:
     paths = _prepare(tmp_path)
 
-    config = Config(prune_dominated=prune_dominated, multiway=False)
-    groups = list(compute_groups(paths, cleanup=_noop, config=config, diff_filter=_FILTER_ALL_ADDED))
-    instructions = list(groups_to_instructions(groups, config=config))
+    class TestNormaliser(BaseNormaliser):
+        PRUNE_DOMINATED = prune_dominated
+        MULTIWAY = False
+
+    groups = list(compute_groups(
+        paths,
+        Normaliser=TestNormaliser,
+    ))
+    instructions = list(groups_to_instructions(groups))
     assert [type(i) for i in instructions] == [
         Keep,
         Keep,
@@ -879,9 +934,14 @@ def test_twoway(tmp_path: Path, prune_dominated) -> None:
         assert p.exists(), p  # just in case
 
 
+# TODO test multi way against old bluemaestro dbs?
 def test_multiway(tmp_path: Path) -> None:
-    # TODO test multi way against old bluemaestro dbs?
     paths = _prepare(tmp_path)
+
+    class TestNormaliser(BaseNormaliser):
+        PRUNE_DOMINATED = True
+        MULTIWAY = True
+
     for i, s in enumerate([
             ['00', '11', '22'],
             ['11', '22', '33', '44'],
@@ -893,13 +953,11 @@ def test_multiway(tmp_path: Path) -> None:
         p.write_text('\n'.join(s) + '\n')
         paths.append(p)
 
-    # TODO grep filter goes into the config?
-    config = Config(
-        prune_dominated=True,
-        multiway=True,
-    )
-    groups = list(compute_groups(paths, cleanup=_noop, diff_filter=_FILTER_ALL_ADDED, config=config))
-    instructions = groups_to_instructions(groups, config=config)
+    groups = list(compute_groups(
+        paths,
+        Normaliser=TestNormaliser,
+    ))
+    instructions = groups_to_instructions(groups)
 
     assert [type(i) for i in instructions] == [
         Keep,    # X
@@ -920,7 +978,7 @@ def test_multiway(tmp_path: Path) -> None:
 
 
 # todo config is unused here?
-def groups_to_instructions(groups: Iterable[Group], *, config: Config) -> Iterator[Instruction]:
+def groups_to_instructions(groups: Iterable[Group]) -> Iterator[Instruction]:
     done: Dict[Path, Instruction] = {}
 
     for group in groups:
@@ -948,7 +1006,7 @@ def groups_to_instructions(groups: Iterable[Group], *, config: Config) -> Iterat
 
 
 def test_groups_to_instructions() -> None:
-    def do(*pp: Sequence[str], config=Config()):
+    def do(*pp: Sequence[str]):
         ppp = [list(map(Path, s)) for s in pp]
         # for this test we assume pivots are just at the edges
         grit = (
@@ -958,7 +1016,7 @@ def test_groups_to_instructions() -> None:
                 error=False,
             ) for p in ppp
         )
-        res = groups_to_instructions(list(grit), config=config)
+        res = groups_to_instructions(list(grit))
         return [(str(p.path), {Keep: 'keep', Prune: 'prune'}[type(p)]) for p in res]
 
     assert do(
@@ -1047,33 +1105,19 @@ def test_groups_to_instructions() -> None:
     #         ('c', 'd'),
     #     )
 
-def _cleanup_aux(path: Path, *, wdir: Path, Normaliser) -> ContextManager[Path]:
-    n = Normaliser()
-    return n.do_cleanup(path, wdir=wdir)
-
 
 def compute_instructions(
-        paths: Sequence[Path],
-        *,
-        Normaliser: Type[BaseNormaliser],
-        threads: Optional[int],
+    paths: Sequence[Path],
+    *,
+    Normaliser: Type[BaseNormaliser],
+    threads: Optional[int],
 ) -> Iterator[Instruction]:
-    import functools
-    # meh.. makes sure it's picklable
-    cleanup = functools.partial(_cleanup_aux, Normaliser=Normaliser)
-
-    cfg = Config(
-        prune_dominated=Normaliser.PRUNE_DOMINATED,
-        multiway=Normaliser.MULTIWAY,
-    )
     groups: Iterable[Group] = compute_groups(
         paths=paths,
-        cleanup=cleanup,
-        diff_filter=Normaliser._DIFF_FILTER,
-        config=cfg,
+        Normaliser=Normaliser,
         threads=threads,
     )
-    instructions: Iterable[Instruction] = groups_to_instructions(groups, config=cfg)
+    instructions: Iterable[Instruction] = groups_to_instructions(groups)
     total = len(paths)
     # TODO eh. could at least dump dry mode stats here...
     done = 0
@@ -1083,8 +1127,6 @@ def compute_instructions(
         done += 1
     assert done == len(paths)  # just in case
 
-
-# FIXME add a test
 
 from .common import Mode, Dry, Move, Remove
 def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(), need_confirm: bool=True) -> NoReturn:
@@ -1102,9 +1144,11 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         totals = '???'
 
     rm_action = {
+        # fmt: off
         Dry   : click.style('REMOVE (dry mode)', fg='yellow'),
         Move  : click.style('MOVE             ', fg='yellow'),
         Remove: click.style('REMOVE           ', fg='red'   ),
+        # fmt: on
     }[type(mode)]
 
     tot_files = 0
@@ -1191,15 +1235,13 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
     sys.exit(exit_code)
 
 
+# TODO write a test for this
 def compute_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
-    # meh. copy pasted...
-    def cleanup(path: Path, *, wdir: Path) -> ContextManager[Path]:
-        n = Normaliser()
-        return n.do_cleanup(path, wdir=wdir)
+    with bleanser_tmp_directory() as base_tmp_dir:
+        n1 = Normaliser(input=path1, base_tmp_dir=base_tmp_dir)
+        n2 = Normaliser(input=path2, base_tmp_dir=base_tmp_dir)
 
-    from .processor import do_diff
-    with TemporaryDirectory() as td1, TemporaryDirectory() as td2:
-        with cleanup(path1, wdir=Path(td1)) as res1, cleanup(path2, wdir=Path(td2)) as res2:
+        with n1.do_normalise() as res1, n2.do_normalise() as res2:
             # ok, I guess diff_filter=None makes more sense here?
             # would mean it shows the whole thing
             # meh

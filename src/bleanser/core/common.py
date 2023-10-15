@@ -59,11 +59,6 @@ class Keep(Instruction):
     pass
 
 
-class Config(NamedTuple):
-    prune_dominated: bool = False
-    multiway       : bool = False
-
-
 ### helper to define paramertized tests in function's body
 from .utils import under_pytest
 if under_pytest:

@@ -11,11 +11,11 @@ data = TESTDATA / 'hypothesis'
 
 # total time about 5s?
 @pytest.mark.parametrize('num', range(10))
-def test_normalise_one(tmp_path: Path, num) -> None:
+def test_normalise_one(tmp_path: Path, num: int) -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
     path = data / 'hypothesis_20210625T220028Z.json'
-    n = Normaliser()
-    with n.do_cleanup(path, wdir=tmp_path):
+    n = Normaliser(original=path, base_tmp_dir=tmp_path)
+    with n.do_normalise():
         pass
 
 

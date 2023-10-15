@@ -51,19 +51,18 @@ from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir
 class Normaliser(BaseNormaliser):
 
     @contextmanager
-    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        # temporarily decompress if the data is stored as compressed on disk
-        with self.unpacked(path=path, wdir=wdir) as upath:
+    def normalise(self, *, path: Path) -> Iterator[Path]:
+        # if the input file was compressed, the "path" you recieve here will be decompressed
+        
+        # a temporary file we write 'normalised' data to, that can be easily diffed/compared
+        normalised = unique_file_in_tempdir(input_filepath=upath, dir=self.tmp_dir)
 
-            # a temporary file we write 'clean' data to, that can be easily diffed/compared
-            cleaned = unique_file_in_tempdir(input_filepath=upath, wdir=wdir)
+        # some custom code here per-module that writes to 'normalised'
 
-            # some custom code here per-module that writes to 'cleaned'
-
-        yield cleaned
+        yield normalised
 
 
-# this script could be run directly, or if its installed in a module like
+# this script should be run as a module like
 # python3 -m bleanser.modules.smscalls --glob ...
 if __name__ == "__main__":
     Normaliser.main()
@@ -73,11 +72,11 @@ This is **always** acting on the data loaded into memory/temporary files, it is 
 
 There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/core/modules.json.py), [`xml`](./src/bleanser/core/modules/xml_clean.py), [`sqlite`](./src/bleanser/core/modules/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
 
-### do_cleanup
+### normalise
 
-There are two ways you can think about `do_cleanup` (creating a 'cleaned'/normalised representation of an input file) -- by specifying an 'upper' or 'lower' bound:
+There are two ways you can think about `normalise` (creating a 'cleaned'/normalised representation of an input file) -- by specifying an 'upper' or 'lower' bound:
 
-- upper: specify which data you want to drop, dumping everything else to `cleaned`
+- upper: specify which data you want to drop, dumping everything else to `normalised`
 - lower: specify which keys/data you want to keep, e.g. only returning a few keys which uniquely identify events in the data
 
 As an example say you had a JSON export:
@@ -178,4 +177,4 @@ if __name__ == "__main__":
     Normaliser.main()
 ```
 
-Otherwise if you have some complex data source you need to handle yourself, you can override `do_cleanup` and `unpacked` (how the data gets uncompressed/pre-processed) methods yourself
+Otherwise if you have some complex data source you need to handle yourself, you can override `do_normalise` and `unpacked` (how the data gets uncompressed/pre-processed) methods yourself
