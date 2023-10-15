@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterator
 
 
-from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file
+from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
 from bleanser.core.utils import Json, delkeys, patch_atoms  # for convenience...
 from bleanser.core.utils import mime
 
@@ -23,11 +23,7 @@ class JsonNormaliser(BaseNormaliser):
         return j
 
     @contextmanager
-    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        with self.unpacked(path=path, wdir=wdir) as upath:
-            pass
-        del path # just to prevent from using by accident
-
+    def normalise(self, *, path: Path) -> Iterator[Normalised]:
         # TODO maybe, later implement some sort of class variable instead of hardcoding
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
         # otherwise it essentially blocks waiting for all mimes to compute..
@@ -38,11 +34,11 @@ class JsonNormaliser(BaseNormaliser):
         #         'application/json',
         # }, mp
 
-        j = orjson.loads(upath.read_text())
+        j = orjson.loads(path.read_text())
         j = self.cleanup(j)
 
         # create a tempfile to write flattened data to
-        cleaned = unique_file_in_tempdir(input_filepath=upath, wdir=wdir, suffix='.json')
+        cleaned = unique_file_in_tempdir(input_filepath=path, dir=self.tmp_dir, suffix='.json')
 
         with cleaned.open('w') as fo:
             if isinstance(j, list):

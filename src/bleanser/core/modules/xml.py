@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterator
 
 
-from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file
+from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
 
 
 class Normaliser(BaseNormaliser):
@@ -16,17 +16,11 @@ class Normaliser(BaseNormaliser):
         return t
 
     @contextmanager
-    def do_cleanup(self, path: Path, *, wdir: Path) -> Iterator[Path]:
-        assert path.stat().st_size > 0, path  # just in case
-
-        with self.unpacked(path=path, wdir=wdir) as upath:
-            pass
-        del path # just to prevent from using by accident
-
+    def normalise(self, *, path: Path) -> Iterator[Normalised]:
         # todo not sure if need to release some resources here...
         parser = etree.XMLParser(remove_blank_text=True)
         # TODO we seem to lose comments here... meh
-        et = etree.fromstring(upath.read_bytes(), parser=parser)
+        et = etree.fromstring(path.read_bytes(), parser=parser)
         # restore newlines just for the top level
         assert et.text is None, et.text
         et.text = '\n'
@@ -36,7 +30,7 @@ class Normaliser(BaseNormaliser):
 
         et = self.cleanup(et)
 
-        cleaned = unique_file_in_tempdir(input_filepath=upath, wdir=wdir, suffix='.xml')
+        cleaned = unique_file_in_tempdir(input_filepath=path, dir=self.tmp_dir, suffix='.xml')
         cleaned.write_text(etree.tounicode(et))
 
         # TODO what is the assumption about shape?
