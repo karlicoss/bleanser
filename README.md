@@ -95,7 +95,7 @@ When comparing this, you could possibly:
 2. Write the `id` and the `href`, by specifying those two keys you're interested in
 3. Write the `id` and the `href`, by deleting the `images` key (this is different from 2!)
 
-There is a trade-off to be made here. For especially noisy exports with lots of metadata that might change over time that you're not interested in, number 3 means every couple months you might have to check and add new keys to delete (as an example see [spotify](./src/bleanser/modules/spotify.py). This could be seen as a positive as well, as it means when the schema for the API/data changes underneath you, you may notice it quicker
+There is a trade-off to be made here. For especially noisy exports with lots of metadata that might change over time that you're not interested in, number 3 means every couple months you might have to check and add new keys to delete (as an example see [spotify](./src/bleanser/modules/spotify.py)). This could be seen as a positive as well, as it means when the schema for the API/data changes underneath you, you may notice it quicker
 
 With option 2, you are more likely to remove redundant data files if additional metadata fields are added, and if you only really care about the `id` and `href` and you don't think the export format will change often, this is fine.
 
@@ -120,12 +120,14 @@ from bleanser.core.modules.json import JsonNormaliser, delkeys, Json
 
 
 class Normaliser(JsonNormaliser):
-    # here, j is a dict, each file that this gets passed from the CLI call below
-    # is pre-processed by the cleanup function
+    # here, j is a dict, each file that this gets passed from the CLI call
+    # below is pre-processed by the cleanup function
     def cleanup(self, j: Json) -> None:
         delkeys(j, keys={
             'images',
         })
+
+        return j
 
 
 if __name__ == '__main__':
