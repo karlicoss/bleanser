@@ -1236,10 +1236,10 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
 
 
 # TODO write a test for this
-def compute_diff(path1: Path, path2: Path, *, Normaliser) -> List[str]:
+def compute_diff(path1: Path, path2: Path, *, Normaliser: Type[BaseNormaliser]) -> List[str]:
     with bleanser_tmp_directory() as base_tmp_dir:
-        n1 = Normaliser(input=path1, base_tmp_dir=base_tmp_dir)
-        n2 = Normaliser(input=path2, base_tmp_dir=base_tmp_dir)
+        n1 = Normaliser(original=path1, base_tmp_dir=base_tmp_dir)
+        n2 = Normaliser(original=path2, base_tmp_dir=base_tmp_dir)
 
         with n1.do_normalise() as res1, n2.do_normalise() as res2:
             # ok, I guess diff_filter=None makes more sense here?
