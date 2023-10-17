@@ -2,17 +2,17 @@
 from glob import glob as do_glob
 from pathlib import Path
 import os
-from typing import Optional, List
+from typing import Optional, List, Type
 
 from .common import logger, Dry, Move, Remove, Mode
-from .processor import compute_instructions, apply_instructions, bleanser_tmp_directory
+from .processor import BaseNormaliser, compute_instructions, apply_instructions, bleanser_tmp_directory
 
 import click
 
 
 # TODO use context and default_map
 # https://click.palletsprojects.com/en/7.x/commands/#overriding-defaults
-def main(*, Normaliser) -> None:
+def main(*, Normaliser: Type[BaseNormaliser]) -> None:
     # meh.. by default the width is stupid, like 80 chars
     context_settings = {
         'max_content_width': 120,
@@ -34,16 +34,17 @@ def main(*, Normaliser) -> None:
     @click.option  ('--from', 'from_', type=int    , default=None)
     @click.option  ('--to'           , type=int    , default=None)
     def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool, difftool: str) -> None:
-        if to is None:
-            assert from_ is not None
-            to = from_ + 2
-
         path1_: Path
-        if path2 is _DEFAULT:
+        if glob:
+            assert path2 is _DEFAULT, path2
+            if to is None:
+                assert from_ is not None
+                to = from_ + 2
             paths = _get_paths(path=path1, from_=from_, to=to, glob=glob)
             assert len(paths) == 2, paths
             [path1_, path2] = paths
         else:
+            assert path2 is not _DEFAULT
             path1_ = Path(path1)
             path2 = Path(path2)
 
@@ -62,7 +63,7 @@ def main(*, Normaliser) -> None:
     @click.option('--stdout', is_flag=True, help='print normalised files to stdout instead of printing the path to it')
     def normalised(path: Path, stdout: bool) -> None:
         with bleanser_tmp_directory() as base_tmp_dir:
-            n = Normaliser(input=path, base_tmp_dir=base_tmp_dir)
+            n = Normaliser(original=path, base_tmp_dir=base_tmp_dir)
             with n.do_normalise() as cleaned:
                 if stdout:
                     print(cleaned.read_text())
