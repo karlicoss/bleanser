@@ -122,7 +122,7 @@ from bleanser.core.modules.json import JsonNormaliser, delkeys, Json
 class Normaliser(JsonNormaliser):
     # here, j is a dict, each file that this gets passed from the CLI call
     # below is pre-processed by the cleanup function
-    def cleanup(self, j: Json) -> None:
+    def cleanup(self, j: Json) -> Json:
         delkeys(j, keys={
             'images',
         })
