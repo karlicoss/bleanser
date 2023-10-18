@@ -415,8 +415,11 @@ class Tool:
             res[name] = schema
         return res
 
-    def drop(self, table: str) -> None:
-        self.connection.execute(f'DROP TABLE IF EXISTS `{table}`')
+    def drop(self, table: str, *tables: str) -> None:
+        # NOTE: both table and tables aregs are for backwards compat..
+        all_tables = [table, *tables]
+        for table in all_tables:
+            self.connection.execute(f'DROP TABLE IF EXISTS `{table}`')
 
     def drop_view(self, view: str) -> None:
         self.connection.execute(f'DROP VIEW IF EXISTS `{view}`')
