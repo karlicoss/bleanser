@@ -439,7 +439,7 @@ class Tool:
         cols = [c for c in cols if c in existing]
         if len(cols) == 0:
             return
-        self.update(table, **{col: '' for col in cols})
+        self.update(table, **{col: None for col in cols})
         # TODO crap. https://stackoverflow.com/a/66399224/706389
         # alter table is since march 2021... so won't be in sqlite for a while
         # for col in cols:
