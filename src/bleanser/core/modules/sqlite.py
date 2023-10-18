@@ -445,6 +445,34 @@ class Tool:
         # for col in cols:
         #     c.execute(f'ALTER TABLE {table} DROP COLUMN {col}')
 
+    def fix_bad_blob_column(self, table: str, *, column: str) -> None:
+        # see _check_allowed_blobs for more context and docs
+        db_schema = self.get_tables()
+        table_schema = db_schema.get(table)
+        if table_schema is None:
+            return
+        column_type = table_schema.get(column)
+        if column_type is None:
+            return
+        assert column_type == 'BLOB', column_type
+
+        actual_types: Set[str] = {
+            at for (at,) in self.connection.execute(f'SELECT DISTINCT typeof(`{column}`) FROM `{table}`')
+        }
+        actual_types.discard('null')
+
+        if actual_types == {'blob'}:
+            return
+
+        if actual_types == set():
+            # table has no actual data -- fine as well
+            return
+
+        # just in case, assuming the most common issue is when strings are kept as blobs
+        assert actual_types == {'text'}, actual_types
+
+        self.connection.execute(f'UPDATE `{table}` SET `{column}` = CAST(`{column}` AS BLOB)')
+
 
 if __name__ == '__main__':
     SqliteNormaliser.main()
