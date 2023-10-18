@@ -20,6 +20,9 @@ from ..processor import compute_groups, compute_instructions, BaseNormaliser, un
 from plumbum import local # type: ignore
 
 
+AllowedBlobs = Set[Tuple[str, str]]
+
+
 def checked_no_wal(db: Path) -> Path:
     shm = db.parent / (db.name + '-shm')
     wal = db.parent / (db.name + '-wal')
@@ -28,7 +31,59 @@ def checked_no_wal(db: Path) -> Path:
     return db
 
 
-def checked_db(db: Path, *, allowed_blobs: Optional[Set[Tuple[str, str]]]) -> Path:
+# Ok, so TLDR: sometimes sqlite might dump blob data as empty strings.
+# This obviously may result in inconsistent data view, and me might prune too much data.
+#
+# Essentially this happens because sqlite is relaxed about actual types of the data inserted
+# (unless the tables were created as STRICT in the first place).
+# In fact, sqlite3 .dump command doesn't even look at the schema at all, it always relies on the sqlite "cell" type.
+# See https://github.com/sqlite/sqlite/blob/0b4de1acac7da83cfaf72cbd00d1d1f2fd456b1a/ext/misc/dbdump.c#L481
+#
+# The really problematic case is when a TEXT value was inserted in the column that is supposed to be a BLOB.
+# In this case, sqlite3 .dump (always?) just ends up writing the blob as empty string.
+#
+# As a workaround, here we are checking that BLOB columns only actually contain BLOB values.
+# If this is the case, sqlite will properly dump the blob as hex with X prepended to it.
+# Otherwise, we check allowed_blobs from configs, which is essentially an 'ignore list' for such 'bad' BLOB columns.
+# If the column isn't in the ignore list, we just error since it would be unsafe to compare such databases.
+def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> None:
+    tool = Tool(conn)
+    schemas = tool.get_tables()
+    bad_blobs = []
+    for table, schema in schemas.items():
+        for col, type_ in schema.items():
+            if type_ != 'BLOB':
+                continue
+            key     = (table, col)
+            any_key = (table, '*')
+            if (key in allowed_blobs) or (any_key in allowed_blobs):
+                continue
+            actual_types: Set[str] = {
+                at for (at,) in conn.execute(f'SELECT DISTINCT typeof(`{col}`) FROM `{table}`')
+            }
+            actual_types.discard('null')  # nulls are harmless, worst case dumped as empty string
+
+            if actual_types == {'blob'}:
+                # OK, schema says blob, and the recorded type is blob -- it'll always be dumped correctly
+                continue
+
+            if actual_types == set():
+                # table has no actual data -- fine as well
+                continue
+
+            bad_blobs.append((key, actual_types))
+
+    if len(bad_blobs) > 0:
+        raise RuntimeError('\n'.join(
+            f"{key} : has type BLOB but contains values of other types ({actual_types}). "
+            "This may result in wrong textual representation for the database and pruning files we shouldn't prune. "
+            "Consider adding this to ALLOWED_BLOBS or removing the corresponding table from the db if you think it's safe to ignore."
+            for key, actual_types
+            in bad_blobs
+        ))
+
+
+def checked_db(db: Path, *, allowed_blobs: Optional[AllowedBlobs]) -> Path:
     # integrity check
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
@@ -36,18 +91,7 @@ def checked_db(db: Path, *, allowed_blobs: Optional[Set[Tuple[str, str]]]) -> Pa
         list(conn.execute('PRAGMA schema_version;'))
         list(conn.execute('PRAGMA integrity_check;'))
         if allowed_blobs is not None:
-            tool = Tool(conn)
-            schemas = tool.get_tables()
-            blobs = []
-            for table, schema in schemas.items():
-                for n, t in schema.items():
-                    if t == 'BLOB':
-                        key     = (table, n)
-                        any_key = (table, '*')
-                        if key not in allowed_blobs and any_key not in allowed_blobs:
-                            blobs.append((key, schema))
-            if len(blobs) > 0:
-                raise RuntimeError('\n'.join(f'{key}: {schema} has type BLOB -- not supported yet, sometimes dumps as empty string' for key, schema in blobs))
+            _check_allowed_blobs(conn=conn, allowed_blobs=allowed_blobs)
 
     conn.close()
     db = checked_no_wal(db)
@@ -206,7 +250,7 @@ def test_sqlite_many(tmp_path: Path, multiway: bool) -> None:
 class SqliteNormaliser(BaseNormaliser):
     # FIXME need a test, i.e. with removing single row?
 
-    ALLOWED_BLOBS: Set[Tuple[str, str]] = set()
+    ALLOWED_BLOBS: AllowedBlobs = set()
 
     @classmethod
     def checked(cls, db: Path) -> Path:
