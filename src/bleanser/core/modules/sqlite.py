@@ -14,7 +14,14 @@ from typing import Dict, Any, Iterator, Sequence, Set, Tuple, Optional
 from ..common import parametrize
 from ..common import Keep, Prune
 from ..utils import mime
-from ..processor import compute_groups, compute_instructions, BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
+from ..processor import (
+    compute_groups,
+    compute_instructions,
+    sort_file,
+    unique_file_in_tempdir,
+    BaseNormaliser,
+    Normalised,
+)
 
 
 from plumbum import local # type: ignore
@@ -40,12 +47,16 @@ def checked_no_wal(db: Path) -> Path:
 # See https://github.com/sqlite/sqlite/blob/0b4de1acac7da83cfaf72cbd00d1d1f2fd456b1a/ext/misc/dbdump.c#L481
 #
 # The really problematic case is when a TEXT value was inserted in the column that is supposed to be a BLOB.
-# In this case, sqlite3 .dump (always?) just ends up writing the blob as empty string.
+# In this case, sqlite3 .dump sometimes just ends up writing the blob as empty string.
+# This doesn't happen always, but for instance does if the blob starts with zero bytes
+# (supposedly sqlite C code treats it as null terminator then??)
 #
 # As a workaround, here we are checking that BLOB columns only actually contain BLOB values.
 # If this is the case, sqlite will properly dump the blob as hex with X prepended to it.
 # Otherwise, we check allowed_blobs from configs, which is essentially an 'ignore list' for such 'bad' BLOB columns.
 # If the column isn't in the ignore list, we just error since it would be unsafe to compare such databases.
+#
+# This logic is tested to some extent by tests/sqlite.py::test_sqlite_blobs_allowed
 def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> None:
     tool = Tool(conn)
     schemas = tool.get_tables()
