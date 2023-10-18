@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+from sqlite3 import Connection
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
@@ -6,41 +6,41 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
-        # TODO actually these might be interesting to process???
-        ('contextual_match', 'by_opener'),
-        ('contextual_match', 'by_closer'),
-        *(('match_person', x) for x in ['gender', 'photos', 'badges', 'jobs', 'schools', 'city']),
-        ('pending_media', 'media_template'),
-        ('profile_descriptor', 'descriptor'),
-        ('profile_media', 'media_template'),
-        ('top_pick_teaser', 'tags'),
-        ('sponsored_match_creative_values', 'photos'),
-        ('sponsored_match_creative_values', 'match_screen_image'),
-        *(('profile_user', x) for x in ['gender', 'photos', 'badges', 'jobs', 'schools', 'city', 'sexual_orientations']),
-        ('profile_add_loop', 'loops'),
-        ('instagram_new_media', 'media'),
-        ('profile_change_school', 'schools'),
-        ('activity_feed_artist', 'images'),
-        ('activity_feed_album', 'images'),
-        ('profile_change_work', 'works'),
-        ('profile_add_photo', 'photos'),
-        ('instagram_connect', 'photos'),
-    }
+
+    def check(self, c: Connection) -> None:
+        tool = Tool(c)
+        tables = tool.get_tables()
+        matches = tables['match']
+        assert 'person_id' in matches, matches
+
+        messages = tables['message']
+        assert 'text' in messages, messages
+        assert 'match_id' in messages, messages
 
 
-    def cleanup(self, c) -> None:
+    def cleanup(self, c: Connection) -> None:
+        self.check(c)
+
         t = Tool(c)
-        t.drop('instagram_broken_links')
-        t.drop('explore_attribution')
+
+        t.drop(
+            'instagram_broken',
+            'explore_attribution',
+
+            ## messages from Tinder
+            'inbox_message',
+            'inbox_message_images',
+            'inbox_message_text_formatting',
+            ##
+        )
 
         # eh, don't think it impacts anyway
         # t.drop('contextual_match')
+        # it contains some photos? dunno
 
         # some odd id that increases with no impact for other data
         t.drop_cols(table='profile_media', cols=['client_sequential_id'])
 
-        # TODO I guess generally safer to drop specific columns instead of whole tables
         t.drop_cols(table='match_seen_state', cols=['match_id', 'last_message_seen_id'])
 
         t.drop('match_your_turn_state')
@@ -52,6 +52,13 @@ class Normaliser(SqliteNormaliser):
         t.drop('last_activity_date')
 
         # hmm what is match_harassing_message??
+
+        # TODO not sure about this?
+        # t.drop_cols('match', cols=[
+        #     'last_activity_date',
+        # ])
+
+        # TODO profile_descriptor changes quite a lot? not sure
 
         # match->last_activity_date -- hmmm changing quite a bit? is it interesting? not sure
         #

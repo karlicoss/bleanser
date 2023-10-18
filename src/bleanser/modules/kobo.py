@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+from sqlite3 import Connection
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
@@ -8,7 +8,7 @@ class Normaliser(SqliteNormaliser):
     PRUNE_DOMINATED = True
 
 
-    def check(self, c) -> None:
+    def check(self, c: Connection) -> None:
         tool = Tool(c)
         tables = tool.get_tables()
         assert 'content'     in tables, tables
@@ -19,7 +19,7 @@ class Normaliser(SqliteNormaliser):
         assert 'BookAuthors' in tables, tables
 
 
-    def cleanup(self, c) -> None:
+    def cleanup(self, c: Connection) -> None:
         self.check(c)
 
         tool = Tool(c)
