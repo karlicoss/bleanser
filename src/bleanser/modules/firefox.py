@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+from sqlite3 import Connection
+
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
@@ -6,16 +7,8 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
-        ('favicons', 'data'),
-        ('thumbnails', 'data'),
-        ('bookmarks_with_favicons', 'favicon'),
-        ('history_with_favicons', 'favicon'),
-        ('combined_with_favicons', 'favicon'),
-    }
 
-
-    def is_old_firefox(self, c) -> bool:
+    def is_old_firefox(self, c: Connection) -> bool:
         tool = Tool(c)
         tables = tool.get_tables()
         if 'bookmarks' in tables:
@@ -25,7 +18,7 @@ class Normaliser(SqliteNormaliser):
         raise RuntimeError(f"Unexpected schema {tables}")
 
 
-    def check(self, c) -> None:
+    def check(self, c: Connection) -> None:
         tool = Tool(c)
         tables = tool.get_tables()
         if self.is_old_firefox(c):
@@ -47,7 +40,7 @@ class Normaliser(SqliteNormaliser):
             assert 'id'  in p, p
 
 
-    def cleanup(self, c) -> None:
+    def cleanup(self, c: Connection) -> None:
         self.check(c)
 
         if self.is_old_firefox(c):
