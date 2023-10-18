@@ -138,6 +138,7 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
         return
 
     # otherwise, need to create a temporary db to operate on -- and after that can dump it to sql
+    # TODO need to be careful, if there are BLOBs in the database they may be dumped as empty strings
     with TemporaryDirectory() as td:
         tdir = Path(td)
         tdb = Path(tdir) / 'tmp.db'
@@ -151,20 +152,6 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
 
 def test_dumben(tmp_path: Path) -> None:
     # TODO would be nice to implement integration style test here straight away
-    sql = '''
-CREATE TABLE inventory
-( inventory_id INT PRIMARY KEY,
-  product_id INT NOT NULL,
-  quantity INT,
-  min_level INT,
-  max_level INT,
-  CONSTRAINT fk_inv_product_id
-    FOREIGN KEY (product_id)
-    REFERENCES products (product_id)
-    ON DELETE CASCADE
-);
-    '''
-
     sql = '''
 CREATE TABLE departments
 ( department_id INTEGER PRIMARY KEY AUTOINCREMENT,
