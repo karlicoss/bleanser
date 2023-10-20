@@ -11,6 +11,12 @@ class Normaliser(JsonNormaliser):
             # old format -- I think only contained events log or something
             return j
 
+        profile = j.get('profile')
+        if profile is not None:
+            profile.pop('disk_usage', None)
+            profile.pop('updated_at', None)  # I think it updates at any github activity, so pretty pointless
+            profile.pop('followers', None)  # pretty volatile, so not worth keeping + refected in "followers" field anyway
+
         volatile = [
             'stargazers_count',
             'watchers',
@@ -21,9 +27,13 @@ class Normaliser(JsonNormaliser):
             'open_issues_count',
         ]
 
-        for what in ['watched', 'starred', 'subscriptions']:
-            for r in j[what]:
+        for what in ['repos', 'watched', 'starred', 'subscriptions']:
+            thing = j.get(what)
+            if thing is None:
+                continue
+            for r in thing:
                 # these are gonna be super flaky, so just ignore from diff
+                # for our own repos they are duplicated in events anyway
                 for k in [
                         *volatile,
                         'updated_at',
@@ -32,6 +42,12 @@ class Normaliser(JsonNormaliser):
                 ]:
                     r.pop(k, None)
 
+                repo_name = r["full_name"]
+                if repo_name == 'emacs-straight/advice-patch':
+                    r.pop('description')
+                    # changes every day automatically
+                    # TODO move to private overlay?
+
         for r in j['repos']:
             repo_name = r["full_name"]
 
@@ -39,7 +55,7 @@ class Normaliser(JsonNormaliser):
                 v = r.get(k)
                 if v is None:
                     continue
-                r[k] = r[k] // 10 * 10
+                r[k] = r[k] // 10 * 10  # round up to nearest multiple of 10 so there are less diffs
 
             ## need to 'flatten' traffic, otherwise it can't properly figure out diffs
             ## TODO possible to make generic, e.g. hint the normaliser that we need to flatten .repos.traffic.clones field

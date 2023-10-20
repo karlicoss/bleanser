@@ -665,7 +665,8 @@ def _compute_groups_serial(
     cached = len(getattr(ires, '_cache'))
     assert cached == total, 'Iterator should be fully processed!'
 
-    stale_files = [p for p in base_tmp_dir.rglob('*') if p.is_file()]
+    # TODO: this is not thread safe, should check this above the call stack when Pool is finished
+    # stale_files = [p for p in base_tmp_dir.rglob('*') if p.is_file()]
     # TODO at the moment this assert fails sometimes -- need to investigate
     # assert len(stale_files) == 0, stale_files
 
@@ -1251,7 +1252,7 @@ def compute_diff(path1: Path, path2: Path, *, Normaliser: Type[BaseNormaliser]) 
                 if difftool == 'vimdiff':
                     wrap = ['-c', 'windo set wrap']
                     # wrap = []
-                    diffopts = ['-c', 'set diffopt=filler,context:0']
+                    diffopts = ['-c', 'set diffopt=filler,context:0']  # show only diffs and hide identical lines
                     extras.extend(wrap)
                     extras.extend(diffopts)
 
