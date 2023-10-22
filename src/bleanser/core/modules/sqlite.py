@@ -397,6 +397,7 @@ class Tool:
         res = {}
         for c in self.connection.execute('SELECT name, type FROM sqlite_master'):
             [name, type_] = c
+            assert type_ in {'table', 'index', 'view', 'trigger'}, (name, type_)  # just in case
             res[name] = type_
         return res
 
@@ -411,6 +412,10 @@ class Tool:
             for row in self.connection.execute(f'PRAGMA table_info(`{name}`)'):
                 col   = row[1]
                 type_ = row[2]
+                # hmm, somewhere between 3.34.1 and 3.37.2, sqlite started normalising type names to uppercase
+                # let's do this just in case since python < 3.10 are using the old version
+                # e.g. it could have returned 'blob' and that would confuse blob check (see _check_allowed_blobs)
+                type_ = type_.upper()
                 schema[col] = type_
             res[name] = schema
         return res
