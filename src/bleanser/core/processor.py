@@ -130,10 +130,11 @@ class BaseNormaliser:
         '''
         yield path
 
-        # e.g., subclasses might read/parse upath, write to some unique tempfile
-        # and yield the 'cleaned' path
+        # e.g., subclasses would read/parse data from path,
+        # write to some unique tempfile (probably using unique_file_in_tempdir)
+        # and yield that tempfile back to the caller
         #
-        # for an example, see modules/json_new.py
+        # for an example, see modules/json.py
 
     @contextmanager
     def do_normalise(self) -> Iterator[Normalised]:

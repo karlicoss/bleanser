@@ -103,9 +103,9 @@ Option 3. is generally the safest, but most verbose/tedious, it makes sure you'r
 
 Ideally you meet somewhere in the middle, it depends a lot on the specific export data you're comparing.
 
-As it can be a bit difficult to follow, generally this is doing something like.
+As it can be a bit difficult to follow, generally this is doing something like:
 
-- Decompress file if its a known compressed format into a `cleaned` file (`unpacked` in [`BaseNormaliser`](./src/bleanser/core/processor.py))
+- Decompress file if its a known compressed format into a `cleaned` file (`unpacked` in [`BaseNormaliser`](./src/bleanser/core/processor.py)), see [`kompress`](https://github.com/karlicoss/kompress/) for supported compression formats
 - Creating a temporary file to write data to (`unique_file_in_tempdir` in [`BaseNormaliser`](./src/bleanser/core/processor.py))
 - Parse the `cleaned` file into python objects (`JsonNormaliser`, `XmlNormaliser`, or something custom)
 - Let the user `cleanup` the data to remove noisy keys/data (specific modules, e.g. [spotify](./src/bleanser/modules/spotify.py))
