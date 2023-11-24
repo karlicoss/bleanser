@@ -55,7 +55,7 @@ class Normaliser(BaseNormaliser):
         # if the input file was compressed, the "path" you recieve here will be decompressed
         
         # a temporary file we write 'normalised' data to, that can be easily diffed/compared
-        normalised = unique_file_in_tempdir(input_filepath=upath, dir=self.tmp_dir)
+        normalised = unique_file_in_tempdir(input_filepath=path, dir=self.tmp_dir)
 
         # some custom code here per-module that writes to 'normalised'
 
@@ -163,14 +163,14 @@ If you're not able to subclass one of the those, you might be able to subclass [
 ```python
 import json
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Any
 
 from bleanser.core.modules.extract import ExtractObjectsNormaliser
 
 
 class Normaliser(ExtractObjectsNormaliser):
-    def extract_objects(self, path: Path):
-        data = json.loads(file_path.read_text())
+    def extract_objects(self, path: Path) -> Iterator[Any]:
+        data = json.loads(path.read_text())
         for blob in data:
             yield (blob["id"], blob["href"])
 
