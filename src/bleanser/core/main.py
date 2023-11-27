@@ -2,7 +2,7 @@
 from glob import glob as do_glob
 from pathlib import Path
 import os
-from typing import Optional, List, Type
+from typing import Optional, List, Type, cast
 
 from .common import logger, Dry, Move, Remove, Mode
 from .processor import BaseNormaliser, compute_instructions, apply_instructions, bleanser_tmp_directory
@@ -36,7 +36,7 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
     def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool, difftool: str) -> None:
         path1_: Path
         if glob:
-            assert path2 is _DEFAULT, path2
+            assert path2 is cast(Path, _DEFAULT), path2
             if to is None:
                 assert from_ is not None
                 to = from_ + 2
@@ -44,7 +44,7 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
             assert len(paths) == 2, paths
             [path1_, path2] = paths
         else:
-            assert path2 is not _DEFAULT
+            assert cast(str, path2) is not _DEFAULT
             path1_ = Path(path1)
             path2 = Path(path2)
 
