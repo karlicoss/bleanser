@@ -61,7 +61,10 @@ def _dumben_db(output_db: Path) -> None:
     # first delete virtual tables -- they might render it impossible to do anything with database at all due to USING
     # e.g. fb messenger android msys database has this CREATE VIRTUAL TABLE msys_experiment_cache USING experiment_cache
     # either way virtual tables are basically views, no need to keep them
-    check_call(_sqlite(output_db, 'PRAGMA writable_schema=ON; DELETE FROM sqlite_master WHERE sql LIKE "%CREATE VIRTUAL TABLE%";'))
+    with sqlite3.connect(output_db) as conn:
+        conn.execute('PRAGMA writable_schema=ON')
+        conn.execute('DELETE FROM sqlite_master WHERE sql LIKE "%CREATE VIRTUAL TABLE%"')
+    conn.close()
 
     tables = _get_tables(output_db)
 
@@ -87,15 +90,11 @@ def _dumben_db(output_db: Path) -> None:
         'VACUUM',
     ]
 
-    # using temporary file because the argument list might end up too long
-    # e.g. was the case with facebook android databases, too many tables
-    with TemporaryFile() as tf:
+    # need to set isolation level to None, otherwise VACUUM fails
+    with sqlite3.connect(output_db, isolation_level=None) as conn:
         for cmd in cmds:
-            tf.write(cmd.encode('utf8') + b'\n')
-        tf.seek(0)
-
-        # TODO perhaps instead use python3 interface? so it escapes properly
-        subprocess.run(_sqlite(output_db), check=True, input=tf.read())
+            conn.execute(cmd)
+    conn.close()
 
     # make sure it's not corrupted
     # redirect output to DEVNULL, otherwise it's printing "ok" which is a bit annoying
