@@ -57,12 +57,19 @@ def _dumben_db(output_db: Path) -> None:
     # the only easy win is making it single line
     # "UPDATE sqlite_master SET sql = replace(sql, char(10), ' ');"
 
+    allow_writable_schema = [
+        # seems like some versions of sqlite (e.g. on osx don't allow writable schema without this pragma)
+        # https://github.com/tekartik/sqflite/blob/master/sqflite_common_ffi/doc/custom_pragmas.md?plain=1
+        "PRAGMA sqflite -- db_config_defensive_off",
+        "PRAGMA writable_schema=ON",
+    ]
 
     # first delete virtual tables -- they might render it impossible to do anything with database at all due to USING
     # e.g. fb messenger android msys database has this CREATE VIRTUAL TABLE msys_experiment_cache USING experiment_cache
     # either way virtual tables are basically views, no need to keep them
     with sqlite3.connect(output_db) as conn:
-        conn.execute('PRAGMA writable_schema=ON')
+        for cmd in allow_writable_schema:
+            conn.execute(cmd)
         conn.execute('DELETE FROM sqlite_master WHERE sql LIKE "%CREATE VIRTUAL TABLE%"')
     conn.close()
 
@@ -77,7 +84,7 @@ def _dumben_db(output_db: Path) -> None:
         updates.append(upd)
 
     cmds = [
-        "PRAGMA writable_schema=ON;",
+        *allow_writable_schema,
         # drop table doesn't work for special sqlite_ tables
         # sqlite_sequence is something to do with autoincrement, ends up with some indices noise otherwise
         # sqlite_stat{1,2,3,4} is something to do with ANALYZE query
