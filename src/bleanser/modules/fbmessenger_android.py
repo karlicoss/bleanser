@@ -8,62 +8,6 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
-        # msys_database
-          ('secure_message_pre_keys_v2'           , '*') # not useful
-        ## mostly empty, dunno what it is
-        , ('secure_message_client_identity_v2'    , '*')
-        , ('secure_message_session_state_v2'      , '*')
-        , ('secure_message_ab_props_v2'           , '*')
-        , ('secure_encrypted_backups_client_state', '*')
-        , ('advanced_crypto_transport_attachments', '*')
-        , ('whats_app_media_item'                 , '*')
-        , ('secure_recovery_code_data'            , '*')
-        , ('secure_encrypted_backups_epochs'      , '*')
-        , ('advanced_crypto_transport_messages'   , '*')
-        , ('advanced_crypto_transport_legacy_attachments', '*')
-        ##
-        , ('secure_message_signed_pre_keys_v2'    , '*')
-        , ('secure_message_media_key_v2'          , '*')
-        , ('encrypted_backups_client_state'       , '*')
-
-        , ('secure_message_secret_keys', 'value')
-        , ('secure_message_sender_key_v2', 'sender_key')
-        , ('crypto_auth_token', 'token')
-        , ('remote_sp_set', 'remote_sp_blob')
-        , ('secure_message_edge_routing_info_v2', 'edge_routing_info')
-        , ('secure_message_futureproof_data_v2', 'futureproof_data')
-        , ('encrypted_message_futureproof_data', 'futureproof_data')
-        , ('messenger_encrypted_messaging_pending_messages', 'application_data')
-        , ('secure_message_decrypt_journal_v2', 'journal_data')
-        , ('secure_encrypted_backups_epochs', 'epoch_root_key_blob')
-        , ('secure_message_icdc_additional_devices_v2', 'remote_identity_key')
-        , ('secure_message_icdc_metadata_v2', 'signature_device_key')
-        , ('secure_encrypted_backups_devices', 'public_key')
-        , ('advanced_crypto_transport_downloaded_attachments', 'plaintext_hash')
-        , ('whats_app_contact', 'device_list')
-        , ('whats_app_z1_payment_transaction', 'metadata')
-        , ('whats_app_group_info', 'extension')
-        , ('encrypted_backups_virtual_devices', 'virtual_device_id')
-        , ('secure_encrypted_backups_qr_add_device_context', 'temp_ocmf_client_state')
-        , ('advanced_crypto_transport_appdata_messages', 'serialized_payload') # used to be in msys db
-        , ('messages_optimistic_context', 'dety_params')
-        , ('secure_message_poll_secret_v2', 'poll_key')
-
-        , ('secure_acs_configurations', '*')
-        , ('secure_acs_blinded_tokens', '*')
-        , ('secure_acs_tokens', '*')
-        , ('pending_backups_protobufs', 'protobuf_blob')
-        , ('local_message_persistence_store_supplemental', 'protobuf')
-        , ('local_message_persistence_store', 'protobuf')
-        , ('secure_get_secrets_context', 'temp_ocmf_client_state')
-        , ('local_message_persistence_store_deleted_messages', 'deleted_message_payload')
-        , ('local_message_persistence_store_supplemental', 'message_payload')  # hmm? 
-        , ('local_message_persistence_store', 'message_payload') 
-        , ('sap_vesta_register_context_v2', '*')
-        , ('messenger_encrypted_messaging_stanzas', 'stanza')
-    }
-
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
 
@@ -168,13 +112,43 @@ class Normaliser(SqliteNormaliser):
         t.drop('pending_task_parents')
         t.drop('hmps_status')
         t.drop('_cached_participant_thread_info')
+        t.drop('messenger_encrypted_messaging_periodic_tasks')
+        t.drop('push_notifications')
+        t.drop('gradient_colors')
+        t.drop('messenger_dynamic_presence_backgrounds')
+        t.drop('avatar_template_pack_entries')
+        t.drop('avatar_template_packs')
+        t.drop('messages_ranges_v2__generated')
+        t.drop('notif_silent_push_settings')
+        t.drop('messaging_privacy_settings')
+        t.drop('secure_message_client_identity_v2')
+        t.drop('secure_composer_state')
+        t.drop('secure_message_signed_pre_keys_v2')
+        t.drop('secure_message_client_state_v2')
+        t.drop('messages_optimistic_context')
+        t.drop('community_messaging_aggregated_copresence_counts_for_chat')
+        t.drop('community_thread_sync_info')
+        t.drop('inbox_threads_ranges')
+        t.drop('sync_group_threads_ranges')
+        t.drop('secure_message_pre_keys_v2')
+        t.drop('sharing_life_events')
+        t.drop('fw_ranking_scores')
+        t.drop('fw_ranking_requests')
+        t.drop('threads_ranges__generated')
+        t.drop('threads_ranges_v2__generated')
+        t.drop('community_messaging_aggregated_user_presence_counts_for_community')
 
 
-        t.drop_cols('participants', cols=['last_message_send_timestamp_ms'])
-
-        # TODO not sure about these?
-        # t.drop('sync_group_threads_ranges')
-        # t.drop('threads_ranges__generated')
+        t.drop_cols('participants', cols=[
+            ## volatile
+            'last_message_send_timestamp_ms',
+            'read_watermark_timestamp_ms',
+            'delivered_watermark_timestamp_ms',
+            'read_action_timestamp_ms',
+            'capabilities',
+            'participant_capabilities',
+            ##
+        ])
 
         # TODO move to Tool?
         def drop_cols_containing(tbl_name: str, *, containing: List[str]) -> None:
@@ -190,10 +164,64 @@ class Normaliser(SqliteNormaliser):
             'last_activity_watermark_timestamp_ms',
             'last_read_watermark_timestamp_ms',
             'last_message_cta_id',
+            'reviewed_policy_violation',
+            'reported_policy_violation',
+            'snippet_text',
+            'snippet_sender_contact_id',
         ])
-        t.drop_cols('threads', cols=['snippet', 'sort_order_override'])
+        t.drop_cols('threads', cols=[
+            'snippet',
+            'sort_order_override',
+            ## volatile
+            'member_count',
+            'locked_status',
+            'thread_capabilities_fetch_ts',
+            'event_start_timestamp_ms',
+            'event_end_timestamp_ms',
+            'snippet_has_emoji',
+            'capabilities',
+            'should_round_thread_picture',
+            # TODO snipper_sender_contact_id sometimes changes??
+            ##
+        ])
+        t.drop_cols('messages', cols=[
+            ## volatile
+            'authority_level',
+            'send_status',
+            'send_status_v2',
+            ##
+        ])
 
-        for tbl_name in ['contacts', 'client_contacts']:
+        drop_cols_containing('community_folders', containing=[
+            'picture_url',
+        ])
+        t.drop_cols('community_folders', cols=[
+            ## volatile
+            'member_count',
+            'capabilities',
+            ##
+        ])
+
+        t.drop_cols('contacts', cols=[
+            ## volatile
+            'family_relationship',
+            'requires_multiway',
+            'capabilities',
+            'capabilities_2',
+            'rank',
+            'is_messenger_user',
+            'contact_type_exact',
+            'messenger_call_log_third_party_id',
+            # TODO montage_thread_fbid is volatile?
+            ##
+        ])
+        t.drop_cols('client_contacts', cols=[
+            'capabilities_1',
+            'capabilities_2',
+        ])
+
+        # TODO fb_transport_contacts?
+        for tbl_name in ['contacts', 'client_contacts', 'client_threads']:
             # these change all the time and expire
             drop_cols_containing(tbl_name, containing=[
                 'profile_picture',
@@ -204,7 +232,6 @@ class Normaliser(SqliteNormaliser):
                 'wa_connect_status',
                 'restriction_type',
             ])
-            # TODO montage_thread_fbid? seems to change often?
 
         drop_cols_containing('fb_events', containing=[
             'event_picture_url',
