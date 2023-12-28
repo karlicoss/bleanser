@@ -95,6 +95,7 @@ class Normaliser(SqliteNormaliser):
         )
         tool.drop('moz_meta')
         tool.drop('moz_origins')  # prefix/host/frequency -- not interesting
+        # tool.drop('moz_annos')  # not sure -- contains downloads data? might be volatile
 
         tool.drop_cols('moz_inputhistory', cols=[
             'use_count', #  eh, some floating point that changes all the time
@@ -112,10 +113,15 @@ class Normaliser(SqliteNormaliser):
         ])
         tool.drop('moz_places_metadata_search_queries')
 
-        # TODO total_view_time? seems volatile.. gonna update every time
         tool.drop_cols('moz_places_metadata', cols=[
-            'total_view_time',
+            ## volatile
             'updated_at',
+            'total_view_time',
+            'typing_time',
+            'key_presses',
+            'scrolling_time',
+            'scrolling_distance',
+            ##
         ])
         ##
 
