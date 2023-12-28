@@ -15,6 +15,13 @@ class Normaliser(SqliteNormaliser):
         assert 'status_id' in statuses
         assert 'content' in statuses
 
+        [(total_statuses,)] = c.execute('SELECT COUNT(*) FROM statuses')
+        assert total_statuses > 10  # sanity check
+
+        [(statuses_without_content,)] = c.execute('SELECT COUNT(*) FROM statuses WHERE content IS NULL')
+        # another sanity check -- to make sure the content is actually stored in this column and not lost during migrations
+        assert statuses_without_content == 0
+
         timeline = tables['timeline']
 
     def cleanup(self, c) -> None:
@@ -43,38 +50,26 @@ class Normaliser(SqliteNormaliser):
             'reply_count',
             'bookmark_count',
             'quote_count',
+            'tweet_source',  # sometimes NULL at first?
+            'flags',
+            'self_thread_id',
 
             'edit_control',  # no idea what it is
+            'unmention_info',  # no idea, some binary crap (not even text)
+            'quick_promote_eligibility',
+            'quoted_status_permalink',
+            'conversation_control',
             ##
 
             'r_ent_content',  # contains same data as 'content'
+
+            # cards contain some extra data embedded from the website (e.g. preview)
+            # might be actually useful to extract data from it
+            'card', 'unified_card',
         ])
 
-        t.drop_cols('users', cols=[
-            '_id',  # internal id
-
-            ## volatile
-            'followers',
-            'friends',
-            'statuses',
-            'favorites',
-            'media_count',
-            'updated',
-            'hash',
-            'user_flags',
-            'advertiser_type',
-            'url_entities',
-            'pinned_tweet_id',
-            'description',
-            'image_url',
-            'header_url',
-            'profile_image_shape',
-            'professional',
-            'user_label_data',
-            'verified_type',
-            ##
-        ])
-
+        # NOTE: in principle tweet data is all in statues table
+        # but we need timeline to reconstruct some feeds (e.g. users own tweets)
         t.drop_cols('timeline', cols=[
             '_id',  # internal id
 
@@ -101,7 +96,10 @@ class Normaliser(SqliteNormaliser):
            OR entity_group_id LIKE "%promoted%"
            OR entity_group_id LIKE "%home-conversation%"
            OR entity_id       LIKE "%trends%"
+           OR entity_id       LIKE "%superhero%"
         ''')
+
+        t.drop('users')  # they change all the time and probs not worth keeping all changes
 
 
         def remove_volatile_content(s):
@@ -120,6 +118,11 @@ class Normaliser(SqliteNormaliser):
         # also this doesn't seem to solve everything sadly.. so for now commenting
         # c.create_function('REMOVE_VOLATILE_CONTENT', 1, remove_volatile_content)
         # list(c.execute('UPDATE statuses SET content = REMOVE_VOLATILE_CONTENT(content)'))
+
+        # so it's a bit shit, but content shouldn't really change, and seems too hard to filter out these changes in binary blobs here
+        # except edited tweets? but I have a feeling editing is controlled by timeline.updated or something
+        # either way it would be so rare it will likely be caught collaterally by other data changes
+        c.execute('UPDATE statuses SET content = NULL')
 
 
 if __name__ == '__main__':
