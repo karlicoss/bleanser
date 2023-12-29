@@ -156,6 +156,7 @@ class Normaliser(SqliteNormaliser):
             'message_system_chat_participant',
 
             'message_template',
+            'message_template_button',
             'message_send_count',
 
             'backup_changes',  # some internal state handling, doesn't have anything useful
@@ -165,12 +166,17 @@ class Normaliser(SqliteNormaliser):
             'message_status_psa_campaign',
 
             'deleted_chat_job',
+            'scheduled_reminder_message',
+            'message_system_photo_change',
+            'status_crossposting_v3',
 
             # TODO group_past_participant_user not sure if useful? kinda volatile
         ]:
             t.drop(table)
 
         t.drop_cols(table='chat', cols=[
+            '_id',  # actual chat id seems to be in jid_row_id
+
             'hidden',  # kinda volatile and not that interesting to track
 
             'display_message_row_id',
@@ -179,12 +185,14 @@ class Normaliser(SqliteNormaliser):
             'last_read_receipt_sent_message_row_id',
             'last_important_message_row_id',
             'sort_timestamp',
+            'spam_detection',
             'unseen_earliest_message_received_time',
             'unseen_message_count',
             'unseen_row_count',
             'unseen_message_reaction_count',
             'unseen_important_message_count',
             'history_sync_progress',
+            'change_number_notified_message_row_id',
 
             ## newer db versions
             # flaky fields
@@ -197,7 +205,10 @@ class Normaliser(SqliteNormaliser):
             'mod_tag',
 
             'has_new_community_admin_dialog_been_acknowled',
-            'history_sync_progress',
+            'show_group_description',
+            'growth_lock_level',
+            'growth_lock_expiration_ts',
+            'chat_origin',
 
             # NOTE ugh. created_timestamp is a bit flaky? often goes from NULL to the actual value
             # this might be an interesting usecase/test for extract mode?
@@ -236,6 +247,18 @@ class Normaliser(SqliteNormaliser):
             # todo media_name might be flaky?? sometimes sets from NULL to file name?
             # same info is in file_path though... so idk
         ])
+
+        # the mapping itself is between group_jid_row_id and user_jid_row_id columns
+        # seems like sometimes entries are reordered or something
+        for table in [
+            'group_participant_user',
+            'group_past_participant_user',
+            # TODO not sure if should do same with message and chat tables?
+        ]:
+            t.drop_cols(table=table, cols=[
+                '_id',
+                'rank',
+            ])
 
 
 if __name__ == '__main__':
