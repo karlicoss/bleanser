@@ -40,6 +40,8 @@ class Normaliser(SqliteNormaliser):
 
         t.drop('retweets')  # seems like it contains last retweet for each tweet or something.. doesn't actually have tweet data
 
+        t.drop('tokens')  # some internal thing
+
         t.drop_cols('statuses', cols=[
             '_id',  # internal id
 
@@ -95,9 +97,15 @@ class Normaliser(SqliteNormaliser):
            OR entity_group_id LIKE "%semantic%"
            OR entity_group_id LIKE "%promoted%"
            OR entity_group_id LIKE "%home-conversation%"
+           OR entity_group_id LIKE "%notification%"
            OR entity_id       LIKE "%trends%"
            OR entity_id       LIKE "%superhero%"
         ''')
+
+        # after all decided to drop 'timeline' completely.. all actual data is in statuses table anyway
+        # - the vast majority of volatile entrites in it are type == 17 (not sure what it is)
+        # - it also contains non-user timelines (e.g. when you open someone's profile in twitter app)
+        t.drop('timeline')
 
         t.drop('users')  # they change all the time and probs not worth keeping all changes
 
@@ -122,7 +130,7 @@ class Normaliser(SqliteNormaliser):
         # so it's a bit shit, but content shouldn't really change, and seems too hard to filter out these changes in binary blobs here
         # except edited tweets? but I have a feeling editing is controlled by timeline.updated or something
         # either way it would be so rare it will likely be caught collaterally by other data changes
-        c.execute('UPDATE statuses SET content = NULL')
+        c.execute("UPDATE statuses SET content = X'BABABA'")
 
 
 if __name__ == '__main__':
