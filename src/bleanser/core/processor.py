@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import subprocess
 from subprocess import check_call
 from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
 from time import time
@@ -1238,24 +1239,47 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
 
 
 # TODO write a test for this
-def compute_diff(path1: Path, path2: Path, *, Normaliser: Type[BaseNormaliser]) -> List[str]:
-    with bleanser_tmp_directory() as base_tmp_dir:
-        n1 = Normaliser(original=path1, base_tmp_dir=base_tmp_dir)
-        n2 = Normaliser(original=path2, base_tmp_dir=base_tmp_dir)
+def compute_diff(paths: List[Path], *, Normaliser: Type[BaseNormaliser]) -> List[str]:
+    assert len(paths) >= 2, paths
 
-        with n1.do_normalise() as res1, n2.do_normalise() as res2:
-            # ok, I guess diff_filter=None makes more sense here?
-            # would mean it shows the whole thing
-            # meh
-            difftool = os.environ.get('DIFFTOOL', None)
-            if difftool is not None:
-                extras: List[str] = []
-                if difftool == 'vimdiff':
-                    wrap = ['-c', 'windo set wrap']
-                    # wrap = []
-                    diffopts = ['-c', 'set diffopt=filler,context:0']  # show only diffs and hide identical lines
-                    extras.extend(wrap)
-                    extras.extend(diffopts)
+    difftool = os.environ.get('DIFFTOOL', None)
+    difftool_args: List[str] = []
+    if difftool == 'vimdiff':
+        wrap = ['-c', 'windo set wrap']
+        diffopts = ['-c', 'set diffopt=filler,context:0']  # show only diffs and hide identical lines
+        difftool_args.extend(wrap)
+        difftool_args.extend(diffopts)
 
-                os.execlp(difftool, difftool, *extras, str(res1), str(res2))
-            return do_diff(res1, res2, diff_filter=None)
+    with bleanser_tmp_directory() as base_tmp_dir, ExitStack() as exit_stack:
+        results = []
+        for path in paths:
+            pn = Normaliser(original=path, base_tmp_dir=base_tmp_dir)
+            results.append((path, exit_stack.enter_context(pn.do_normalise())))
+
+        # if > 2 paths are passed, we're treating first and last path as 'pivots', and comparing to all the stuff in the middle
+        first = results[0]
+        last  = results[-1]
+        rest  = results[1:-1]
+
+        if len(rest) == 0:
+            group1 = [first]
+            group2 = [last]
+        else:
+            group1 = rest
+            group2 = [first, last]
+
+        logger.info('comparing [ %s ] vs [ %s ]', ' '.join(str(p) for p, _ in group1), ' '.join(str(p) for p, _ in group2))
+
+        fs1 = FileSet([r for _, r in group1], wdir=base_tmp_dir)
+        fs2 = FileSet([r for _, r in group2], wdir=base_tmp_dir)
+        c1 = fs1.merged
+        c2 = fs2.merged
+
+        if difftool is not None:
+            # note: we don't want to exec here, otherwise context manager won't have a chance to clean up?
+            subprocess.run([difftool, *difftool_args, str(c1), str(c2)])
+            return []  # no need to print again
+
+        return do_diff(c1, c2, diff_filter=None)
+
+    return []  # ugh, mypy complains "Missing return statement" without it? try to remove later
