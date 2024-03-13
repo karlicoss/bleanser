@@ -18,6 +18,7 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
         'max_content_width': 120,
         'show_default': True,
     }
+
     @click.group(context_settings=context_settings)
     def call_main() -> None:
         pass
@@ -28,34 +29,35 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
     @call_main.command(name='diff', short_help='cleanup two files and diff')
     @click.argument('path1'          , type=str)
     @click.argument('path2'                        , default=_DEFAULT)
-    @click.option  ('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
+    @click.option  ('--glob'         , is_flag=True, default=False                   , help='Treat the path as glob (in the glob.glob sense)')
     @click.option  ('--vim'          , is_flag=True, default=False                   , help='Use vimdiff')
     @click.option  ('--difftool'     , type=str                                      , help='Custom difftool to use')
     @click.option  ('--from', 'from_', type=int    , default=None)
-    @click.option  ('--to'           , type=int    , default=None)
+    @click.option  ('--to'           , type=int    , default=None                    , help='non-inclusive, i.e. [from, to)')
     def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool, difftool: str) -> None:
         path1_: Path
         if glob:
             assert path2 is cast(Path, _DEFAULT), path2
             if to is None:
                 assert from_ is not None
-                to = from_ + 2
+                to = from_ + 2  # by default just compare with the next adjacent element
             paths = _get_paths(path=path1, from_=from_, to=to, glob=glob)
-            assert len(paths) == 2, paths
-            [path1_, path2] = paths
         else:
             assert cast(str, path2) is not _DEFAULT
+            assert from_ is None and to is None  # just for sanity
             path1_ = Path(path1)
             path2 = Path(path2)
+            paths = [path1_, path2]
 
         from .processor import compute_diff
+
         # meh..
         if vim:
             difftool = 'vimdiff'
         if difftool is not None:
             os.environ['DIFFTOOL'] = difftool
 
-        for line in compute_diff(path1_, path2, Normaliser=Normaliser):
+        for line in compute_diff(paths, Normaliser=Normaliser):
             print(line)
 
     @call_main.command(name='normalised', short_help='normalise file and dump to stdout')
@@ -70,7 +72,6 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
                 else:
                     click.secho(f'You can examine normalised file: {cleaned}', fg='green')
                     click.pause(info="Press any key when you've finished")
-
 
     @call_main.command(name='prune', short_help='process & prune files')
     @click.argument('path', type=str)
@@ -144,7 +145,7 @@ def _get_paths(*, path: str, from_: Optional[int], to: Optional[int], sort_by: s
         from_ = 0
     if to is None:
         to = len(paths)
-    paths = paths[from_: to]
+    paths = paths[from_:to]
     assert len(paths) > 0
 
     logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
