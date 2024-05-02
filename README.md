@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
 This is **always** acting on the data loaded into memory/temporary files, it is not modifying the files itself. Once it determines an input file can be pruned, it will warn you by default, and you can specify `--move` or `--remove` with the CLI (see below) to remove it.
 
-There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/core/modules.json.py), [`xml`](./src/bleanser/core/modules/xml_clean.py), [`sqlite`](./src/bleanser/core/modules/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
+There are particular normalisers for different filetypes, e.g. [`json`](./src/bleanser/core/modules/json.py), [`xml`](./src/bleanser/core/modules/xml.py), [`sqlite`](./src/bleanser/core/modules/sqlite.py) which might work if your data is especially basic, but typically this requires subclassing one of those and writing some custom code to 'cleanup' the data, so it can be properly compared/diffed.
 
 ### normalise
 
