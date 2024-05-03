@@ -179,4 +179,4 @@ if __name__ == "__main__":
     Normaliser.main()
 ```
 
-Otherwise if you have some complex data source you need to handle yourself, you can override `do_normalise` and `unpacked` (how the data gets uncompressed/pre-processed) methods yourself
+Otherwise if you have some complex data source you need to handle yourself, you can override `do_normalise` and `unpacked` (how the data gets uncompressed/pre-processed) methods yourself, see handling the [discord zip files](https://github.com/seanbreckenridge/bleanser/blob/master/src/bleanser_sean/modules/discord.py) as an example.
