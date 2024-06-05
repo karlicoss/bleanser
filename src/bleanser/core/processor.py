@@ -1,6 +1,7 @@
 from concurrent.futures import ProcessPoolExecutor, Future
 from contextlib import contextmanager, ExitStack
 import inspect
+from functools import lru_cache
 import os
 from pathlib import Path
 import re
@@ -255,7 +256,14 @@ def compute_groups(
     assert emitted == set(paths), (paths, emitted)  # just in case
 
 
-diff = local['diff']
+@lru_cache(1)
+def get_diff_binary():
+    diff = local['diff']
+    version = diff['--version']()
+    assert 'GNU' in version, (version, "GNU diff isn't detected, make sure to run 'brew install diffutils' if you are on OSX")
+    return diff
+
+
 grep = local['grep']
 cmp_cmd = local['cmp']
 sort = local['sort']
@@ -277,6 +285,7 @@ sort = local['sort']
 
 
 def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str]:
+    diff = get_diff_binary()
     dcmd = diff[lfile, rfile]
     filter_crap = True
     if diff_filter is not None:

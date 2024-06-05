@@ -17,6 +17,7 @@ if [ -n "${CI-}" ]; then
     darwin*) 
         # macos
         brew install libmagic # for python-magic
+        brew install diffutils # for GNU diff
         ;;
     cygwin* | msys* | win*)
         # windows
