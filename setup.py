@@ -51,8 +51,8 @@ def main() -> None:
             ],
             'zstd'   : ['kompress[zstd]'],
             'HPI': [  # for bleanser.modules.hpi
-                # 'HPI', # pypi version
-                'HPI @ git+https://github.com/karlicoss/hpi.git',   # uncomment to test against github version (useful for one-off CI run)
+                'HPI', # pypi version
+                # 'HPI @ git+https://github.com/karlicoss/hpi.git',   # uncomment to test against github version (useful for one-off CI run)
                 # 'HPI @ git+file:///DUMMY/path/to/local/hpi@branch', # uncomment to test against version on the disc
                 # note: sometimes you need to use file://DUMMY?? wtf?..
             ],
