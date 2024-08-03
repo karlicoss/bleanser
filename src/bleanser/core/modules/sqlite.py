@@ -450,8 +450,9 @@ class Tool:
         self.update(table, **{col: None for col in cols})
         # TODO crap. https://stackoverflow.com/a/66399224/706389
         # alter table is since march 2021... so won't be in sqlite for a while
+        # TODO hmm it actually works a bit slower? weird
         # for col in cols:
-        #     c.execute(f'ALTER TABLE {table} DROP COLUMN {col}')
+        #     self.connection.execute(f'ALTER TABLE {table} DROP COLUMN {col}')
 
     def fix_bad_blob_column(self, table: str, *, column: str) -> None:
         # see _check_allowed_blobs for more context and docs

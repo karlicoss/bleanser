@@ -8,4 +8,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    # FIXME warn if we're running this command? kinda confusing otherwise
     main()
