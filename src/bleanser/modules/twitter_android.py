@@ -34,6 +34,8 @@ class Normaliser(SqliteNormaliser):
         t.drop('feedback_action')
         t.drop('timeline_feedback_actions')
 
+        t.drop('promoted_retry')
+
         t.drop('card_state')  # only has a couple of rows which are always changing.. some policy crap
 
         t.drop('status_groups')  # doesn't looks like anything interesting, contains read state?
@@ -108,6 +110,11 @@ class Normaliser(SqliteNormaliser):
         t.drop('timeline')
 
         t.drop('users')  # they change all the time and probs not worth keeping all changes
+
+        ## they are empty most of the time? sometimes contains an odd item for some reason
+        t.drop('user_groups')
+        t.drop('user_metadata')
+        ##
 
 
         def remove_volatile_content(s):
