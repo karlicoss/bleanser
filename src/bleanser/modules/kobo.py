@@ -1,4 +1,5 @@
 from sqlite3 import Connection
+
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 

@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-from typing import List
+from __future__ import annotations
 
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
@@ -151,7 +150,7 @@ class Normaliser(SqliteNormaliser):
         ])
 
         # TODO move to Tool?
-        def drop_cols_containing(tbl_name: str, *, containing: List[str]) -> None:
+        def drop_cols_containing(tbl_name: str, *, containing: list[str]) -> None:
             tbl = tables.get(tbl_name)
             if tbl is None:
                 return

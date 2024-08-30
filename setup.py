@@ -29,6 +29,7 @@ def main() -> None:
 
         install_requires=[
             'more-itertools',
+            'typing-extensions',
             'click'        , # nicer cli
             'plumbum'      , # nicer command composition/piping
             'python-magic' , # better mimetype detection (could be optional?)

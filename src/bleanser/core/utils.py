@@ -1,6 +1,10 @@
-from typing import NoReturn
-def assert_never(value: NoReturn) -> NoReturn:
-    assert False, f'Unhandled value: {value} ({type(value).__name__})'
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+
+if not TYPE_CHECKING:
+    from .compat import assert_never  # noqa: F401
 
 
 from pathlib import Path
@@ -46,14 +50,14 @@ def timing(f):
 # ideally would be nice to fix it properly https://github.com/ahupp/python-magic#windows
 from functools import lru_cache
 import warnings
-from typing import Callable, Optional
+from typing import Callable
 @lru_cache(1)
-def _magic() -> Callable[[Path], Optional[str]]:
+def _magic() -> Callable[[Path], str | None]:
     try:
         import magic
     except Exception as e:
         # logger.exception(e)
-        defensive_msg: Optional[str] = None
+        defensive_msg: str | None = None
         if isinstance(e, ModuleNotFoundError) and e.name == 'magic':
             defensive_msg = "python-magic is not detected. It's recommended for better file type detection (pip3 install --user python-magic). See https://github.com/ahupp/python-magic#installation"
         elif isinstance(e, ImportError):
@@ -62,7 +66,7 @@ def _magic() -> Callable[[Path], Optional[str]]:
                 defensive_msg = "couldn't import magic. See https://github.com/ahupp/python-magic#installation"
         if defensive_msg is not None:
             warnings.warn(defensive_msg)
-            return lambda path: None # stub
+            return lambda path: None  # stub  # noqa: ARG005
         else:
             raise e
     else:
@@ -70,7 +74,7 @@ def _magic() -> Callable[[Path], Optional[str]]:
         return lambda path: mm.from_file(str(path))
 
 
-def mime(path: Path) -> Optional[str]:
+def mime(path: Path) -> str | None:
     # next, libmagic, it might access the file, so a bit slower
     magic = _magic()
     return magic(path)
@@ -80,8 +84,8 @@ from typing import Any
 Json = Any
 
 
-from typing import Union, Collection
-def delkeys(j: Json, *, keys: Union[str, Collection[str]]) -> None:
+from typing import Collection
+def delkeys(j: Json, *, keys: str | Collection[str]) -> None:
     if isinstance(keys, str):
         keys = {keys} # meh
 
@@ -94,7 +98,7 @@ def delkeys(j: Json, *, keys: Union[str, Collection[str]]) -> None:
     elif isinstance(j, dict):
         for key in keys:
             j.pop(key, None)
-        for k, v in j.items():
+        for v in j.values():
             delkeys(v, keys=keys)
     else:
         raise RuntimeError(type(j))

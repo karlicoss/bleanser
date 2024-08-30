@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from bleanser.core.modules.json import JsonNormaliser
 
 
@@ -22,7 +21,7 @@ def test_pinboard() -> None:
     from bleanser.tests.common import TESTDATA, actions
     data = TESTDATA / 'pinboard'
 
-    paths = list(sorted(data.glob('*.json')))
+    paths = sorted(data.glob('*.json'))
 
     res = actions(paths=paths, Normaliser=Normaliser)
 

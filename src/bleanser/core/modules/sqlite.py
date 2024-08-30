@@ -1,31 +1,29 @@
-#!/usr/bin/env python3
 """
 Helpers for processing sqlite databases
 """
-from contextlib import contextmanager
-from pathlib import Path
+
+from __future__ import annotations
+
 import re
 import shutil
 import sqlite3
+from contextlib import contextmanager
+from pathlib import Path
 from sqlite3 import Connection
-from typing import Dict, Any, Iterator, Sequence, Set, Tuple, Optional
+from typing import Any, Iterator, Sequence, Set, Tuple
 
+from plumbum import local  # type: ignore
 
-from ..common import parametrize
-from ..common import Keep, Prune
-from ..utils import mime
+from ..common import Keep, Prune, parametrize
 from ..processor import (
+    BaseNormaliser,
+    Normalised,
     compute_groups,
     compute_instructions,
     sort_file,
     unique_file_in_tempdir,
-    BaseNormaliser,
-    Normalised,
 )
-
-
-from plumbum import local # type: ignore
-
+from ..utils import mime
 
 AllowedBlobs = Set[Tuple[str, str]]
 
@@ -69,7 +67,7 @@ def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> No
             any_key = (table, '*')
             if (key in allowed_blobs) or (any_key in allowed_blobs):
                 continue
-            actual_types: Set[str] = {
+            actual_types: set[str] = {
                 at for (at,) in conn.execute(f'SELECT DISTINCT typeof(`{col}`) FROM `{table}`')
             }
             actual_types.discard('null')  # nulls are harmless, worst case dumped as empty string
@@ -94,7 +92,7 @@ def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> No
         ))
 
 
-def checked_db(db: Path, *, allowed_blobs: Optional[AllowedBlobs]) -> Path:
+def checked_db(db: Path, *, allowed_blobs: AllowedBlobs | None) -> Path:
     # integrity check
     db = checked_no_wal(db)
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
@@ -113,7 +111,7 @@ grep = local['grep']
 sqlite_cmd = local['sqlite3']
 
 
-def _dict2db(d: Dict, *, to: Path) -> Path:
+def _dict2db(d: dict, *, to: Path) -> Path:
     with sqlite3.connect(to) as conn:
         for table_name, rows in d.items():
             schema = rows[0]
@@ -132,7 +130,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
 
     func = lambda paths: compute_groups(paths, Normaliser=TestNormaliser)
 
-    d: Dict[str, Any] = {'tq': [['col1', 'col2']]}
+    d: dict[str, Any] = {'tq': [['col1', 'col2']]}
     ### just one file
     db1 = _dict2db(d, to=tmp_path / '1.db')
     [g11] = func([db1])
@@ -231,7 +229,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
 
 
 @parametrize('multiway', [False, True])
-def test_sqlite_many(tmp_path: Path, multiway: bool) -> None:
+def test_sqlite_many(*, tmp_path: Path, multiway: bool) -> None:
     class TestNormaliser(SqliteNormaliser):
         MULTIWAY = multiway
         PRUNE_DOMINATED = True
@@ -239,7 +237,7 @@ def test_sqlite_many(tmp_path: Path, multiway: bool) -> None:
     N = 2000
 
     paths = []
-    d: Dict[str, Any] =  {}
+    d: dict[str, Any] =  {}
     for i in range(N):
         if i % 10 == 0:
             # flush so sometimes it emits groups
@@ -393,7 +391,7 @@ class Tool:
     def __init__(self, connection: Connection) -> None:
         self.connection = connection
 
-    def get_sqlite_master(self) -> Dict[str, str]:
+    def get_sqlite_master(self) -> dict[str, str]:
         res = {}
         for c in self.connection.execute('SELECT name, type FROM sqlite_master'):
             [name, type_] = c
@@ -401,14 +399,14 @@ class Tool:
             res[name] = type_
         return res
 
-    def get_tables(self) -> Dict[str, Dict[str, str]]:
+    def get_tables(self) -> dict[str, dict[str, str]]:
         sm = self.get_sqlite_master()
 
-        res: Dict[str, Dict[str, str]] = {}
+        res: dict[str, dict[str, str]] = {}
         for name, type_ in sm.items():
             if type_ != 'table':
                 continue
-            schema: Dict[str, str] = {}
+            schema: dict[str, str] = {}
             for row in self.connection.execute(f'PRAGMA table_info(`{name}`)'):
                 col   = row[1]
                 type_ = row[2]
@@ -423,8 +421,8 @@ class Tool:
     def drop(self, table: str, *tables: str) -> None:
         # NOTE: both table and tables aregs are for backwards compat..
         all_tables = [table, *tables]
-        for table in all_tables:
-            self.connection.execute(f'DROP TABLE IF EXISTS `{table}`')
+        for tbl in all_tables:
+            self.connection.execute(f'DROP TABLE IF EXISTS `{tbl}`')
 
     def drop_view(self, view: str) -> None:
         self.connection.execute(f'DROP VIEW IF EXISTS `{view}`')
@@ -465,7 +463,7 @@ class Tool:
             return
         assert column_type == 'BLOB', column_type
 
-        actual_types: Set[str] = {
+        actual_types: set[str] = {
             at for (at,) in self.connection.execute(f'SELECT DISTINCT typeof(`{column}`) FROM `{table}`')
         }
         actual_types.discard('null')

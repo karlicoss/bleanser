@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
-from bleanser.core.modules.json import JsonNormaliser, Json, delkeys
+from typing import Any, Iterator
 
+from bleanser.core.modules.json import Json, JsonNormaliser, delkeys
 
 TARGET = object()
 
-from typing import Iterator, Optional, Any
+
 def _check_and_extract(x, schema) -> Iterator[Any]:
     if schema is TARGET:
         yield x

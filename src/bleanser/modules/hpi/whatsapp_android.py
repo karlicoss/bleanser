@@ -3,9 +3,9 @@ import os
 from pathlib import Path
 from typing import Any, Iterator
 
-from bleanser.core.modules.extract import ExtractObjectsNormaliser
-
 from my.core.cfg import tmp_config
+
+from bleanser.core.modules.extract import ExtractObjectsNormaliser
 
 ## disable cache, otherwise it's gonna flush it all the time
 # TODO this should be in some sort of common module
@@ -32,8 +32,7 @@ class Normaliser(ExtractObjectsNormaliser):
             assert (
                 len(module.inputs()) == 1
             )  # sanity check to make sure tmp_config worked as expected
-            for m in module.entities():
-                yield m
+            yield from module.entities()
 
 
 if __name__ == "__main__":

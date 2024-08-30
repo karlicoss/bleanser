@@ -1,24 +1,25 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import List
 
 import pytest
 
 from bleanser.modules.binary import Normaliser
-
 from bleanser.tests.common import TESTDATA, actions, hack_attribute
+
 # TODO ugh. how to make relative imports work? pytest doesn't like them...
 
 
-def via_fdupes(path: Path) -> List[str]:
+def via_fdupes(path: Path) -> list[str]:
     from subprocess import check_output
     lines = check_output(['fdupes', '-1', path]).decode('utf8').splitlines()
     to_delete = []
     for line in lines:
         items = line.split()
         # meh... don't get why it's not processing them in order...
-        items = list(sorted(items))
+        items = sorted(items)
         to_delete.extend(items[1:-1])
-    return list(sorted(to_delete))
+    return sorted(to_delete)
 
 
 # TODO maybe add some sanity checks?
@@ -32,7 +33,7 @@ def via_fdupes(path: Path) -> List[str]:
 def test_all(data: Path) -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
-    paths = list(sorted(data.glob('*.json*')))
+    paths = sorted(data.glob('*.json*'))
     assert len(paths) > 20, paths  # precondition
 
     with hack_attribute(Normaliser, '_DIFF_FILTER', None):

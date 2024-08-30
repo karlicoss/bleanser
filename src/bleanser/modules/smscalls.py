@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from bleanser.core.modules.xml import Normaliser as XmlNormaliser
 
 
@@ -23,7 +22,7 @@ def test_smscalls() -> None:
 
     from bleanser.tests.common import TESTDATA, actions
     data = TESTDATA / 'smscalls'
-    paths = list(sorted(data.glob('*.xml*')))
+    paths = sorted(data.glob('*.xml*'))
 
     res = actions(paths=paths, Normaliser=Normaliser)
 

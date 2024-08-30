@@ -1,13 +1,17 @@
-#!/usr/bin/env python3
-import orjson
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+import orjson
 
-from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
-from bleanser.core.utils import Json, delkeys, patch_atoms  # for convenience...
-from bleanser.core.utils import mime
+from bleanser.core.processor import (
+    BaseNormaliser,
+    Normalised,
+    sort_file,
+    unique_file_in_tempdir,
+)
+# imports for convenience -- they are used in other modules
+from bleanser.core.utils import Json, delkeys, patch_atoms  # noqa: F401
 
 
 class JsonNormaliser(BaseNormaliser):
@@ -68,7 +72,7 @@ if __name__ == '__main__':
 # TODO actually implement some artificial json test
 #
 def test_nonidempotence(tmp_path: Path) -> None:
-    from bleanser.tests.common import hack_attribute, actions
+    from bleanser.tests.common import actions, hack_attribute
     '''
     Just demonstrates that multiway processing might be
     It's probably going to be very hard to fix, likely finding 'minimal' cover (at least in terms of partial ordering) is NP hard?
@@ -85,8 +89,8 @@ def test_nonidempotence(tmp_path: Path) -> None:
         p = tmp_path / f'{i}.json'
         p.write_text(orjson.dumps(s).decode('utf8'))
 
-    with hack_attribute(JsonNormaliser, 'MULTIWAY', True), hack_attribute(JsonNormaliser, 'PRUNE_DOMINATED', True):
-        paths = list(sorted(tmp_path.glob('*.json')))
+    with hack_attribute(JsonNormaliser, 'MULTIWAY', value=True), hack_attribute(JsonNormaliser, 'PRUNE_DOMINATED', value=True):
+        paths = sorted(tmp_path.glob('*.json'))
         res = actions(paths=paths, Normaliser=JsonNormaliser)
 
         assert [p.name for p in res.remaining] == [
