@@ -6,7 +6,7 @@ class DummyExecutor(Executor):
         self._shutdown = False
         self._max_workers = max_workers
 
-    def submit(self, fn, *args, **kwargs):
+    def submit(self, fn, *args, **kwargs):  # type: ignore[override,unused-ignore]  # todo type properly after 3.9
         if self._shutdown:
             raise RuntimeError('cannot schedule new futures after shutdown')
 
