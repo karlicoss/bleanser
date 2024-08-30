@@ -1,29 +1,51 @@
-from concurrent.futures import ProcessPoolExecutor, Future
-from contextlib import contextmanager, ExitStack
+from __future__ import annotations
+
 import inspect
-from functools import lru_cache
 import os
-from pathlib import Path
 import re
 import shutil
-import sys
 import subprocess
-from subprocess import check_call
-from tempfile import TemporaryDirectory, gettempdir, NamedTemporaryFile
-from time import time
-from typing import TYPE_CHECKING, Dict, Iterator, Sequence, Optional, Tuple, Optional, Union, ContextManager, List, Set, ClassVar, Type, Iterable, NoReturn, Any, Callable
+import sys
 import warnings
+from concurrent.futures import Future, ProcessPoolExecutor
+from contextlib import ExitStack, contextmanager
+from functools import lru_cache
+from pathlib import Path
+from subprocess import check_call
+from tempfile import NamedTemporaryFile, TemporaryDirectory, gettempdir
+from time import time
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Iterable,
+    Iterator,
+    NoReturn,
+    Sequence,
+    Union,
+)
 
-from .common import Group, logger, parametrize
-from .common import Instruction, Keep, Prune
-from .common import divide_by_size
-from .utils import total_dir_size
-from .ext.dummy_executor import DummyExecutor
-
-
-from kompress import CPath, is_compressed
 import more_itertools
+from kompress import CPath, is_compressed
 from plumbum import local  # type: ignore
+
+from .common import (
+    Dry,
+    Group,
+    Instruction,
+    Keep,
+    Mode,
+    Move,
+    Prune,
+    Remove,
+    divide_by_size,
+    logger,
+    parametrize,
+)
+from .compat import Self
+from .ext.dummy_executor import DummyExecutor
+from .utils import total_dir_size
 
 
 @contextmanager
@@ -34,7 +56,7 @@ def bleanser_tmp_directory() -> Iterator[Path]:
 
 
 # helper functions for normalisers
-def unique_file_in_tempdir(*, input_filepath: Path, dir: Path, suffix: Optional[str] = None) -> Path:
+def unique_file_in_tempdir(*, input_filepath: Path, dir: Path, suffix: str | None = None) -> Path:  # noqa: A002
     '''
     this doesn't actually create the temp dir, dir is already made/cleaned up somewhere above
 
@@ -64,7 +86,7 @@ def unique_file_in_tempdir(*, input_filepath: Path, dir: Path, suffix: Optional[
 
 # meh... see Fileset._union
 # this gives it a bit of a speedup when comparing
-def sort_file(filepath: Union[str, Path]) -> None:
+def sort_file(filepath: str | Path) -> None:
     check_call(['sort', '-o', str(filepath), str(filepath)])
 
 
@@ -81,7 +103,7 @@ class BaseNormaliser:
     ##
 
     # todo maybe get rid of it? might be overridden by subclasses but probs. shouldn't
-    _DIFF_FILTER: ClassVar[Optional[str]] = _FILTER_ALL_ADDED
+    _DIFF_FILTER: ClassVar[str | None] = _FILTER_ALL_ADDED
 
     def __init__(self, *, original: Input, base_tmp_dir: Path) -> None:
         ## some sanity checks just in case
@@ -117,7 +139,7 @@ class BaseNormaliser:
         spec = mm.__spec__
         assert spec is not None
         mname = spec.name
-        parts = mname.split('.') + [cls.__name__]
+        parts = [*mname.split('.'), cls.__name__]
         rpath = Path(*parts)
         assert not rpath.is_absolute()  # just in case
         return rpath
@@ -210,8 +232,8 @@ class BaseNormaliser:
 def compute_groups(
     paths: Sequence[Path],
     *,
-    Normaliser: Type[BaseNormaliser],
-    threads: Optional[int] = None,
+    Normaliser: type[BaseNormaliser],
+    threads: int | None = None,
 ) -> Iterator[Group]:
     assert len(paths) == len(set(paths)), paths  # just in case
     assert len(paths) > 0 # just in case
@@ -223,7 +245,7 @@ def compute_groups(
         logger.info('using %d workers', workers)
 
         chunks = []
-        futures: List[Future] = []
+        futures: list[Future] = []
         for paths_chunk in divide_by_size(buckets=workers, paths=paths):
             pp = list(paths_chunk)
             if len(pp) == 0:
@@ -246,7 +268,7 @@ def compute_groups(
                     base_tmp_dir=base_tmp_dir,
                 )
             )
-        emitted: Set[Path] = set()
+        emitted: set[Path] = set()
         for chunk, f in zip(chunks, futures):
             last = chunk[0]
             rit = f.result()
@@ -271,20 +293,20 @@ sort = local['sort']
 # ok so there is no time difference if using special diff line format
 # $ hyperfine -i -- 'diff --new-line-format="> %L" --old-line-format="" --unchanged-line-format="" tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted'
 # Benchmark 1: diff --new-line-format="> %L" --old-line-format="" --unchanged-line-format="" tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted
-#   Time (mean ± σ):      28.9 ms ±   2.3 ms    [User: 17.5 ms, System: 11.1 ms]
+#   Time (mean ±  ):      28.9 ms ±   2.3 ms    [User: 17.5 ms, System: 11.1 ms]
 #   Range (min … max):    26.4 ms …  37.1 ms    109 runs
 #
 #   Warning: Ignoring non-zero exit code.
 #
 # $ hyperfine -i -- 'diff tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted'
 # Benchmark 1: diff tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted
-#   Time (mean ± σ):      27.6 ms ±   1.5 ms    [User: 16.8 ms, System: 10.7 ms]
+#   Time (mean ±  ):      27.6 ms ±   1.5 ms    [User: 16.8 ms, System: 10.7 ms]
 #   Range (min … max):    26.0 ms …  32.9 ms    107 runs
 #
 #   Warning: Ignoring non-zero exit code.
 
 
-def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str]:
+def do_diff(lfile: Path, rfile: Path, *, diff_filter: str | None) -> list[str]:
     diff = get_diff_binary()
     dcmd = diff[lfile, rfile]
     filter_crap = True
@@ -332,18 +354,18 @@ def do_diff(lfile: Path, rfile: Path, *, diff_filter: Optional[str]) -> List[str
 class FileSet:
     def __init__(self, items: Sequence[Path]=(), *, wdir: Path) -> None:
         self.wdir = wdir
-        self.items: List[Path] = []
+        self.items: list[Path] = []
         tfile = NamedTemporaryFile(dir=self.wdir, delete=False)
         self.merged = Path(tfile.name)
         self._union(*items)
 
-    def _copy(self) -> 'FileSet':
+    def _copy(self) -> FileSet:
         fs = FileSet(wdir=self.wdir)
         fs.items = list(self.items)
         shutil.copy(str(self.merged), str(fs.merged))
         return fs
 
-    def union(self, *paths: Path) -> 'FileSet':
+    def union(self, *paths: Path) -> FileSet:
         u = self._copy()
         u._union(*paths)
         return u
@@ -388,7 +410,7 @@ class FileSet:
 
         self.items.extend(extra)
 
-    def issame(self, other: 'FileSet') -> bool:
+    def issame(self, other: FileSet) -> bool:
         lfile = self.merged
         rfile = other.merged
         # TODO meh. maybe get rid of cmp, it's not really faster
@@ -397,7 +419,7 @@ class FileSet:
         (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
         return rc == 0
 
-    def issubset(self, other: 'FileSet', *, diff_filter: Optional[str]) -> bool:
+    def issubset(self, other: FileSet, *, diff_filter: str | None) -> bool:
         # short circuit
         # this doesn't really speed up much though? so guess better to keep the code more uniform..
         # if set(self.items) <= set(other.items):
@@ -421,10 +443,10 @@ class FileSet:
     def __repr__(self) -> str:
         return repr((self.items, self.merged))
 
-    def __enter__(self) -> 'FileSet':
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, type, value, tb) -> None:
+    def __exit__(self, type, value, tb) -> None:  # noqa: A002
         self.close()
 
     def close(self) -> None:
@@ -488,17 +510,17 @@ IRes = Union[Exception, Normalised]
 def _compute_groups_serial(
     paths: Sequence[Path],
     *,
-    Normaliser: Type[BaseNormaliser],
+    Normaliser: type[BaseNormaliser],
     base_tmp_dir: Path,
 ) -> Iterable[Group]:
     assert len(paths) > 0
 
-    cleaned2orig: Dict[IRes, Path] = {}
+    cleaned2orig: dict[IRes, Path] = {}
     cleaned = []
 
     def iter_results() -> Iterator[IRes]:
         with ExitStack() as exit_stack:
-            for idx, input in enumerate(paths):
+            for idx, input in enumerate(paths):  # noqa: A001
                 normaliser = Normaliser(original=input, base_tmp_dir=base_tmp_dir)
 
                 logger.info('processing %s (%d/%d)', input, idx, len(paths))
@@ -589,7 +611,7 @@ def _compute_groups_serial(
             with ExitStack() as rstack:
                 pivots = rstack.enter_context(fset(lpfile, rpfile))
 
-                def group(rm_last: bool) -> Group:
+                def group(*, rm_last: bool) -> Group:
                     gitems = items.items
                     citems = [cleaned2orig[i] for i in gitems]
                     cpivots = [cleaned2orig[i] for i in pivots.items]
@@ -613,7 +635,7 @@ def _compute_groups_serial(
                 # else try to advance right while maintaining invariants
                 right_res = ires[right]
 
-                next_state: Optional[Tuple[FileSet, Path]]
+                next_state: tuple[FileSet, Path] | None
                 if isinstance(right_res, Exception):
                     # short circuit... error itself will be handled when right_res is the leftmost element
                     next_state = None
@@ -691,7 +713,7 @@ def _compute_groups_serial(
     (True , True ),
     (False, True ),
 ])
-def test_bounded_resources(tmp_path: Path, multiway: bool, randomize: bool) -> None:
+def test_bounded_resources(*, tmp_path: Path, multiway: bool, randomize: bool) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
     """
@@ -703,8 +725,8 @@ def test_bounded_resources(tmp_path: Path, multiway: bool, randomize: bool) -> N
     idir = tmp_path / 'inputs'
     idir.mkdir()
 
-    from random import Random
     import string
+    from random import Random
     r = Random(0)
     # each file would be approx 1mb in size
     inputs = []
@@ -737,9 +759,9 @@ def test_bounded_resources(tmp_path: Path, multiway: bool, randomize: bool) -> N
         threshold = 7 * one_mb
         # check_call(['ls', '-al', gwdir])
 
-        # raise baseexception, so it propagates all the way up and doesn't trigget defensive logic
         if ds > threshold:
-            raise BaseException("working dir takes too much space")
+            # raise BaseException, so it propagates all the way up and doesn't trigget defensive logic
+            raise BaseException("working dir takes too much space")  # noqa: TRY002
 
         tmp_dir_spaces.append(ds)
         idx += 1
@@ -778,7 +800,7 @@ def test_bounded_resources(tmp_path: Path, multiway: bool, randomize: bool) -> N
 
 
 @parametrize('multiway', [False, True])
-def test_many_files(tmp_path: Path, multiway: bool) -> None:
+def test_many_files(*, tmp_path: Path, multiway: bool) -> None:
     N = 2000
 
     # BaseNormaliser is just emitting original file by default, which is what we want here
@@ -792,9 +814,8 @@ def test_many_files(tmp_path: Path, multiway: bool) -> None:
         paths.append(p)
         p.write_text(str(i % 10 > 5) + '\n')
 
-    groups = []
-    for group in compute_groups(paths, Normaliser=TestNormaliser):
-        groups.append(group)
+    groups = list(compute_groups(paths, Normaliser=TestNormaliser))
+
     # shouldn't crash due to open files or something, at least
     expected = 399 if multiway else 799
     assert len(groups) == expected
@@ -827,7 +848,7 @@ def test_special_characters(tmp_path: Path) -> None:
 
 
 @parametrize('multiway', [False, True])
-def test_simple(tmp_path: Path, multiway: bool) -> None:
+def test_simple(*, tmp_path: Path, multiway: bool) -> None:
     class TestNormaliser(BaseNormaliser):
         PRUNE_DOMINATED = True
         MULTIWAY = multiway
@@ -919,7 +940,7 @@ def _prepare(tmp_path: Path):
     True,
     False,
 ])
-def test_twoway(tmp_path: Path, prune_dominated: bool) -> None:
+def test_twoway(*, tmp_path: Path, prune_dominated: bool) -> None:
     paths = _prepare(tmp_path)
 
     class TestNormaliser(BaseNormaliser):
@@ -991,7 +1012,7 @@ def test_multiway(tmp_path: Path) -> None:
 
 # todo config is unused here?
 def groups_to_instructions(groups: Iterable[Group]) -> Iterator[Instruction]:
-    done: Dict[Path, Instruction] = {}
+    done: dict[Path, Instruction] = {}
 
     for group in groups:
         # TODO groups can overlap on their pivots.. but nothing else
@@ -1121,8 +1142,8 @@ def test_groups_to_instructions() -> None:
 def compute_instructions(
     paths: Sequence[Path],
     *,
-    Normaliser: Type[BaseNormaliser],
-    threads: Optional[int],
+    Normaliser: type[BaseNormaliser],
+    threads: int | None,
 ) -> Iterator[Instruction]:
     groups: Iterable[Group] = compute_groups(
         paths=paths,
@@ -1140,8 +1161,7 @@ def compute_instructions(
     assert done == len(paths)  # just in case
 
 
-from .common import Mode, Dry, Move, Remove
-def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(), need_confirm: bool=True) -> NoReturn:
+def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(), need_confirm: bool=True) -> NoReturn:  # noqa: B008
     import click
 
     # TODO hmm...
@@ -1173,7 +1193,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         rmb = rem_bytes / 2 ** 20
         return f'pruned so far: {int(rmb):>4} Mb /{int(tmb):>4} Mb , {rem_files:>3} /{tot_files:>3} files'
 
-    errored: List[Path] = []
+    errored: list[Path] = []
 
     to_delete = []
     for idx, ins in enumerate(instructions):
@@ -1218,7 +1238,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
     if need_confirm and not click.confirm(f'Ready to {rm_action.strip().lower()} {len(to_delete)} files?', abort=True):
         sys.exit(exit_code)
 
-    move_to: Optional[Path] = None
+    move_to: Path | None = None
     if   isinstance(mode, Move):
         move_to = mode.path
         # just in case
@@ -1232,7 +1252,6 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
         # just in case, to make sure no one messed with files in the meantime
         assert i.path.exists(), i.path
 
-    import shutil
     for p in to_delete:
         assert p.is_absolute(), p  # just in case
         if move_to is not None:
@@ -1248,11 +1267,11 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode=Dry(),
 
 
 # TODO write a test for this
-def compute_diff(paths: List[Path], *, Normaliser: Type[BaseNormaliser]) -> List[str]:
+def compute_diff(paths: list[Path], *, Normaliser: type[BaseNormaliser]) -> list[str]:
     assert len(paths) >= 2, paths
 
     difftool = os.environ.get('DIFFTOOL', None)
-    difftool_args: List[str] = []
+    difftool_args: list[str] = []
     if difftool == 'vimdiff':
         wrap = ['-c', 'windo set wrap']
         diffopts = ['-c', 'set diffopt=filler,context:0']  # show only diffs and hide identical lines
@@ -1286,7 +1305,7 @@ def compute_diff(paths: List[Path], *, Normaliser: Type[BaseNormaliser]) -> List
 
         if difftool is not None:
             # note: we don't want to exec here, otherwise context manager won't have a chance to clean up?
-            subprocess.run([difftool, *difftool_args, str(c1), str(c2)])
+            subprocess.run([difftool, *difftool_args, str(c1), str(c2)], check=False)
             return []  # no need to print again
 
         return do_diff(c1, c2, diff_filter=None)

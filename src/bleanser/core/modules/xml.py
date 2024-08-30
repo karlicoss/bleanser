@@ -1,12 +1,15 @@
-#!/usr/bin/env python3
-from lxml import etree
-
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from lxml import etree
 
-from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
+from bleanser.core.processor import (
+    BaseNormaliser,
+    Normalised,
+    sort_file,
+    unique_file_in_tempdir,
+)
 
 
 class Normaliser(BaseNormaliser):
@@ -90,12 +93,12 @@ def test_xml_simple(tmp_path: Path) -> None:
 
 
     paths123 = [f1, f2, f3]
-    with hack_attribute(Normaliser, 'MULTIWAY', True), hack_attribute(Normaliser, 'PRUNE_DOMINATED', True):
+    with hack_attribute(Normaliser, 'MULTIWAY', value=True), hack_attribute(Normaliser, 'PRUNE_DOMINATED', value=True):
         res123 = actions(paths=paths123, Normaliser=Normaliser)
     assert res123.remaining == paths123
 
     paths124 = [f1, f2, f4]
-    with hack_attribute(Normaliser, 'MULTIWAY', True), hack_attribute(Normaliser, 'PRUNE_DOMINATED', True):
+    with hack_attribute(Normaliser, 'MULTIWAY', value=True), hack_attribute(Normaliser, 'PRUNE_DOMINATED', value=True):
         res124 = actions(paths=paths124, Normaliser=Normaliser)
     assert res124.remaining == [
         f1,
@@ -161,7 +164,7 @@ def test_xml_nested(tmp_path: Path) -> None:
     ''')
 
     paths = [f1, f2, f3]
-    with hack_attribute(Normaliser, 'MULTIWAY', True), hack_attribute(Normaliser, 'PRUNE_DOMINATED', True):
+    with hack_attribute(Normaliser, 'MULTIWAY', value=True), hack_attribute(Normaliser, 'PRUNE_DOMINATED', value=True):
         res = actions(paths=paths, Normaliser=Normaliser)
     assert res.remaining == [
         f1,

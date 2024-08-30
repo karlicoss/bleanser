@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 '''
 Default logger is a bit meh, see 'test'/run this file for a demo
 TODO name 'klogging' to avoid possible conflict with default 'logging' module

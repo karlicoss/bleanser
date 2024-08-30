@@ -1,10 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple, Sequence, Union, List
+from typing import TYPE_CHECKING, Sequence, Union
 
-from .utils import assert_never
 from .ext.logging import LazyLogger
-
 
 logger = LazyLogger(__name__, level='debug')
 
@@ -61,11 +61,12 @@ class Keep(Instruction):
 
 ### helper to define paramertized tests in function's body
 from .utils import under_pytest
-if under_pytest:
+
+if TYPE_CHECKING or under_pytest:
     import pytest
     parametrize = pytest.mark.parametrize
 else:
-    parametrize = lambda *args,**kwargs: (lambda f: f)  # type: ignore
+    parametrize = lambda *_args, **_kwargs: (lambda f: f)
 ###
 
 
@@ -100,7 +101,7 @@ def divide_by_size(*, buckets: int, paths: Sequence[Path]) -> Sequence[Sequence[
     with_size = [(p, p.stat().st_size) for p in paths]
     bucket_size = sum(sz for _, sz in with_size) / buckets
 
-    group: List[Path] = []
+    group: list[Path] = []
     group_size = 0
 
     def dump() -> None:

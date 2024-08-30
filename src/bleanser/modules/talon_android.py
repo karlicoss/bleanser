@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
+
 
 class Normaliser(SqliteNormaliser):
     MULTIWAY = True

@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-from bleanser.core.modules.json import JsonNormaliser, Json
+from bleanser.core.modules.json import Json, JsonNormaliser
 
 
 class Normaliser(JsonNormaliser):
@@ -31,15 +30,15 @@ def test_lastfm() -> None:
     from bleanser.tests.common import TESTDATA, actions, hack_attribute
 
     data = TESTDATA / 'lastfm'
-    paths = list(sorted(data.glob('*.json')))
+    paths = sorted(data.glob('*.json'))
 
-    with hack_attribute(Normaliser, 'MULTIWAY', False):
+    with hack_attribute(Normaliser, key='MULTIWAY', value=False):
         res = actions(paths=paths, Normaliser=Normaliser)
     assert [p.name for p in res.pruned] == [
         'lastfm_20211107T011431Z.json', # fully contained in lastfm_20211127T011459Z
     ]
 
-    with hack_attribute(Normaliser, 'MULTIWAY', True):
+    with hack_attribute(Normaliser, key='MULTIWAY', value=True):
         res = actions(paths=paths, Normaliser=Normaliser)
     assert [p.name for p in res.remaining] == [
         'lastfm_2017-08-29.json',   # keeping : initial: X + a

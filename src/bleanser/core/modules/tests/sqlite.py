@@ -1,13 +1,14 @@
-from pathlib import Path
+from __future__ import annotations
+
 import sqlite3
-from typing import List
+from pathlib import Path
 
 from ...common import Keep, Prune
 from ...processor import compute_groups, groups_to_instructions
 from ..sqlite import SqliteNormaliser
 
 
-def _make_db(out: Path, values: List[bytes], *, bad : bool = False) -> Path:
+def _make_db(out: Path, values: list[bytes], *, bad : bool = False) -> Path:
     with sqlite3.connect(out) as conn:
         conn.execute('CREATE TABLE `test` (bbb BLOB)')
         conn.executemany(

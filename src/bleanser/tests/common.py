@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import os
+from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
-from pathlib import Path
 TESTDATA = Path(__file__).absolute().parent / 'testdata'
 
 
@@ -11,17 +14,15 @@ def skip_if_no_data() -> None:
         pytest.skip('test only works on @karlicoss private data for now')
 
 
-from typing import List, Optional
-from dataclasses import dataclass
 @dataclass
 class Res:
-    pruned   : List[Path]
-    remaining: List[Path]
+    pruned   : list[Path]
+    remaining: list[Path]
 
 
-def actions(*, paths: List[Path], Normaliser, threads: Optional[int]=None) -> Res:
+def actions(*, paths: list[Path], Normaliser, threads: int | None=None) -> Res:
+    from bleanser.core.common import Keep, Prune
     from bleanser.core.processor import compute_instructions
-    from bleanser.core.common import Prune, Keep
     instructions = list(compute_instructions(paths, Normaliser=Normaliser, threads=threads))
     pruned    = []
     remaining = []
@@ -37,11 +38,11 @@ def actions(*, paths: List[Path], Normaliser, threads: Optional[int]=None) -> Re
 
 @dataclass
 class Res2:
-    pruned   : List[str]
-    remaining: List[str]
+    pruned   : list[str]
+    remaining: list[str]
 
 
-def actions2(*, path: Path, rglob: str, Normaliser, threads: Optional[int]=None) -> Res2:
+def actions2(*, path: Path, rglob: str, Normaliser, threads: int | None=None) -> Res2:
     from bleanser.core.main import _get_paths
     pp = str(path) + os.sep + rglob
     paths = _get_paths(path=pp, glob=True, from_=None, to=None)
@@ -55,6 +56,8 @@ def actions2(*, path: Path, rglob: str, Normaliser, threads: Optional[int]=None)
 
 
 from contextlib import contextmanager
+
+
 @contextmanager
 def hack_attribute(Normaliser, key, value):
     prev = getattr(Normaliser, key)

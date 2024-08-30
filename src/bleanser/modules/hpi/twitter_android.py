@@ -3,9 +3,9 @@ import os
 from pathlib import Path
 from typing import Any, Iterator
 
-from bleanser.core.modules.extract import ExtractObjectsNormaliser
-
 from my.core.cfg import tmp_config
+
+from bleanser.core.modules.extract import ExtractObjectsNormaliser
 
 ## disable cache, otherwise it's gonna flush it all the time
 # TODO this should be in some sort of common module

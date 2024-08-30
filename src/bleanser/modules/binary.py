@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Format-agnostic, clean up as literal file diffs
 """

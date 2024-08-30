@@ -1,18 +1,25 @@
 # not to confuse with __main__.py... meh
+from __future__ import annotations
+
+import os
 from glob import glob as do_glob
 from pathlib import Path
-import os
-from typing import Optional, List, Type, cast
-
-from .common import logger, Dry, Move, Remove, Mode
-from .processor import BaseNormaliser, compute_instructions, apply_instructions, bleanser_tmp_directory
+from typing import cast
 
 import click
+
+from .common import Dry, Mode, Move, Remove, logger
+from .processor import (
+    BaseNormaliser,
+    apply_instructions,
+    bleanser_tmp_directory,
+    compute_instructions,
+)
 
 
 # TODO use context and default_map
 # https://click.palletsprojects.com/en/7.x/commands/#overriding-defaults
-def main(*, Normaliser: Type[BaseNormaliser]) -> None:
+def main(*, Normaliser: type[BaseNormaliser]) -> None:
     # meh.. by default the width is stupid, like 80 chars
     context_settings = {
         'max_content_width': 120,
@@ -34,7 +41,7 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
     @click.option  ('--difftool'     , type=str                                      , help='Custom difftool to use')
     @click.option  ('--from', 'from_', type=int    , default=None)
     @click.option  ('--to'           , type=int    , default=None                    , help='non-inclusive, i.e. [from, to)')
-    def diff(path1: str, path2: Path, *, glob: bool, from_: Optional[int], to: Optional[int], vim: bool, difftool: str) -> None:
+    def diff(path1: str, path2: Path, *, glob: bool, from_: int | None, to: int | None, vim: bool, difftool: str) -> None:
         path1_: Path
         if glob:
             assert path2 is cast(Path, _DEFAULT), path2
@@ -44,7 +51,8 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
             paths = _get_paths(path=path1, from_=from_, to=to, glob=glob)
         else:
             assert cast(str, path2) is not _DEFAULT
-            assert from_ is None and to is None  # just for sanity
+            assert from_ is None
+            assert to is None
             path1_ = Path(path1)
             path2 = Path(path2)
             paths = [path1_, path2]
@@ -63,7 +71,7 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
     @call_main.command(name='normalised', short_help='normalise file and dump to stdout')
     @click.argument('path', type=Path)
     @click.option('--stdout', is_flag=True, help='print normalised files to stdout instead of printing the path to it')
-    def normalised(path: Path, stdout: bool) -> None:
+    def normalised(*, path: Path, stdout: bool) -> None:
         with bleanser_tmp_directory() as base_tmp_dir:
             n = Normaliser(original=path, base_tmp_dir=base_tmp_dir)
             with n.do_normalise() as cleaned:
@@ -94,8 +102,8 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
     ##
     @click.option  ('--multiway'       , is_flag=True, default=None                , help='force "multiway" cleanup')
     @click.option  ('--prune-dominated', is_flag=True, default=None)
-    def prune(path: str, sort_by: str, glob: bool, dry: bool, move: Optional[Path], remove: bool, threads: Optional[int], from_: Optional[int], to: Optional[int], multiway: Optional[bool], prune_dominated: Optional[bool], yes: bool) -> None:
-        modes: List[Mode] = []
+    def prune(*, path: str, sort_by: str, glob: bool, dry: bool, move: Path | None, remove: bool, threads: int | None, from_: int | None, to: int | None, multiway: bool | None, prune_dominated: bool | None, yes: bool) -> None:
+        modes: list[Mode] = []
         if dry is True:
             modes.append(Dry())
         if move is not None:
@@ -128,18 +136,18 @@ def main(*, Normaliser: Type[BaseNormaliser]) -> None:
     call_main()
 
 
-def _get_paths(*, path: str, from_: Optional[int], to: Optional[int], sort_by: str = "name", glob: bool=False) -> List[Path]:
+def _get_paths(*, path: str, from_: int | None, to: int | None, sort_by: str = "name", glob: bool=False) -> list[Path]:
     if not glob:
         pp = Path(path)
         assert pp.is_dir(), pp
         path = str(pp) + os.sep + '**'
-    paths = [Path(p) for p in do_glob(path, recursive=True)]
+    paths = [Path(p) for p in do_glob(path, recursive=True)]  # noqa: PTH207
     paths = [p for p in paths if p.is_file()]
     if sort_by == "name":
         # assumes sort order is same as date order? guess it's reasonable
-        paths = list(sorted(paths))
+        paths = sorted(paths)
     else:
-        paths = list(sorted(paths, key=lambda s: s.stat().st_size))
+        paths = sorted(paths, key=lambda s: s.stat().st_size)
 
     if from_ is None:
         from_ = 0

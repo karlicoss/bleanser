@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
+import json
+
 from bleanser.core.modules.json import delkeys, patch_atoms
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
-
-import json
 
 
 def _patch_volatile_urls(x):
@@ -109,13 +108,6 @@ def _cleanup_jsons(s):
     return json.dumps(j, sort_keys=True).encode('utf8')
 
 
-def _cleanup_jsons_2(s):
-    try:
-        return _cleanup_jsons(s)
-    except Exception as e:
-        raise e
-
-
 class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
@@ -153,7 +145,7 @@ class Normaliser(SqliteNormaliser):
         # SELECT _id, message_type, message, json_remove(message, (SELECT DISTINCT(fullkey) FROM messages, json_tree(message) WHERE atom LIKE '%cdninstagram%')) FROM messages ORDER BY message_type
         # it was promising, but it seems that it's not possible to pass multiple arguments from a scalar subquery
         # it only ended up removing the first key
-        c.create_function("CLEANUP_JSONS", 1, _cleanup_jsons_2)
+        c.create_function("CLEANUP_JSONS", 1, _cleanup_jsons)
         queries = [
             'UPDATE messages SET message     = CLEANUP_JSONS(message)',
             'UPDATE threads  SET thread_info = CLEANUP_JSONS(thread_info)',

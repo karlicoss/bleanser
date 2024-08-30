@@ -7,18 +7,19 @@
 # - constraints
 # this is useful if you want to mess/cleanup the database, but don't want to trip over constraints/triggers
 # NOTE: handling everything as bytes since not sure I wanna mess with encoding here (esp. row data encoding)
+from __future__ import annotations
 
 import hashlib
 import os
-from pathlib import Path
-from tempfile import TemporaryDirectory, TemporaryFile
 import re
 import shutil
 import sqlite3
 import subprocess
-from subprocess import check_output, check_call, DEVNULL
 import sys
-from typing import List, Dict, Optional
+from pathlib import Path
+from subprocess import DEVNULL, check_call, check_output
+from tempfile import TemporaryDirectory
+from typing import Dict
 
 
 Tables = Dict[str, Dict[str, str]]
@@ -35,7 +36,7 @@ def _get_tables(db: Path) -> Tables:
             tables.append(table)
 
         for table in tables:
-            schema: Dict[str, str] = {}
+            schema: dict[str, str] = {}
             for row in conn.execute(f'PRAGMA table_info({table})'):
                 col   = row[1]
                 type_ = row[2]
@@ -45,7 +46,7 @@ def _get_tables(db: Path) -> Tables:
 
 
 def _sqlite(*cmd):
-    return ['sqlite3', '-bail'] + list(cmd)
+    return ['sqlite3', '-bail', *cmd]
 
 
 def _dumben_db(output_db: Path) -> None:
@@ -108,7 +109,7 @@ def _dumben_db(output_db: Path) -> None:
     subprocess.check_call(_sqlite(output_db, 'PRAGMA integrity_check;'), stdout=DEVNULL)
 
 
-def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
+def run(*, db: Path, output: Path | None, output_as_db: bool) -> None:
     if output is not None:
         assert not output.exists(), output
 
@@ -118,7 +119,7 @@ def run(*, db: Path, output: Optional[Path], output_as_db: bool) -> None:
     if output_as_db:
         assert output is not None
 
-        dumben_cache: Optional[Path] = None
+        dumben_cache: Path | None = None
         _DUMBEN_CACHE_BASE = os.environ.get('SQLITE_DUMBEN_USE_CACHE')
         if _DUMBEN_CACHE_BASE is not None:
             DUMBEN_CACHE_BASE = Path(_DUMBEN_CACHE_BASE)

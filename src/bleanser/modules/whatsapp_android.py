@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
@@ -69,7 +68,7 @@ class Normaliser(SqliteNormaliser):
         tables = Tool(c).get_tables()
         chat = tables['chat']
         assert 'subject' in chat
-        assert 'created_timestamp' in chat 
+        assert 'created_timestamp' in chat
 
         if 'messages' in tables:
             msgs = tables['messages']
@@ -97,7 +96,7 @@ class Normaliser(SqliteNormaliser):
         for table in [
             'frequent',
             'frequents', # freq used contacts
-            'group_notification_version', 
+            'group_notification_version',
             'group_participant_device', # not sure who'd need it
             'media_hash_thumbnail',
             'media_refs', # just random file paths with counters
@@ -127,7 +126,7 @@ class Normaliser(SqliteNormaliser):
             'messages_fts_content',
             'messages_fts_segdir',
             'messages_fts_segments',
-            ## 
+            ##
 
             'messages_links',
             'messages_quotes',

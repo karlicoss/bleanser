@@ -1,9 +1,13 @@
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Any
+from typing import Any, Iterator
 
-
-from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir, sort_file, Normalised
+from bleanser.core.processor import (
+    BaseNormaliser,
+    Normalised,
+    sort_file,
+    unique_file_in_tempdir,
+)
 
 
 class ExtractObjectsNormaliser(BaseNormaliser):

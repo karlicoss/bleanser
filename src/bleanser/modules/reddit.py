@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
 from itertools import chain
 
-from bleanser.core.modules.json import JsonNormaliser, Json, delkeys
-
+from bleanser.core.modules.json import Json, JsonNormaliser, delkeys
 
 REDDIT_IGNORE_KEYS = {
     ## TODO hmm maybe do something about these
@@ -111,10 +109,8 @@ REDDIT_IGNORE_KEYS = {
     'parent_whitelist_status', # some ads thing
     'password_set',
     'post_hint',
-    'post_hint',
     'pref_no_profanity', 'pref_geopopular', 'pref_top_karma_subreddits',
     'primary_color',
-    'pwls',
     'report_reasons',
     'restrict_commenting',
     'restrict_posting',
@@ -133,13 +129,11 @@ REDDIT_IGNORE_KEYS = {
     'submit_text_label',
     'suggested_comment_sort',
     'suggested_sort',
-    'suggested_sort',
     'thumbnail',
     'thumbnail_height',
     'thumbnail_width',
     'top_awarded_type',
     'total_awards_received',
-    'treatment_tags',
     'treatment_tags',
     'user_flair_richtext',
     'user_flair_template_id',
@@ -147,8 +141,7 @@ REDDIT_IGNORE_KEYS = {
     'user_flair_type',
     'user_reports',
     'videostream_links_count',
-    'whitelist_status',
-    'whitelist_status', # some ads thing
+    'whitelist_status',  # some ads thing
     'wiki_enabled',
     'snoovatar_img',
     'snoovatar_size',
@@ -194,7 +187,7 @@ class Normaliser(JsonNormaliser):
         # hmm, 'created' changes all the time for some reason starting from 20181124201020
         # https://www.reddit.com/r/redditdev/comments/29991t/whats_the_difference_between_created_and_created/ciiuk24/
         # ok, it's broken, should use created_utc instead
-        for k, v in j.items():
+        for v in j.values():
             if not isinstance(v, list):
                 continue
             for i in v:
@@ -248,11 +241,11 @@ if __name__ == '__main__':
 def test_reddit_1() -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
-    from bleanser.tests.common import TESTDATA, actions, hack_attribute
+    from bleanser.tests.common import TESTDATA, actions
     # TODO add a test for multiway
 
     data = TESTDATA / 'reddit'
-    paths = list(sorted(data.glob('*.json*')))
+    paths = sorted(data.glob('*.json*'))
 
     res = actions(paths=paths, Normaliser=Normaliser)
 
@@ -274,9 +267,9 @@ def test_reddit_1() -> None:
 def test_reddit_2() -> None:
     from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
 
-    from bleanser.tests.common import TESTDATA, actions, hack_attribute
+    from bleanser.tests.common import TESTDATA, actions
     data = TESTDATA / 'reddit2'
-    paths = list(sorted(data.glob('*.json*')))
+    paths = sorted(data.glob('*.json*'))
 
     res = actions(paths=paths, Normaliser=Normaliser)
     # note: fieles appear to be spaced out by 20 mins instead of 10 (backup frequency)

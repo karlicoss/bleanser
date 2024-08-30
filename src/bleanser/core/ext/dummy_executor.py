@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 # https://stackoverflow.com/a/10436851/706389
-from typing import Any, Optional
+from typing import Any
 from concurrent.futures import Future, Executor
 class DummyExecutor(Executor):
-    def __init__(self, max_workers: Optional[int]=1) -> None:
+    def __init__(self, max_workers: int | None=1) -> None:
         self._shutdown = False
         self._max_workers = max_workers
 
@@ -22,5 +24,5 @@ class DummyExecutor(Executor):
 
         return f
 
-    def shutdown(self, wait: bool=True, **kwargs) -> None:
+    def shutdown(self, wait: bool = True, **kwargs) -> None:  # noqa: FBT001,FBT002,ARG002
         self._shutdown = True

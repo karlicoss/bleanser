@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
@@ -81,7 +80,6 @@ class Normaliser(SqliteNormaliser):
         t.drop('radio_search_results')
         t.drop('topics')  # some random topic names.. at some point just disappeared
         t.drop('iha')  # no idea what is it, contains one entry sometimes; volatile
-        return
 
         ## probably unnecessary?
         # tool.drop('chapters')
