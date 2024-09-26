@@ -25,8 +25,29 @@ def _cleanup_jsons(s):
         # hmm normally it's bytes, but on odd occasions (old databases??) was str? odd
         j = json.loads(s)
 
+    # TODO thread_v2_id -- might be useful for some other processing?
     delkeys(j, keys=[
+        ## messages db
+        'user',  # eh. super volatile fields inside it... even full name changes all the time for no reason?
+        'is_replied_to_msg_taken_down',
+        'hscroll_share',  # some reaction bullshit
+        'account_badges',
+        ##
+
+        ## threads db
+        'recipients',  # same as 'user' in messages db.. pretty volatile
+        'has_older_thread_messages_on_server',
         'interop_user_type',
+        'transparency_product_enabled',
+        'notification_preview_controls',
+        'thread_context_items',  # some volatile follower counts?
+        'snippet',
+        'theme',
+        'ig_thread_capabilities',
+        'ai_agent_social_signal_message_count',
+        'has_groups_xac_ineligible_user',
+        ##
+
         'is_group_xac_calling_eligible',
         'processed_business_suggestion',
 
