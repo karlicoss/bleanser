@@ -1,5 +1,7 @@
 bleanser or 'backup cleanser' is a tool for cleaning old and redundant backups
 
+To install, run: `python3 -m pip install git+https://github.com/karlicoss/bleanser`
+
 In this context, backup typically means something like a GDPR export, an XML or JSON file which includes your data from some website/API, or a sqlite database from an application
 
 <https://beepb00p.xyz/exobrain/projects/bleanser.html>
@@ -52,8 +54,8 @@ class Normaliser(BaseNormaliser):
 
     @contextmanager
     def normalise(self, *, path: Path) -> Iterator[Path]:
-        # if the input file was compressed, the "path" you recieve here will be decompressed
-        
+        # if the input file was compressed, the "path" you receive here will be decompressed
+
         # a temporary file we write 'normalised' data to, that can be easily diffed/compared
         normalised = unique_file_in_tempdir(input_filepath=path, dir=self.tmp_dir)
 

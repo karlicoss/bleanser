@@ -14,7 +14,7 @@ class Normaliser(JsonNormaliser):
         if profile is not None:
             profile.pop('disk_usage', None)
             profile.pop('updated_at', None)  # I think it updates at any github activity, so pretty pointless
-            profile.pop('followers', None)  # pretty volatile, so not worth keeping + refected in "followers" field anyway
+            profile.pop('followers', None)  # pretty volatile, so not worth keeping + reflected in "followers" field anyway
 
         volatile = [
             'stargazers_count',
