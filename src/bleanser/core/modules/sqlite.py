@@ -13,7 +13,7 @@ from pathlib import Path
 from sqlite3 import Connection
 from typing import Any
 
-from plumbum import local  # type: ignore
+from plumbum import local  # type: ignore[import-untyped]
 
 from ..common import Keep, Prune, parametrize
 from ..processor import (
