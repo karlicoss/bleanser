@@ -33,20 +33,22 @@ class Normaliser(SqliteNormaliser):
             # changes every time db is exported, no point
             tool.drop_cols(table='info', cols=['last_download', 'last_pointer'])
         else:
-            [info_table] = info_tables
-            device, _ = info_table.split('_')
+            for info_table in info_tables:
+                # possible to have multiple info tables, e.g. if you have multiple devices
 
-            ## get rid of downloadUnix -- it's changing after export and redundant info
-            [[ut]] = list(c.execute(f'SELECT downloadUnix FROM {device}_info'))
-            last_logs = [t for t in tables if t.endswith('log')]
-            if len(last_logs) == 0:
-                # seems like no data yet
-                return
-            last_log = max(last_logs)
-            if last_log == f'{device}_{ut}_log':
-                # TODO annoying that it needs to be defensive...
-                # for some dbs it actually does happen, e.g. around 20211102085345
-                tool.drop_cols(table=f'{device}_info', cols=['downloadUnix'])
+                device, _ = info_table.split('_')
+
+                ## get rid of downloadUnix -- it's changing after export and redundant info
+                [[ut]] = list(c.execute(f'SELECT downloadUnix FROM {device}_info'))
+                last_logs = [t for t in tables if t.endswith('log')]
+                if len(last_logs) == 0:
+                    # seems like no data yet
+                    return
+                last_log = max(last_logs)
+                if last_log == f'{device}_{ut}_log':
+                    # TODO annoying that it needs to be defensive...
+                    # for some dbs it actually does happen, e.g. around 20211102085345
+                    tool.drop_cols(table=f'{device}_info', cols=['downloadUnix'])
 
 
 if __name__ == '__main__':
