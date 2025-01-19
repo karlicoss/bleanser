@@ -34,7 +34,7 @@ class Normaliser(BaseNormaliser):
         et = self.cleanup(et)
 
         cleaned = unique_file_in_tempdir(input_filepath=path, dir=self.tmp_dir, suffix='.xml')
-        cleaned.write_text(etree.tounicode(et))
+        cleaned.write_text(etree.tostring(et, encoding="unicode"))
 
         # TODO what is the assumption about shape?
         # either list of xml entries

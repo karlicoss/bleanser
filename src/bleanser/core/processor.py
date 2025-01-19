@@ -26,7 +26,7 @@ from typing import (
 
 import more_itertools
 from kompress import CPath, is_compressed
-from plumbum import local  # type: ignore
+from plumbum import local  # type: ignore[import-untyped]
 
 from .common import (
     Dry,
