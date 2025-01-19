@@ -19,10 +19,8 @@ import sys
 from pathlib import Path
 from subprocess import DEVNULL, check_call, check_output
 from tempfile import TemporaryDirectory
-from typing import Dict
 
-
-Tables = Dict[str, Dict[str, str]]
+Tables = dict[str, dict[str, str]]
 def _get_tables(db: Path) -> Tables:
     res: Tables = {}
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:

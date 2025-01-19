@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-
 if not TYPE_CHECKING:
     from .compat import assert_never  # noqa: F401
 
 
 from pathlib import Path
+
+
 def total_dir_size(d: Path) -> int:
     return sum(f.stat().st_size for f in d.glob('**/*') if f.is_file())
 
 
 import sys
+
 under_pytest = 'pytest' in sys.modules
 ### ugh. pretty horrible... but
 # 'PYTEST_CURRENT_TEST' in os.environ
@@ -21,6 +23,7 @@ under_pytest = 'pytest' in sys.modules
 
 
 import time
+
 
 class Timer:
     def __init__(self, *tags):
@@ -38,6 +41,7 @@ class Timer:
 
 from functools import wraps
 
+
 def timing(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
@@ -48,9 +52,11 @@ def timing(f):
 
 # make it lazy, otherwise it might crash on module import (e.g. on Windows)
 # ideally would be nice to fix it properly https://github.com/ahupp/python-magic#windows
-from functools import lru_cache
 import warnings
+from functools import lru_cache
 from typing import Callable
+
+
 @lru_cache(1)
 def _magic() -> Callable[[Path], str | None]:
     try:
@@ -81,10 +87,13 @@ def mime(path: Path) -> str | None:
 
 
 from typing import Any
+
 Json = Any
 
 
-from typing import Collection
+from collections.abc import Collection
+
+
 def delkeys(j: Json, *, keys: str | Collection[str]) -> None:
     if isinstance(keys, str):
         keys = {keys} # meh

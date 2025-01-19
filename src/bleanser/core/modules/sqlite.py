@@ -7,10 +7,11 @@ from __future__ import annotations
 import re
 import shutil
 import sqlite3
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from sqlite3 import Connection
-from typing import Any, Iterator, Sequence, Set, Tuple
+from typing import Any
 
 from plumbum import local  # type: ignore
 
@@ -25,7 +26,7 @@ from ..processor import (
 )
 from ..utils import mime
 
-AllowedBlobs = Set[Tuple[str, str]]
+AllowedBlobs = set[tuple[str, str]]
 
 
 def checked_no_wal(db: Path) -> Path:

@@ -1,7 +1,8 @@
 # NOTE: this is experimental for now, best to use the corresponding module bleanser.modules.* instead
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from my.core.cfg import tmp_config
 

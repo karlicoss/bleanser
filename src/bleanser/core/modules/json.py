@@ -1,6 +1,6 @@
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 import orjson
 
@@ -10,6 +10,7 @@ from bleanser.core.processor import (
     sort_file,
     unique_file_in_tempdir,
 )
+
 # imports for convenience -- they are used in other modules
 from bleanser.core.utils import Json, delkeys, patch_atoms  # noqa: F401
 
