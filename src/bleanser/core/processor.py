@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import warnings
+from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import ExitStack, contextmanager
 from functools import lru_cache
@@ -19,10 +20,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Iterable,
-    Iterator,
     NoReturn,
-    Sequence,
     Union,
 )
 

@@ -1,6 +1,6 @@
-from bleanser.core.modules.sqlite import *
-
 import warnings
+
+from bleanser.core.modules.sqlite import *
 
 warnings.warn(
     "Module 'bleanser.core.sqlite' is deprecated. Use 'bleanser.core.modules.sqlite' instead.",

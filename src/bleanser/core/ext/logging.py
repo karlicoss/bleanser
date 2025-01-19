@@ -6,9 +6,9 @@ TODO shit. too late already? maybe use fallback & deprecate
 
 
 def test() -> None:
-    from typing import Callable
     import logging
     import sys
+    from typing import Callable
 
     M: Callable[[str], None] = lambda s: print(s, file=sys.stderr)
 
@@ -31,8 +31,8 @@ def test() -> None:
 
 
 import logging
-from typing import Union, Optional
 import os
+from typing import Optional, Union
 
 Level = int
 LevelIsh = Optional[Union[Level, str]]
