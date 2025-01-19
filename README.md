@@ -1,6 +1,19 @@
 bleanser or 'backup cleanser' is a tool for cleaning old and redundant backups
 
-To install, run: `python3 -m pip install git+https://github.com/karlicoss/bleanser`
+## Installing
+
+To install, run: `pip install bleanser`.
+
+There are also extra install options. You can use none or multiple depending on your needs, i.e. `pip install bleanser[flavor1,flavor2]`:
+
+- `bleanser[extra]` : some recommended but optional extras
+- `bleanser[json]` : dependencies for JSON based modules
+- `bleanser[xml]` : dependencies for XML based modules
+- `bleanser[HPI]` : dependencies for [HPI](https://github.com/karlicoss/HPI) based modules
+
+See `optional-dependencies` section in [pyproject.toml](pyproject.toml) if you're curious what libraries these extras pull.
+
+## What bleanser does
 
 In this context, backup typically means something like a GDPR export, an XML or JSON file which includes your data from some website/API, or a sqlite database from an application
 

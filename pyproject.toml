@@ -7,11 +7,7 @@ dependencies = [
     "typing-extensions",
     "click"            , # nicer cli
     "plumbum"          , # nicer command composition/piping
-    "logzero"          , # nicer logging
-    "python-magic"     , # better mimetype detection (could be optional?)
-    "lxml"             , # TODO for xml module, make optional later
-    "orjson"           , # faster json processing, could be optional
-    "kompress"         , # for compressed files processing (could be optional if they don't use compressed files?)
+    "kompress"         , # for compressed files processing (TODO potentially could be optional if they don't use compressed files? but how to detect if they are compressed.. maybe via libmagic?)
 ]
 requires-python = ">=3.9"
 
@@ -36,6 +32,24 @@ Homepage = "https://github.com/karlicoss/bleanser"
 
 
 [project.optional-dependencies]
+extra = [
+    "python-magic",  # more reliable mimetype detection -- requires extra binaries, so perhaps best to keep optional
+    "logzero"     ,  # nicer logging, but can work without it
+]
+json = [
+    "orjson",  # faster json processing (required if you use json-derived modules)
+]
+xml = [
+    "lxml",  # for handling xml files (required if you use xml-derived modules)
+]
+zstd = [
+    "kompress[zstd]",
+]
+HPI = [  # for bleanser.modules.hpi
+    "HPI",
+]
+
+[dependency-groups]
 testing = [
     "pytest",
 
@@ -45,12 +59,6 @@ testing = [
     "lxml",  # for mypy html coverage
 
     "types-lxml",
-]
-zstd = [
-    "kompress[zstd]",
-]
-HPI = [  # for bleanser.modules.hpi
-    "HPI",
 ]
 
 
