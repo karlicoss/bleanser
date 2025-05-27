@@ -7,7 +7,6 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-
     def is_old_firefox(self, c: Connection) -> bool:
         tool = Tool(c)
         tables = tool.get_tables()
@@ -17,14 +16,15 @@ class Normaliser(SqliteNormaliser):
             return False
         raise RuntimeError(f"Unexpected schema {tables}")
 
-
     def check(self, c: Connection) -> None:
         tool = Tool(c)
         tables = tool.get_tables()
+        # fmt: off
         if self.is_old_firefox(c):
             v = tables['visits']
             assert 'history_guid' in v, v
             assert 'date'         in v, v
+
             h = tables['history']
             assert 'url'  in h, h
             assert 'guid' in h, h
@@ -32,13 +32,15 @@ class Normaliser(SqliteNormaliser):
             b = tables['moz_bookmarks']
             assert 'dateAdded' in b, b
             assert 'guid'      in b, b
+
             h = tables['moz_historyvisits']
             assert 'place_id'   in h, h
             assert 'visit_date' in h, h
+
             p = tables['moz_places']
             assert 'url' in p, p
             assert 'id'  in p, p
-
+        # fmt: on
 
     def cleanup(self, c: Connection) -> None:
         self.check(c)
@@ -67,9 +69,7 @@ class Normaliser(SqliteNormaliser):
                 'title',
                 'description',
                 'preview_image_url',
-
-                'foreign_count', # just some internal refcount thing... https://bugzilla.mozilla.org/show_bug.cgi?id=1017502
-
+                'foreign_count',  # just some internal refcount thing... https://bugzilla.mozilla.org/show_bug.cgi?id=1017502
                 ## mobile only
                 'visit_count_local',
                 'last_visit_date_local',
@@ -77,11 +77,10 @@ class Normaliser(SqliteNormaliser):
                 'sync_status',
                 'sync_change_counter',
                 ##
-
                 ## ? maybe mobile only
                 'visit_count_remote',
                 ##
-            ]
+            ],
         )
         # ugh. sometimes changes for no reason...
         # and anyway, for history the historyvisits table refers place_id (this table's actual id)
@@ -97,40 +96,50 @@ class Normaliser(SqliteNormaliser):
         tool.drop('moz_origins')  # prefix/host/frequency -- not interesting
         # tool.drop('moz_annos')  # not sure -- contains downloads data? might be volatile
 
-        tool.drop_cols('moz_inputhistory', cols=[
-            'use_count', #  eh, some floating point that changes all the time
-        ])
+        tool.drop_cols(
+            'moz_inputhistory',
+            cols=[
+                'use_count',  #  eh, some floating point that changes all the time
+            ],
+        )
 
-        tool.drop_cols('moz_bookmarks_synced', cols=[
-            'id',  # id always changes, and they have guid instead
-            'serverModified',  # changes without any actual changes to bookmark?
-        ])
+        tool.drop_cols(
+            'moz_bookmarks_synced',
+            cols=[
+                'id',  # id always changes, and they have guid instead
+                'serverModified',  # changes without any actual changes to bookmark?
+            ],
+        )
 
         ## fenix
-        tool.drop_cols('moz_bookmarks_synced_structure', cols=[
-            # I think it's the position in bookmarks list, doesn't matter
-            'position',
-        ])
+        tool.drop_cols(
+            'moz_bookmarks_synced_structure',
+            cols=[
+                # I think it's the position in bookmarks list, doesn't matter
+                'position',
+            ],
+        )
         tool.drop('moz_places_metadata_search_queries')
 
-        tool.drop_cols('moz_places_metadata', cols=[
-            ## volatile
-            'updated_at',
-            'total_view_time',
-            'typing_time',
-            'key_presses',
-            'scrolling_time',
-            'scrolling_distance',
-            ##
-        ])
+        tool.drop_cols(
+            'moz_places_metadata',
+            cols=[
+                ## volatile
+                'updated_at',
+                'total_view_time',
+                'typing_time',
+                'key_presses',
+                'scrolling_time',
+                'scrolling_distance',
+                ##
+            ],
+        )
         ##
-
 
         # TODO do we still need it?
         # sanity check just in case... can remove after we get rid of triggers properly...
         [(visits_after,)] = c.execute('SELECT count(*) FROM moz_historyvisits')
         assert visits_before == visits_after, (visits_before, visits_after)
-
 
     def cleanup_old(self, c) -> None:
         tool = Tool(c)
@@ -149,9 +158,10 @@ class Normaliser(SqliteNormaliser):
             'bookmarks',
             # we don't care about these
             cols=[
-                'position', 'localVersion', 'syncVersion',
-                'modified', # also seems to depend on bookmark position
-
+                'position',
+                'localVersion',
+                'syncVersion',
+                'modified',  # also seems to depend on bookmark position
                 'guid',  # sort of a hash and changes with position changes too?
             ],
         )
@@ -167,19 +177,16 @@ class Normaliser(SqliteNormaliser):
                 'visits_local',
                 'visits_remote',
                 ##
-
                 # hmm, this seems to be last date.. actual dates are in 'visits'
                 'date',
                 'date_local',
                 'date_remote',
                 ##
-
                 'title',
                 # ugh. changes dynamically. e.g. (1) on twitter/telegram notifications
                 # could update in some elaborate manner. idk
-
-                'modified', # ? changes for no apparent reason, probs because of the corresponding aggregates
-            ]
+                'modified',  # ? changes for no apparent reason, probs because of the corresponding aggregates
+            ],
         )
 
         tool.drop_cols(
@@ -190,8 +197,8 @@ class Normaliser(SqliteNormaliser):
                 '_id',
                 'modified',
                 'last_access_time',
-                'created', # yes, this also changed all the time
-            ]
+                'created',  # yes, this also changed all the time
+            ],
         )
 
         # FIXME hmm...
@@ -205,7 +212,6 @@ class Normaliser(SqliteNormaliser):
         # )
 
 
-
 if __name__ == '__main__':
     Normaliser.main()
 
@@ -213,9 +219,12 @@ if __name__ == '__main__':
 # TODO need to make sure we test 'rolling' visits
 # these look like they are completely cumulative in terms of history
 def test_fenix() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
+
     res = actions2(path=TESTDATA / 'fenix', rglob='**/*.sqlite*', Normaliser=Normaliser)
     assert res.remaining == [
         # eh, too lazy to document the reason for keeping them...

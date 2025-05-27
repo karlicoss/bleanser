@@ -47,6 +47,7 @@ def timing(f):
     def wrapped(*args, **kwargs):
         with Timer(f.__name__):
             return f(*args, **kwargs)
+
     return wrapped
 
 
@@ -67,8 +68,8 @@ def _magic() -> Callable[[Path], str | None]:
         if isinstance(e, ModuleNotFoundError) and e.name == 'magic':
             defensive_msg = "python-magic is not detected. It's recommended for better file type detection (pip3 install --user python-magic). See https://github.com/ahupp/python-magic#installation"
         elif isinstance(e, ImportError):
-            emsg = getattr(e, 'msg', '') # make mypy happy
-            if 'failed to find libmagic' in emsg: # probably the actual library is missing?...
+            emsg = getattr(e, 'msg', '')  # make mypy happy
+            if 'failed to find libmagic' in emsg:  # probably the actual library is missing?...
                 defensive_msg = "couldn't import magic. See https://github.com/ahupp/python-magic#installation"
         if defensive_msg is not None:
             warnings.warn(defensive_msg)
@@ -96,10 +97,10 @@ from collections.abc import Collection
 
 def delkeys(j: Json, *, keys: str | Collection[str]) -> None:
     if isinstance(keys, str):
-        keys = {keys} # meh
+        keys = {keys}  # meh
 
     # todo if primitive, don't do anything
-    if   isinstance(j, (int, float, bool, type(None), str)):
+    if isinstance(j, (int, float, bool, type(None), str)):
         return
     elif isinstance(j, list):
         for v in j:
@@ -114,7 +115,7 @@ def delkeys(j: Json, *, keys: str | Collection[str]) -> None:
 
 
 def patch_atoms(j: Json, *, patch):
-    if   isinstance(j, (int, float, bool, type(None), str)):
+    if isinstance(j, (int, float, bool, type(None), str)):
         return patch(j)
     elif isinstance(j, list):
         for i in range(len(j)):

@@ -30,9 +30,7 @@ class Normaliser(ExtractObjectsNormaliser):
                     # TODO my_user_id?
 
         with tmp_config(modules=module.__name__, config=config):
-            assert (
-                len(module.inputs()) == 1
-            )  # sanity check to make sure tmp_config worked as expected
+            assert len(module.inputs()) == 1  # sanity check to make sure tmp_config worked as expected
             yield from module.entities()
 
 

@@ -8,12 +8,12 @@ from ...processor import compute_groups, groups_to_instructions
 from ..sqlite import SqliteNormaliser
 
 
-def _make_db(out: Path, values: list[bytes], *, bad : bool = False) -> Path:
+def _make_db(out: Path, values: list[bytes], *, bad: bool = False) -> Path:
     with sqlite3.connect(out) as conn:
         conn.execute('CREATE TABLE `test` (bbb BLOB)')
         conn.executemany(
             'INSERT INTO `test` VALUES (?)',
-            [(v, ) for v in values],
+            [(v,) for v in values],
         )
         if bad:
             # the only way I figured to actually force BLOB column to contain text values
@@ -29,6 +29,7 @@ def test_sqlite_blobs_good(tmp_path: Path) -> None:
     """
     In this case we have blob data in BLOB column -- so cleanup should work as expected
     """
+
     class TestNormaliser(SqliteNormaliser):
         MULTIWAY = False
         PRUNE_DOMINATED = True
@@ -55,6 +56,7 @@ def test_sqlite_blobs_bad(tmp_path: Path) -> None:
     In this case we have text (!) data in BLOB column.
     This will cause errors during cleanup so we'll keep all inputs (even though dbs are identical here)
     """
+
     class TestNormaliser(SqliteNormaliser):
         MULTIWAY = False
         PRUNE_DOMINATED = True

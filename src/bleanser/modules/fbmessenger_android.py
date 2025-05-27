@@ -11,7 +11,7 @@ class Normaliser(SqliteNormaliser):
         tables = Tool(c).get_tables()
 
         mtable = tables['messages']
-        assert 'text'         in mtable, mtable
+        assert 'text' in mtable, mtable
         assert 'timestamp_ms' in mtable, mtable
         # TODO check that it has anything in there????
         #
@@ -33,11 +33,14 @@ class Normaliser(SqliteNormaliser):
             t.drop_cols(name, cols=['_id'])  # meh.. sometimes changes for no reason
 
         t.drop_cols('folders', cols=['timestamp_ms'])  # changes all the time
-        t.drop_cols('thread_participants', cols=[
-            'last_read_receipt_time',
-            'last_read_receipt_watermark_time',
-            'last_delivered_receipt_time',
-        ])
+        t.drop_cols(
+            'thread_participants',
+            cols=[
+                'last_read_receipt_time',
+                'last_read_receipt_watermark_time',
+                'last_delivered_receipt_time',
+            ],
+        )
         # changes all the time
         t.drop_cols('threads', cols=[
             'sequence_id',
@@ -59,16 +62,18 @@ class Normaliser(SqliteNormaliser):
             # todo?
             'snippet_sender',
             'senders',
-        ])
+        ])  # fmt: skip
 
-        t.drop_cols('thread_users', cols=[
-            'last_fetch_time',
-            'aloha_proxy_users_owned',
-            'profile_pic_square',
-            'contact_capabilities',
-            'contact_capabilities2',
-        ])
-
+        t.drop_cols(
+            'thread_users',
+            cols=[
+                'last_fetch_time',
+                'aloha_proxy_users_owned',
+                'profile_pic_square',
+                'contact_capabilities',
+                'contact_capabilities2',
+            ],
+        )
 
     def cleanup_msys_database(self, c) -> None:
         # TODO eh... tbh, not sure, msys database only contains some contacts and bunch of cryptic data?
@@ -80,8 +85,8 @@ class Normaliser(SqliteNormaliser):
         # eh..some technical information
         t.drop('sync_groups')
         t.drop('orca_upgrade_cql_schema_facets')
-        t.drop('secure_message_ab_props_v2') # just weird single value
-        t.drop('pending_tasks') # temporary thing?
+        t.drop('secure_message_ab_props_v2')  # just weird single value
+        t.drop('pending_tasks')  # temporary thing?
         t.drop('crypto_auth_token')
         t.drop('logging_events_v2')
 
@@ -137,17 +142,19 @@ class Normaliser(SqliteNormaliser):
         t.drop('threads_ranges_v2__generated')
         t.drop('community_messaging_aggregated_user_presence_counts_for_community')
 
-
-        t.drop_cols('participants', cols=[
-            ## volatile
-            'last_message_send_timestamp_ms',
-            'read_watermark_timestamp_ms',
-            'delivered_watermark_timestamp_ms',
-            'read_action_timestamp_ms',
-            'capabilities',
-            'participant_capabilities',
-            ##
-        ])
+        t.drop_cols(
+            'participants',
+            cols=[
+                ## volatile
+                'last_message_send_timestamp_ms',
+                'read_watermark_timestamp_ms',
+                'delivered_watermark_timestamp_ms',
+                'read_action_timestamp_ms',
+                'capabilities',
+                'participant_capabilities',
+                ##
+            ],
+        )
 
         # TODO move to Tool?
         def drop_cols_containing(tbl_name: str, *, containing: list[str]) -> None:
@@ -157,91 +164,122 @@ class Normaliser(SqliteNormaliser):
             cols_to_drop = [col for col in tbl if any(s in col for s in containing)]
             t.drop_cols(tbl_name, cols=cols_to_drop)
 
-        drop_cols_containing('threads', containing=[
-            'thread_picture_url',
-            'last_activity_timestamp_ms',
-            'last_activity_watermark_timestamp_ms',
-            'last_read_watermark_timestamp_ms',
-            'last_message_cta_id',
-            'reviewed_policy_violation',
-            'reported_policy_violation',
-            'snippet_text',
-            'snippet_sender_contact_id',
-        ])
-        t.drop_cols('threads', cols=[
-            'snippet',
-            'sort_order_override',
-            ## volatile
-            'member_count',
-            'locked_status',
-            'thread_capabilities_fetch_ts',
-            'event_start_timestamp_ms',
-            'event_end_timestamp_ms',
-            'snippet_has_emoji',
-            'capabilities',
-            'should_round_thread_picture',
-            # TODO snipper_sender_contact_id sometimes changes??
-            ##
-        ])
-        t.drop_cols('messages', cols=[
-            ## volatile
-            'authority_level',
-            'send_status',
-            'send_status_v2',
-            ##
-        ])
+        drop_cols_containing(
+            'threads',
+            containing=[
+                'thread_picture_url',
+                'last_activity_timestamp_ms',
+                'last_activity_watermark_timestamp_ms',
+                'last_read_watermark_timestamp_ms',
+                'last_message_cta_id',
+                'reviewed_policy_violation',
+                'reported_policy_violation',
+                'snippet_text',
+                'snippet_sender_contact_id',
+            ],
+        )
+        t.drop_cols(
+            'threads',
+            cols=[
+                'snippet',
+                'sort_order_override',
+                ## volatile
+                'member_count',
+                'locked_status',
+                'thread_capabilities_fetch_ts',
+                'event_start_timestamp_ms',
+                'event_end_timestamp_ms',
+                'snippet_has_emoji',
+                'capabilities',
+                'should_round_thread_picture',
+                # TODO snipper_sender_contact_id sometimes changes??
+                ##
+            ],
+        )
+        t.drop_cols(
+            'messages',
+            cols=[
+                ## volatile
+                'authority_level',
+                'send_status',
+                'send_status_v2',
+                ##
+            ],
+        )
 
-        drop_cols_containing('community_folders', containing=[
-            'picture_url',
-        ])
-        t.drop_cols('community_folders', cols=[
-            ## volatile
-            'member_count',
-            'capabilities',
-            ##
-        ])
+        drop_cols_containing(
+            'community_folders',
+            containing=[
+                'picture_url',
+            ],
+        )
+        t.drop_cols(
+            'community_folders',
+            cols=[
+                ## volatile
+                'member_count',
+                'capabilities',
+                ##
+            ],
+        )
 
-        t.drop_cols('contacts', cols=[
-            ## volatile
-            'family_relationship',
-            'requires_multiway',
-            'capabilities',
-            'capabilities_2',
-            'rank',
-            'is_messenger_user',
-            'contact_type_exact',
-            'messenger_call_log_third_party_id',
-            # TODO montage_thread_fbid is volatile?
-            ##
-        ])
-        t.drop_cols('client_contacts', cols=[
-            'capabilities_1',
-            'capabilities_2',
-        ])
+        t.drop_cols(
+            'contacts',
+            cols=[
+                ## volatile
+                'family_relationship',
+                'requires_multiway',
+                'capabilities',
+                'capabilities_2',
+                'rank',
+                'is_messenger_user',
+                'contact_type_exact',
+                'messenger_call_log_third_party_id',
+                # TODO montage_thread_fbid is volatile?
+                ##
+            ],
+        )
+        t.drop_cols(
+            'client_contacts',
+            cols=[
+                'capabilities_1',
+                'capabilities_2',
+            ],
+        )
 
         # TODO fb_transport_contacts?
         for tbl_name in ['contacts', 'client_contacts', 'client_threads']:
             # these change all the time and expire
-            drop_cols_containing(tbl_name, containing=[
-                'profile_picture',
-                'profile_ring_color',
-                'avatar_animation',
-                'fb_unblocked_since_timestamp_ms',
-                'profile_ring_state',
-                'wa_connect_status',
-                'restriction_type',
-            ])
+            drop_cols_containing(
+                tbl_name,
+                containing=[
+                    'profile_picture',
+                    'profile_ring_color',
+                    'avatar_animation',
+                    'fb_unblocked_since_timestamp_ms',
+                    'profile_ring_state',
+                    'wa_connect_status',
+                    'restriction_type',
+                ],
+            )
 
-        drop_cols_containing('fb_events', containing=[
-            'event_picture_url',
-            'num_going_users',
-            'num_interested_users',
-        ])
+        drop_cols_containing(
+            'fb_events',
+            containing=[
+                'event_picture_url',
+                'num_going_users',
+                'num_interested_users',
+            ],
+        )
 
-        drop_cols_containing('attachments', containing=[
-            'preview_url',
-            'playable_url',
-        ])
+        drop_cols_containing(
+            'attachments',
+            containing=[
+                'preview_url',
+                'playable_url',
+            ],
+        )
+
 
 if __name__ == '__main__':
     Normaliser.main()

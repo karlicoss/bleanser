@@ -6,29 +6,32 @@ class Normaliser(JsonNormaliser):
     PRUNE_DOMINATED = True
 
     def cleanup(self, j: Json) -> Json:
-        delkeys(j, keys=[
-            'account_balance',  # obvs flaky
-            'suggested_tags',
-            'website',
-
-            'address',
-            'formatted',
-            'logo',
-
-            ## flaky and useless
-            'mastercard_lifecycle_id',
-            'mastercard_clearing_message_id',
-            'token_transaction_identifier',
-            'tab_id',
-            ##
-
-            'settled',
-            'updated',
-            'amount_is_pending',
-
-            'payee_id',  # odd but sometimes flaky
-            'can_add_to_tab',
-        ])
+        delkeys(
+            j,
+            keys=[
+                'account_balance',  # obvs flaky
+                'suggested_tags',
+                'website',
+                #
+                'address',
+                'formatted',
+                'logo',
+                #
+                ## flaky and useless
+                'mastercard_lifecycle_id',
+                'mastercard_clearing_message_id',
+                'token_transaction_identifier',
+                'tab_id',
+                ##
+                #
+                'settled',
+                'updated',
+                'amount_is_pending',
+                #
+                'payee_id',  # odd but sometimes flaky
+                'can_add_to_tab',
+            ],
+        )
 
         if isinstance(j, list):
             # old format, only transactions for one account

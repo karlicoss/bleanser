@@ -8,7 +8,7 @@ class Normaliser(SqliteNormaliser):
     ALLOWED_BLOBS = {
         # hopefully should be fine, all the metadata seems to be present in the table
         ('chat_messages', 'serialized'),
-        ('channels'     , 'serialized'),
+        ('channels', 'serialized'),
     }
 
     def check(self, c) -> None:
@@ -24,9 +24,8 @@ class Normaliser(SqliteNormaliser):
         channels = tables['channels']
         assert 'subjectId' in channels, channels
 
-
     def cleanup(self, c) -> None:
-        self.check(c) # todo could also call 'check' after just in case
+        self.check(c)  # todo could also call 'check' after just in case
         t = Tool(c)
         # seems that e.g. liked_content has some retention, so will need multiway
 
@@ -38,11 +37,12 @@ class Normaliser(SqliteNormaliser):
         t.drop_cols(table='channels', cols=['updated', 'serialized'])
 
         # eh, not sure, they appear to be modified without actual changes to other cols?
+        # fmt: off
         t.drop_cols(table='profiles'     , cols=['created', 'updated', 'hidden'])
         t.drop_cols(table='answers'      , cols=['created', 'modified'])
         t.drop_cols(table='player_media' , cols=['created'])
         t.drop_cols(table='subject_media', cols=['created'])
-
+        # fmt: on
 
         # instagram urls change all the time (they contain some sort of token)
         # and expire quickly anyway.. so just easier to cleanup
@@ -80,12 +80,10 @@ class Normaliser(SqliteNormaliser):
             'channels',
             'surveys',
             'subject_media',
-
             'liked_content',
         ]
         for table in remove_ids:
             t.drop_cols(table=table, cols=['id'])
-
 
         t.drop(table='standouts_content')  # things are flaky here, even urls are changing between databases -- likely they are expiring
 
@@ -96,7 +94,6 @@ class Normaliser(SqliteNormaliser):
         t.drop_cols(table='subject_media', cols=['position'])
         t.drop_cols(table='products', cols=['lastApiUpdate', 'lastStoreUpdate'])
         ##
-
 
 
 if __name__ == '__main__':

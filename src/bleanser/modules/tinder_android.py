@@ -7,7 +7,6 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-
     def check(self, c: Connection) -> None:
         tool = Tool(c)
         tables = tool.get_tables()
@@ -18,7 +17,6 @@ class Normaliser(SqliteNormaliser):
         assert 'text' in messages, messages
         assert 'match_id' in messages, messages
 
-
     def cleanup(self, c: Connection) -> None:
         self.check(c)
 
@@ -27,8 +25,8 @@ class Normaliser(SqliteNormaliser):
         t.drop(
             'instagram_broken',
             'explore_attribution',
-
-            ## messages from Tinder
+            #
+            ## messages from Tinder itself
             'inbox_message',
             'inbox_message_images',
             'inbox_message_text_formatting',
@@ -78,9 +76,12 @@ if __name__ == '__main__':
 
 
 def test_tinder() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
+
     res = actions2(path=TESTDATA / 'tinder_android', rglob='**/*.db*', Normaliser=Normaliser)
 
     assert res.remaining == [
@@ -113,4 +114,4 @@ def test_tinder() -> None:
         # '20211227002918/tinder-3.db',
         # '20211227044403/tinder-3.db',
         '20211227145813/tinder-3.db',  # keep: last in group
-    ]
+    ]  # fmt: skip

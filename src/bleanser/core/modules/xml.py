@@ -91,7 +91,6 @@ def test_xml_simple(tmp_path: Path) -> None:
     </root>
     ''')
 
-
     paths123 = [f1, f2, f3]
     with hack_attribute(Normaliser, 'MULTIWAY', value=True), hack_attribute(Normaliser, 'PRUNE_DOMINATED', value=True):
         res123 = actions(paths=paths123, Normaliser=Normaliser)
@@ -108,6 +107,7 @@ def test_xml_simple(tmp_path: Path) -> None:
 
 def test_xml_nested(tmp_path: Path) -> None:
     from bleanser.tests.common import actions, hack_attribute
+
     f1 = tmp_path / 'f1'
     f2 = tmp_path / 'f2'
     f3 = tmp_path / 'f3'

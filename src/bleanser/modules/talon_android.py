@@ -6,9 +6,8 @@ class Normaliser(SqliteNormaliser):
     PRUNE_DOMINATED = True
 
     def check(self, c) -> None:
-        tables = Tool(c).get_tables()
+        _tables = Tool(c).get_tables()
         # TODO add something later
-
 
     def cleanup(self, c) -> None:
         self.check(c)
@@ -20,4 +19,3 @@ class Normaliser(SqliteNormaliser):
 
 if __name__ == '__main__':
     Normaliser.main()
-

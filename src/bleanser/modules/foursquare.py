@@ -56,8 +56,9 @@ SCHEMA = {
             'count': int,
             'items': TARGET,
         }
-    }
+    },
 }
+
 
 class Normaliser(JsonNormaliser):
     PRUNE_DOMINATED = True
@@ -79,25 +80,27 @@ class Normaliser(JsonNormaliser):
             # some id that might change, probs useless
             v = c.get('venue', None)
             if v is not None:
-                v['contact'].pop('facebook' , None) # don't care
-                v['contact'].pop('instagram', None) # don't care
-                v.pop('verified', None) # don't care
-                v.pop('delivery', None) # eh, we don't care about what venue uses for delivery
+                v['contact'].pop('facebook', None)  # don't care
+                v['contact'].pop('instagram', None)  # don't care
+                v.pop('verified', None)  # don't care
+                v.pop('delivery', None)  # eh, we don't care about what venue uses for delivery
 
             # todo would be nice to support compose keys for delkeys..
             # e.g. ('venue', 'contact', 'facebook')
-            delkeys(c, keys={
-                ## these are just always changing, nothing we can do about it
-                'checkinsCount',
-                'usersCount',
-                'tipCount',
-                ##
-
-                'sticker', # very volatile, some crap that 4sq sets on places
-
-                # ugh. lat/lng are volatile, varying after 4th digit after dot for some reason
-                'lat', 'lng', # TODO instead round to 4th digit or something??
-            })
+            delkeys(
+                c,
+                keys={
+                    ## these are just always changing, nothing we can do about it
+                    'checkinsCount',
+                    'usersCount',
+                    'tipCount',
+                    ##
+                    'sticker',  # very volatile, some crap that 4sq sets on places
+                    # ugh. lat/lng are volatile, varying after 4th digit after dot for some reason
+                    'lat',
+                    'lng',  # TODO instead round to 4th digit or something??
+                },
+            )
 
         return res
 

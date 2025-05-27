@@ -10,16 +10,17 @@ class Normaliser(SqliteNormaliser):
         ('typed_url_sync_metadata', 'value'),
     }
 
-
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
+        # fmt: off
         v = tables['visits']
         assert 'visit_time' in v, v
-        assert 'url'        in v, v # note: url is an int id
+        assert 'url'        in v, v  # note: url is an int id
+
         u = tables['urls']
         assert 'url'   in u, u
         assert 'title' in u, u
-
+        # fmt: on
 
     def cleanup(self, c) -> None:
         self.check(c)
@@ -33,12 +34,12 @@ class Normaliser(SqliteNormaliser):
                 # cleans up like 15% databases if I wipe it completely?
                 # the annoying thing is that sqlite doesn't have support for regex...
                 # 'title',
-
+                #
                 # aggregates, no need for them
                 'visit_count',
                 'typed_count',
                 'last_visit_time',
-            ]
+            ],
         )
         t.drop_cols(
             'segment_usage',
@@ -56,4 +57,3 @@ class Normaliser(SqliteNormaliser):
 
 if __name__ == '__main__':
     Normaliser.main()
-

@@ -51,7 +51,7 @@ def mklevel(level: LevelIsh) -> Level:
 
 
 FORMAT = '{start}[%(levelname)-7s %(asctime)s %(name)s %(filename)s:%(lineno)d]{end} %(message)s'
-FORMAT_COLOR   = FORMAT.format(start='%(color)s', end='%(end_color)s')
+FORMAT_COLOR = FORMAT.format(start='%(color)s', end='%(end_color)s')
 FORMAT_NOCOLOR = FORMAT.format(start='', end='')
 DATEFMT = '%Y-%m-%d %H:%M:%S'
 
@@ -81,6 +81,7 @@ def setup_logger(logger: logging.Logger, level: LevelIsh) -> None:
 class LazyLogger(logging.Logger):
     def __new__(cls, name: str, level: LevelIsh = 'INFO') -> 'LazyLogger':
         logger = logging.getLogger(name)
+
         # this is called prior to all _log calls so makes sense to do it here?
         def isEnabledFor_lazyinit(*args, logger=logger, orig=logger.isEnabledFor, **kwargs):
             att = 'lazylogger_init_done'

@@ -64,13 +64,11 @@ def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> No
         for col, type_ in schema.items():
             if type_ != 'BLOB':
                 continue
-            key     = (table, col)
+            key     = (table, col)  # fmt: skip
             any_key = (table, '*')
             if (key in allowed_blobs) or (any_key in allowed_blobs):
                 continue
-            actual_types: set[str] = {
-                at for (at,) in conn.execute(f'SELECT DISTINCT typeof(`{col}`) FROM `{table}`')
-            }
+            actual_types: set[str] = {at for (at,) in conn.execute(f'SELECT DISTINCT typeof(`{col}`) FROM `{table}`')}
             actual_types.discard('null')  # nulls are harmless, worst case dumped as empty string
 
             if actual_types == {'blob'}:
@@ -84,13 +82,14 @@ def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> No
             bad_blobs.append((key, actual_types))
 
     if len(bad_blobs) > 0:
-        raise RuntimeError('\n'.join(
-            f"{key} : has type BLOB but contains values of other types ({actual_types}). "
-            "This may result in wrong textual representation for the database and pruning files we shouldn't prune. "
-            "Consider adding this to ALLOWED_BLOBS or removing the corresponding table from the db if you think it's safe to ignore."
-            for key, actual_types
-            in bad_blobs
-        ))
+        raise RuntimeError(
+            '\n'.join(
+                f"{key} : has type BLOB but contains values of other types ({actual_types}). "
+                "This may result in wrong textual representation for the database and pruning files we shouldn't prune. "
+                "Consider adding this to ALLOWED_BLOBS or removing the corresponding table from the db if you think it's safe to ignore."
+                for key, actual_types in bad_blobs
+            )
+        )
 
 
 def checked_db(db: Path, *, allowed_blobs: AllowedBlobs | None) -> Path:
@@ -135,7 +134,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     ### just one file
     db1 = _dict2db(d, to=tmp_path / '1.db')
     [g11] = func([db1])
-    assert g11.items  == [db1]
+    assert g11.items  == [db1]  # fmt: skip
     assert g11.pivots == [db1]
     ###
 
@@ -144,11 +143,11 @@ def test_sqlite_simple(tmp_path: Path) -> None:
         ['col1', 'col2'],
         [1     , 2     ],
         [3     , 4     ],
-    ]
+    ]  # fmt: skip
     db2 = _dict2db(d, to=tmp_path / '2.db')
 
     [g21] = func([db1, db2])
-    assert g21.items  == [db1, db2]
+    assert g21.items  == [db1, db2]  # fmt: skip
     assert g21.pivots == [db1, db2]
     ###
 
@@ -157,12 +156,12 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     db3.write_text('BAD')
 
     # TODO wow it's really messy...
+    # fmt: off
     [x1, x2] = func([db3, db1, db2])
     assert x1.items  == [db3]
     assert x1.pivots == [db3]
     assert x2.items  == [db1, db2]
     assert x2.pivots == [db1, db2]
-
 
     [g31, g32, g33] = func([db1, db2, db3])
     assert g31 == g21
@@ -170,6 +169,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     assert g32.pivots == [db2]
     assert g33.items  == [db3]
     assert g33.pivots == [db3]
+    # fmt: on
     # FIXME check error reason
     ###
 
@@ -181,8 +181,8 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     dbs = [db1, db2, db3, db4, db5, db6]
     [g41, g42, g43, g44] = func(dbs)
     assert g43 == g33
-    assert g44.items  == [db4, db5, db6]
-    assert g44.pivots == [db4, db6]
+    assert g44.items  == [db4, db5, db6]  # fmt: skip
+    assert g44.pivots == [db4,      db6]  # fmt: skip
     ###
 
     instrs = compute_instructions(
@@ -197,8 +197,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
         Keep,   # 4, keep the boundary
         Prune,  # 5
         Keep,   # 6, keep the boundary
-    ]
-
+    ]  # fmt: skip
 
     ### test when stuff was removed
     del d['t1'][-1]
@@ -207,9 +206,9 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     [_, _, _, g54, g55, g56] = func(dbs)
     assert g54 == g44
     # TODO ugh. this is confusing... why it emits more pivots?
-    assert g55.items  == [db6]
+    assert g55.items  == [db6]  # fmt: skip
     assert g55.pivots == [db6]
-    assert g56.items  == [db7]
+    assert g56.items  == [db7]  # fmt: skip
     assert g56.pivots == [db7]
     ###
 
@@ -226,7 +225,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
         Prune,  # 5
         Keep,   # 6, keep the boundary
         Keep,   # 7,
-    ]
+    ]  # fmt: skip
 
 
 @parametrize('multiway', [False, True])
@@ -238,7 +237,7 @@ def test_sqlite_many(*, tmp_path: Path, multiway: bool) -> None:
     N = 2000
 
     paths = []
-    d: dict[str, Any] =  {}
+    d: dict[str, Any] = {}
     for i in range(N):
         if i % 10 == 0:
             # flush so sometimes it emits groups
@@ -248,14 +247,17 @@ def test_sqlite_many(*, tmp_path: Path, multiway: bool) -> None:
         paths.append(p)
 
     # shouldn't crash
-    instructions = list(compute_instructions(
-        paths,
-        Normaliser=TestNormaliser,
-        threads=None,
-    ))
+    _instructions = list(
+        compute_instructions(
+            paths,
+            Normaliser=TestNormaliser,
+            threads=None,
+        )
+    )
 
 
 # TODO add some tests for my own dbs? e.g. stashed
+
 
 class SqliteNormaliser(BaseNormaliser):
     # FIXME need a test, i.e. with removing single row?
@@ -290,7 +292,7 @@ class SqliteNormaliser(BaseNormaliser):
 
         # TODO handle compressed databases later... need to think how to work around checking for no wal etc..
         upath = path
-        del path # just to prevent from using by accident
+        del path  # just to prevent from using by accident
 
         # first, do not check for blobs -- we might not even be able to get the table list in python due to virtual tables
         upath = checked_db(upath, allowed_blobs=None)
@@ -302,6 +304,7 @@ class SqliteNormaliser(BaseNormaliser):
         unique_tmp_dir = cleaned_db.parent
 
         from bleanser.core.ext.sqlite_dumben import run as dumben
+
         dumben(db=upath, output=cleaned_db, output_as_db=True)
 
         # eh.. not sure if really necessary
@@ -357,7 +360,7 @@ class SqliteNormaliser(BaseNormaliser):
                         # json-ish
                         # replace newlines just in case, otherwise it might mangle the sorting
                         ss = re.sub(rb'(\r\n|\r|\n)', b'<NEWLINE>', ss)
-                        line = line[:m.start(1)] + ss + line[m.end(1):]
+                        line = line[: m.start(1)] + ss + line[m.end(1) :]
                 fo.write(line)
         # TODO maybe only do it in diff mode? not sure
         shutil.move(str(dump_file_nohex), str(dump_file))
@@ -382,7 +385,6 @@ class SqliteNormaliser(BaseNormaliser):
         cleaned_db.unlink()
         ###
         yield dump_file
-
 
     def cleanup(self, c: Connection) -> None:
         pass
@@ -409,7 +411,7 @@ class Tool:
                 continue
             schema: dict[str, str] = {}
             for row in self.connection.execute(f'PRAGMA table_info(`{name}`)'):
-                col   = row[1]
+                col = row[1]
                 type_ = row[2]
                 # hmm, somewhere between 3.34.1 and 3.37.2, sqlite started normalising type names to uppercase
                 # let's do this just in case since python < 3.10 are using the old version
@@ -446,7 +448,7 @@ class Tool:
         cols = [c for c in cols if c in existing]
         if len(cols) == 0:
             return
-        self.update(table, **{col: None for col in cols})
+        self.update(table, **dict.fromkeys(cols, None))
         # TODO crap. https://stackoverflow.com/a/66399224/706389
         # alter table is since march 2021... so won't be in sqlite for a while
         # TODO hmm it actually works a bit slower? weird
@@ -464,9 +466,7 @@ class Tool:
             return
         assert column_type == 'BLOB', column_type
 
-        actual_types: set[str] = {
-            at for (at,) in self.connection.execute(f'SELECT DISTINCT typeof(`{column}`) FROM `{table}`')
-        }
+        actual_types: set[str] = {at for (at,) in self.connection.execute(f'SELECT DISTINCT typeof(`{column}`) FROM `{table}`')}
         actual_types.discard('null')
 
         if actual_types == {'blob'}:

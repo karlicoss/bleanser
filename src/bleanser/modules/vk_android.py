@@ -35,7 +35,7 @@ class Normaliser(SqliteNormaliser):
         ('dialogs', 'unread_mention_msg_vk_ids'),
 
         ('mutual_friends', 'mutual_friends_ids'),
-    }
+    }  # fmt: skip
 
     def is_vkim(self, c) -> bool:
         tables = Tool(c).get_tables()
@@ -62,15 +62,16 @@ class Normaliser(SqliteNormaliser):
     def cleanup_vk_db(self, c) -> None:
         t = Tool(c)
         t.drop(table='friends_hints_order')
-        t.drop_cols(table='users', cols=[
-            # TODO hmm lately (202309), is_friend seems to be flaky for no reason? even where there are no status changes
-
-            'last_updated',
-            'photo_small',
-
-            'lists',  # very flaky for some reason, sometimes just flips to 0??
-            'name_r',  # seems derived from first/last name, and is very flaky
-        ])
+        t.drop_cols(
+            table='users',
+            cols=[
+                # TODO hmm lately (202309), is_friend seems to be flaky for no reason? even where there are no status changes
+                'last_updated',
+                'photo_small',
+                'lists',  # very flaky for some reason, sometimes just flips to 0??
+                'name_r',  # seems derived from first/last name, and is very flaky
+            ],
+        )
 
     def cleanup(self, c) -> None:
         self.check(c)  # todo could also call 'check' after just in case
@@ -82,85 +83,96 @@ class Normaliser(SqliteNormaliser):
         t = Tool(c)
 
         for table in [
-                'peers_search_content',
-                'peers_search_segments',
-                'peers_search_segdir',
-                'peers_search_docsize',
-                'peers_search_stat',
-                'messages_search_segments',
-                'messages_search_segdir',
-                'messages_search_docsize',
-                'messages_search_stat',
-                'messages_search_content',
-
-                'key_value',  # nothing interesting here
-                'integer_generator',  # lol
-
-                ## no data, just some internal tracking
-                'dialogs_history_count',
-                'dialogs_history_meta',
-                'dialog_weight',
-                ##
+            'peers_search_content',
+            'peers_search_segments',
+            'peers_search_segdir',
+            'peers_search_docsize',
+            'peers_search_stat',
+            'messages_search_segments',
+            'messages_search_segdir',
+            'messages_search_docsize',
+            'messages_search_stat',
+            'messages_search_content',
+            #
+            'key_value',  # nothing interesting here
+            'integer_generator',  # lol
+            #
+            ## no data, just some internal tracking
+            'dialogs_history_count',
+            'dialogs_history_meta',
+            'dialog_weight',
+            ##
         ]:
             t.drop(table=table)
 
-        t.drop_cols(table='users', cols=[
-            'avatar',  # flaky and no point tracking really
-            'image_status',
+        t.drop_cols(
+            table='users',
+            cols=[
+                'avatar',  # flaky and no point tracking really
+                'image_status',
+                ## flaky timestamps
+                'sync_time_overall',
+                'sync_time_online',
+                'online_last_seen',
+                ##
+                'online_app_id',
+                'online_type',
+            ],
+        )
 
-            ## flaky timestamps
-            'sync_time_overall',
-            'sync_time_online',
-            'online_last_seen',
-            ##
-            'online_app_id',
-            'online_type',
-        ])
+        t.drop_cols(
+            table='contacts',
+            cols=[
+                'avatar',
+                'sync_time',  # flaky
+                'last_seen_status',  # flaky
+            ],
+        )
 
-        t.drop_cols(table='contacts', cols=[
-            'avatar',
+        t.drop_cols(
+            table='dialogs',
+            cols=[
+                'sort_id_server',
+                'sort_id_local',
+                'weight',
+                'read_till_in_msg_vk_id',
+                'read_till_out_msg_vk_id',
+                'last_msg_vk_id',
+                'read_till_in_msg_vk_id_local',
+                'read_till_in_msg_cnv_id',
+                'read_till_out_msg_cnv_id',
+                'last_msg_cnv_id',
+                'count_unread',
+                'count_unread_local',
+                'keyboard_visible',
+                'draft_msg',
+                'bar_name',
+                'bar_exists',
+                'bar_buttons',
+                'bar_text',
+                'bar_icon',
+            ],
+        )
 
-            'sync_time',  # flaky
-            'last_seen_status',  # flaky
-        ])
+        t.drop_cols(
+            table='messages',
+            cols=[
+                ## seems flaky -- not sure why, hard to tell since it's a binary blob
+                'attach',
+                'nested',
+                ##
+                'phase_id',  # not sure what is it, some internal stuff
+            ],
+        )
 
-        t.drop_cols(table='dialogs', cols=[
-            'sort_id_server',
-            'sort_id_local',
-            'weight',
-            'read_till_in_msg_vk_id',
-            'read_till_out_msg_vk_id',
-            'last_msg_vk_id',
-            'read_till_in_msg_vk_id_local',
-            'read_till_in_msg_cnv_id',
-            'read_till_out_msg_cnv_id',
-            'last_msg_cnv_id',
-            'count_unread',
-            'count_unread_local',
-            'keyboard_visible',
-            'draft_msg',
-
-            'bar_name',
-            'bar_exists',
-            'bar_buttons',
-            'bar_text',
-            'bar_icon',
-        ])
-
-        t.drop_cols(table='messages', cols=[
-            ## seems flaky -- not sure why, hard to tell since it's a binary blob
-            'attach',
-            'nested',
-            ##
-            'phase_id',  # not sure what is it, some internal stuff
-        ])
-
-        t.drop_cols(table='groups', cols=[
-            'avatar',
-
-            'sync_time',
-            'members_count',
-        ])
+        t.drop_cols(
+            table='groups',
+            cols=[
+                'avatar',
+                'sync_time',
+                'members_count',
+            ],
+        )
 
 
 if __name__ == '__main__':

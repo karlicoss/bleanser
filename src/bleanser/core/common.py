@@ -55,6 +55,7 @@ class Instruction:
 class Prune(Instruction):
     pass
 
+
 @dataclass
 class Keep(Instruction):
     pass
@@ -65,6 +66,7 @@ from .utils import under_pytest
 
 if TYPE_CHECKING or under_pytest:
     import pytest
+
     parametrize = pytest.mark.parametrize
 else:
     parametrize = lambda *_args, **_kwargs: (lambda f: f)
@@ -75,9 +77,11 @@ else:
 class BaseMode:
     pass
 
+
 @dataclass
 class Dry(BaseMode):
     pass
+
 
 @dataclass
 class Move(BaseMode):
@@ -85,6 +89,7 @@ class Move(BaseMode):
 
     def __post_init__(self) -> None:
         assert self.path.is_dir(), self.path
+
 
 @dataclass
 class Remove(BaseMode):
@@ -117,7 +122,6 @@ def divide_by_size(*, buckets: int, paths: Sequence[Path]) -> Sequence[Sequence[
         group = []
         group_size = 0
 
-
     for p, sz in with_size:
         if group_size >= bucket_size:
             dump()
@@ -127,7 +131,7 @@ def divide_by_size(*, buckets: int, paths: Sequence[Path]) -> Sequence[Sequence[
     dump()
 
     assert len(res) <= buckets
-    while len(res) < buckets: # can be less if buckets > len(paths)
+    while len(res) < buckets:  # can be less if buckets > len(paths)
         res.append([])
 
     flattened = []

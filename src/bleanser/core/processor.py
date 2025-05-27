@@ -183,8 +183,7 @@ class BaseNormaliser:
 
     if TYPE_CHECKING:
         # deliberately keep this during type checking to indicate users need to migrate to normalise()
-        def do_cleanup(self) -> None:
-            ...
+        def do_cleanup(self) -> None: ...
 
     @contextmanager
     def unpacked(self, path: Path, *, wdir: Path) -> Iterator[Path]:
@@ -224,6 +223,7 @@ class BaseNormaliser:
     @classmethod
     def main(cls) -> None:
         from .main import main as run_main
+
         run_main(Normaliser=cls)
 
 
@@ -234,7 +234,7 @@ def compute_groups(
     threads: int | None = None,
 ) -> Iterator[Group]:
     assert len(paths) == len(set(paths)), paths  # just in case
-    assert len(paths) > 0 # just in case
+    assert len(paths) > 0  # just in case
 
     pool = DummyExecutor() if threads is None else ProcessPoolExecutor(max_workers=None if threads == 0 else threads)
     with pool, bleanser_tmp_directory() as base_tmp_dir:
@@ -242,13 +242,11 @@ def compute_groups(
         workers = min(workers, len(paths))  # no point in using too many workers
         logger.info('using %d workers', workers)
 
-        chunks = []
         futures: list[Future] = []
         for paths_chunk in divide_by_size(buckets=workers, paths=paths):
             pp = list(paths_chunk)
             if len(pp) == 0:
                 continue
-            chunks.append(pp)
             # force iterator if we're using more than one thread
             # otherwise it'll still be basically serial execution
             # in addition, multiprocess would fail to pickle returned iterator
@@ -267,8 +265,7 @@ def compute_groups(
                 )
             )
         emitted: set[Path] = set()
-        for chunk, f in zip(chunks, futures):
-            last = chunk[0]
+        for f in futures:
             rit = f.result()
             for r in rit:
                 emitted |= set(r.items)
@@ -350,7 +347,7 @@ def do_diff(lfile: Path, rfile: Path, *, diff_filter: str | None) -> list[str]:
 # TODO shit. it has to own tmp dir...
 # we do need a temporary copy after all?
 class FileSet:
-    def __init__(self, items: Sequence[Path]=(), *, wdir: Path) -> None:
+    def __init__(self, items: Sequence[Path] = (), *, wdir: Path) -> None:
         self.wdir = wdir
         self.items: list[Path] = []
         tfile = NamedTemporaryFile(dir=self.wdir, delete=False)
@@ -396,7 +393,7 @@ class FileSet:
         # hmm sadly sort command doesn't detect it itself?
         # todo make less hacky... ideally the callee would maintain the sorted files
         is_sorted = []
-        for p in tomerge: # todo no need to check self.merged?
+        for p in tomerge:  # todo no need to check self.merged?
             (rc, _, _) = sort['--check', p].run(retcode=(0, 1))
             is_sorted.append(rc == 0)
         mflag = []
@@ -458,6 +455,7 @@ def test_fileset(tmp_path: Path) -> None:
     FS = lambda *paths: FileSet(paths, wdir=wdir)
 
     fid = 0
+
     def lines(ss) -> Path:
         nonlocal fid
         f = tmp_path / str(fid)
@@ -475,6 +473,7 @@ def test_fileset(tmp_path: Path) -> None:
 
     fsac = FS(lines(['a', 'c']))
 
+    # fmt: off
     assert     fsac.issame(FS(lines(['a', 'c'])))
     assert not fsac.issame(FS(lines(['a', 'c', 'b'])))
     assert not FS(lines(['a', 'c', 'b'])).issame(fsac)
@@ -482,13 +481,13 @@ def test_fileset(tmp_path: Path) -> None:
     assert     fs_ .issubset(fsac, diff_filter=dfilter)
     assert not fsac.issubset(fs_ , diff_filter=dfilter)
     assert     fsac.issubset(fs_ , diff_filter='.*')
+    # fmt: on
 
     fc = lines(['c'])
     fe = lines(['e'])
     fsce = FS(fc, fe)
     assert not fsce.issubset(fsac, diff_filter=_FILTER_ALL_ADDED)
     assert not fsac.issubset(fsce, diff_filter=_FILTER_ALL_ADDED)
-
 
     fa = lines(['a'])
     fscea = fsce.union(fa)
@@ -541,7 +540,6 @@ def _compute_groups_serial(
                 cleaned.append(res)
                 yield res
 
-
     fileset_wdir = base_tmp_dir / 'fileset'
     fileset_wdir.mkdir(parents=True, exist_ok=True)
 
@@ -570,10 +568,9 @@ def _compute_groups_serial(
     # it would be nice to also release older iterator entries (calling next())
     # but it seems to change indexing... so a bit of a mess.
 
-    ires[0] # ugh. a bit crap, but we're nudging it to initialize wdir...
+    ires[0]  # ugh. a bit crap, but we're nudging it to initialize wdir...
 
-
-    left  = 0
+    left = 0
     # empty fileset is easier than optional
     items = fset()
     while left < total:
@@ -581,18 +578,20 @@ def _compute_groups_serial(
 
         if isinstance(lfile, Exception):
             # todo ugh... why are we using exception as a dict index??
+            # fmt: off
             yield Group(
                 items =[cleaned2orig[lfile]],
                 pivots=[cleaned2orig[lfile]],
                 error=True,
             )
+            # fmt: on
             left += 1
             continue
 
         items.close()
         items = fset(lfile)
 
-        lpivot = left
+        lpivot = left  # noqa: F841  # TODO why is this unused? maybe was meaning to use lpivot instead of left?
         lpfile = lfile
 
         rpivot = left
@@ -611,13 +610,15 @@ def _compute_groups_serial(
 
                 def group(*, rm_last: bool) -> Group:
                     gitems = items.items
-                    citems = [cleaned2orig[i] for i in gitems]
+                    # fmt: off
+                    citems  = [cleaned2orig[i] for i in gitems]
                     cpivots = [cleaned2orig[i] for i in pivots.items]
-                    g =  Group(
+                    g = Group(
                         items =citems,
                         pivots=cpivots,
                         error=False,
                     )
+                    # fmt: on
                     logger.debug('emitting group pivoted on %s, size %d', list(map(str, cpivots)), len(citems))
                     to_unlink = gitems[: len(gitems) if rm_last else -1]
                     for i in to_unlink:
@@ -638,7 +639,7 @@ def _compute_groups_serial(
                     # short circuit... error itself will be handled when right_res is the leftmost element
                     next_state = None
                 else:
-                    nitems  = items.union(right_res)
+                    nitems = items.union(right_res)
 
                     if Normaliser.MULTIWAY:
                         # otherwise doesn't make sense?
@@ -685,7 +686,7 @@ def _compute_groups_serial(
                 # right will not be read anymore?
 
                 # intermediate files won't be used anymore
-                for i in items.items[1: -1]:
+                for i in items.items[1:-1]:
                     unlink_tmp_output(i)
 
                 right += 1
@@ -705,12 +706,17 @@ def _compute_groups_serial(
 # note: also some tests in sqlite.py
 
 
-@parametrize('multiway,randomize', [
-    (False, False),
-    (True , False),
-    (True , True ),
-    (False, True ),
-])
+# fmt: off
+@parametrize(
+    'multiway,randomize',
+    [
+        (False, False),
+        (True , False),
+        (True , True),
+        (False, True),
+    ],
+)
+# fmt: on
 def test_bounded_resources(*, tmp_path: Path, multiway: bool, randomize: bool) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
@@ -719,17 +725,17 @@ def test_bounded_resources(*, tmp_path: Path, multiway: bool, randomize: bool) -
     one_mb = 1_000_000
     text = 'x' * one_mb + '\n'
 
-
     idir = tmp_path / 'inputs'
     idir.mkdir()
 
     import string
     from random import Random
+
     r = Random(0)
     # each file would be approx 1mb in size
     inputs = []
-    for g in range(4): # 4 groups
-        for i in range(20): # 20 backups in each group
+    for g in range(4):  # 4 groups
+        for i in range(20):  # 20 backups in each group
             ip = idir / f'{g}_{i}.txt'
             text += str(i) + '\n'
             extra = r.choice(string.printable) + '\n' if randomize else ''
@@ -833,16 +839,17 @@ def test_special_characters(tmp_path: Path) -> None:
     p4 = tmp_path / 'p4'
     p4.write_text('A\n')
 
-
     gg = [p1, p2, p3, p4]
     groups = list(compute_groups(gg, Normaliser=TestNormaliser))
     instructions = groups_to_instructions(groups)
+    # fmt: off
     assert [type(i) for i in instructions] == [
         Keep,   # start of group
         Prune,  # same as next
         Keep,   # has unique item: < C > whoops
         Keep,   # end of group
     ]
+    # fmt: on
 
 
 @parametrize('multiway', [False, True])
@@ -861,12 +868,11 @@ def test_simple(*, tmp_path: Path, multiway: bool) -> None:
     p3.write_text('C\n')
     p4.write_text('D\n')
 
-
     for gg in [
-            [p1],
-            [p1, p2],
-            [p1, p2, p3],
-            [p1, p2, p3, p4],
+        [p1],
+        [p1, p2],
+        [p1, p2, p3],
+        [p1, p2, p3, p4],
     ]:
         groups = list(compute_groups(gg, Normaliser=TestNormaliser))
         instructions = groups_to_instructions(groups)
@@ -888,7 +894,6 @@ def test_filter(tmp_path: Path) -> None:
                         fw.write(line)
             yield normalised
 
-
     p1 = tmp_path / 'p1'
     p2 = tmp_path / 'p2'
     p3 = tmp_path / 'p3'
@@ -902,14 +907,13 @@ def test_filter(tmp_path: Path) -> None:
     p3.write_text('A\nd\n')
     p4.write_text('x\ny\n')
 
-
     groups = list(compute_groups(paths, Normaliser=TestNormaliser))
     instructions = groups_to_instructions(groups)
     assert [type(i) for i in instructions] == [
         Keep,
         Prune,  # should prune because after filtering only A there is no difference in files
         Keep,
-        Keep
+        Keep,
     ]
 
 
@@ -923,10 +927,10 @@ def _prepare(tmp_path: Path):
         ['C', 'B', 'A'],      # keep
         ['A', 'BB', 'C'],     # keep
         ['B', 'A', 'E', 'Y'], # keep
-    ]
+    ]  # fmt: skip
 
     paths = []
-    for i, s  in enumerate(sets):
+    for i, s in enumerate(sets):
         o = tmp_path / f'{i}.txt'
         # TODO ugh. how to get rid of \\ No newline at end of file ??
         o.write_text('\n'.join(s) + '\n')
@@ -934,10 +938,13 @@ def _prepare(tmp_path: Path):
     return paths
 
 
-@parametrize('prune_dominated', [
-    True,
-    False,
-])
+@parametrize(
+    'prune_dominated',
+    [
+        True,
+        False,
+    ],
+)
 def test_twoway(*, tmp_path: Path, prune_dominated: bool) -> None:
     paths = _prepare(tmp_path)
 
@@ -945,10 +952,12 @@ def test_twoway(*, tmp_path: Path, prune_dominated: bool) -> None:
         PRUNE_DOMINATED = prune_dominated
         MULTIWAY = False
 
-    groups = list(compute_groups(
-        paths,
-        Normaliser=TestNormaliser,
-    ))
+    groups = list(
+        compute_groups(
+            paths,
+            Normaliser=TestNormaliser,
+        )
+    )
     instructions = list(groups_to_instructions(groups))
     assert [type(i) for i in instructions] == [
         Keep,
@@ -958,7 +967,7 @@ def test_twoway(*, tmp_path: Path, prune_dominated: bool) -> None:
         Prune if prune_dominated else Keep,  # dominated by the next set
         Keep,
         Keep,
-        Keep
+        Keep,
     ]
 
     for p in paths:
@@ -973,23 +982,28 @@ def test_multiway(tmp_path: Path) -> None:
         PRUNE_DOMINATED = True
         MULTIWAY = True
 
-    for i, s in enumerate([
+    for i, s in enumerate(
+        [
             ['00', '11', '22'],
             ['11', '22', '33', '44'],
             ['22', '33', '44', '55'],
             ['44', '55', '66'],
             ['55', '66'],
-    ]):
+        ]
+    ):
         p = tmp_path / f'extra_{i}.txt'
         p.write_text('\n'.join(s) + '\n')
         paths.append(p)
 
-    groups = list(compute_groups(
-        paths,
-        Normaliser=TestNormaliser,
-    ))
+    groups = list(
+        compute_groups(
+            paths,
+            Normaliser=TestNormaliser,
+        )
+    )
     instructions = groups_to_instructions(groups)
 
+    # fmt: off
     assert [type(i) for i in instructions] == [
         Keep,    # X
         Prune,   # B in CBA
@@ -1001,11 +1015,12 @@ def test_multiway(tmp_path: Path) -> None:
         Keep,    # Keep because of E,Y
         # extra items now
         Keep,
-        Prune ,  #
-        Keep  ,  # in isolation, it's dominated by neighbours.. but if we prune it, we'll lose '33' permanently
-        Prune ,  # dominated by neighbours
-        Keep  ,  # always keep last
+        Prune,   #
+        Keep,    # in isolation, it's dominated by neighbours.. but if we prune it, we'll lose '33' permanently
+        Prune,   # dominated by neighbours
+        Keep,    # always keep last
     ]
+    # fmt: on
 
 
 # todo config is unused here?
@@ -1045,7 +1060,8 @@ def test_groups_to_instructions() -> None:
                 items=p,
                 pivots=(p[0], p[-1]),
                 error=False,
-            ) for p in ppp
+            )
+            for p in ppp
         )
         res = groups_to_instructions(list(grit))
         return [(str(p.path), {Keep: 'keep', Prune: 'prune'}[type(p)]) for p in res]
@@ -1058,50 +1074,49 @@ def test_groups_to_instructions() -> None:
     ]
 
     assert do(
-        ('0', 'a'          ),
+        ('0', 'a'),
         ('a', 'b', 'c', 'd'),
     ) == [
-        ('0', 'keep' ),
-        ('a', 'keep' ),
+        ('0', 'keep'),
+        ('a', 'keep'),
         ('b', 'prune'),
         ('c', 'prune'),
-        ('d', 'keep' ),
+        ('d', 'keep'),
     ]
-
 
     # TODO shit. how to test this now?
     # maybe it's the config -- delete both pivots or not? not sure
-   #inputs = [
-   #    ('a', 'b', CR.SAME     ),
-   #    ('b', 'c', CR.DIFFERENT),
-   #    ('c', 'd', CR.DOMINATES),
-   #    ('d', 'e', CR.SAME     ),
-   #    ('e', 'f', CR.DOMINATES),
-   #    ('f', 'g', CR.DIFFERENT),
-   #    ('g', 'h', CR.SAME     ),
-   #]
-   #
-   #assert do(*inputs) == [
-   #    ('a', 'keep'  ),
-   #    ('b', 'keep'  ),
-   #    ('c', 'keep'  ),
-   #    ('d', 'keep'  ),
-   #    ('e', 'keep'  ),
-   #    ('f', 'keep'  ),
-   #    ('g', 'keep'  ),
-   #    ('h', 'keep'  ),
-   #]
-   #
-   #assert do(*inputs, config=Config(prune_dominated=True)) == [
-   #    ('a', 'keep'  ),
-   #    ('b', 'keep'  ),
-   #    ('c', 'keep'  ),
-   #    ('d', 'prune' ),
-   #    ('e', 'prune' ),
-   #    ('f', 'keep'  ),
-   #    ('g', 'keep'  ),
-   #    ('h', 'keep'  ),
-   #]
+    # inputs = [
+    #    ('a', 'b', CR.SAME     ),
+    #    ('b', 'c', CR.DIFFERENT),
+    #    ('c', 'd', CR.DOMINATES),
+    #    ('d', 'e', CR.SAME     ),
+    #    ('e', 'f', CR.DOMINATES),
+    #    ('f', 'g', CR.DIFFERENT),
+    #    ('g', 'h', CR.SAME     ),
+    # ]
+    #
+    # assert do(*inputs) == [
+    #    ('a', 'keep'  ),
+    #    ('b', 'keep'  ),
+    #    ('c', 'keep'  ),
+    #    ('d', 'keep'  ),
+    #    ('e', 'keep'  ),
+    #    ('f', 'keep'  ),
+    #    ('g', 'keep'  ),
+    #    ('h', 'keep'  ),
+    # ]
+    #
+    # assert do(*inputs, config=Config(prune_dominated=True)) == [
+    #    ('a', 'keep'  ),
+    #    ('b', 'keep'  ),
+    #    ('c', 'keep'  ),
+    #    ('d', 'prune' ),
+    #    ('e', 'prune' ),
+    #    ('f', 'keep'  ),
+    #    ('g', 'keep'  ),
+    #    ('h', 'keep'  ),
+    # ]
 
     import pytest
 
@@ -1127,7 +1142,6 @@ def test_groups_to_instructions() -> None:
             ('a', 'b', 'c'),
             ('b', 'a'),
         )
-
 
     # # TODO not sure if should raise... no pivot overlap?
     # with pytest.raises(AssertionError):
@@ -1159,7 +1173,7 @@ def compute_instructions(
     assert done == len(paths)  # just in case
 
 
-def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(), need_confirm: bool=True) -> NoReturn:  # noqa: B008
+def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(), need_confirm: bool = True) -> NoReturn:  # noqa: B008
     import click
 
     # TODO hmm...
@@ -1173,13 +1187,13 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
     else:
         totals = '???'
 
+    # fmt: off
     rm_action = {
-        # fmt: off
         Dry   : click.style('REMOVE (dry mode)', fg='yellow'),
         Move  : click.style('MOVE             ', fg='yellow'),
         Remove: click.style('REMOVE           ', fg='red'   ),
-        # fmt: on
     }[type(mode)]
+    # fmt: on
 
     tot_files = 0
     rem_files = 0
@@ -1187,8 +1201,8 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
     rem_bytes = 0
 
     def stat() -> str:
-        tmb = tot_bytes / 2 ** 20
-        rmb = rem_bytes / 2 ** 20
+        tmb = tot_bytes / 2**20
+        rmb = rem_bytes / 2**20
         return f'pruned so far: {int(rmb):>4} Mb /{int(tmb):>4} Mb , {rem_files:>3} /{tot_files:>3} files'
 
     errored: list[Path] = []
@@ -1204,7 +1218,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
         tot_bytes += sz
         tot_files += 1
         action: str
-        if   isinstance(ins, Keep):
+        if isinstance(ins, Keep):
             action = click.style('will keep        ', fg='green')
         elif isinstance(ins, Prune):
             action = rm_action
@@ -1227,6 +1241,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
         sys.exit(exit_code)
 
     from .utils import under_pytest
+
     assert not under_pytest  # just a paranoid check to prevent deleting something under tests by accident
 
     if len(to_delete) == 0:
@@ -1237,7 +1252,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
         sys.exit(exit_code)
 
     move_to: Path | None = None
-    if   isinstance(mode, Move):
+    if isinstance(mode, Move):
         move_to = mode.path
         # just in case
         assert move_to.is_absolute(), move_to
@@ -1283,9 +1298,11 @@ def compute_diff(paths: list[Path], *, Normaliser: type[BaseNormaliser]) -> list
             results.append((path, exit_stack.enter_context(pn.do_normalise())))
 
         # if > 2 paths are passed, we're treating first and last path as 'pivots', and comparing to all the stuff in the middle
+        # fmt: off
         first = results[0]
         last  = results[-1]
         rest  = results[1:-1]
+        # fmt: on
 
         if len(rest) == 0:
             group1 = [first]

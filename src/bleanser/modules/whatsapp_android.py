@@ -57,8 +57,7 @@ class Normaliser(SqliteNormaliser):
         ('bot_plugin_metadata', '*'),
         ('message_orphan', '*'),  # not sure what is it but seems empty
         ('bcall_session', 'master_key'),
-
-
+        #
         # the only interesting ones perhaps? checked manually and it's dumped as hex or something, so should be good
         ('audio_data', 'waveform'),
         ('messages', 'raw_data'),  # this one is mostly NULL except one row??
@@ -74,7 +73,7 @@ class Normaliser(SqliteNormaliser):
             msgs = tables['messages']
             assert 'data' in msgs
         else:
-            msgs = tables['message'] # new format (at least as of Nov 2022)
+            msgs = tables['message']  # new format (at least as of Nov 2022)
             assert 'text_data' in msgs
 
         assert 'timestamp' in msgs
@@ -95,9 +94,9 @@ class Normaliser(SqliteNormaliser):
         # note: there are WAY more useless tables there, but for the most part they are empty
         for table in [
             'frequent',
-            'frequents', # freq used contacts
+            'frequents',  # freq used contacts
             'group_notification_version',
-            'group_participant_device', # not sure who'd need it
+            'group_participant_device',  # not sure who'd need it
             'media_hash_thumbnail',
             'media_refs', # just random file paths with counters
             'message_forwarded', # keeps track of some forward_score??
@@ -133,13 +132,13 @@ class Normaliser(SqliteNormaliser):
             'messages_vcards',
             'messages_vcards_jids',
             'mms_thumbnail_metadata',
-            'primary_device_version', # just some random numbers??
-            'props', # some random metadata, changes all the time
+            'primary_device_version',  # just some random numbers??
+            'props',  # some random metadata, changes all the time
             'receipt_device',
             'receipt_orphaned',
             'receipt_user',
-            'receipts', # not sure why would it be useful to keep track of
-            'status', # keeps track of last read msg or something
+            'receipts',  # not sure why would it be useful to keep track of
+            'status',  # keeps track of last read msg or something
             'user_device',
             'user_device_info',
 
@@ -170,82 +169,82 @@ class Normaliser(SqliteNormaliser):
             'status_crossposting_v3',
 
             # TODO group_past_participant_user not sure if useful? kinda volatile
-        ]:
+        ]:  # fmt: skip
             t.drop(table)
 
-        t.drop_cols(table='chat', cols=[
-            '_id',  # actual chat id seems to be in jid_row_id
+        t.drop_cols(
+            table='chat',
+            cols=[
+                '_id',  # actual chat id seems to be in jid_row_id
+                'hidden',  # kinda volatile and not that interesting to track
+                'display_message_row_id',
+                'last_message_row_id',
+                'last_read_message_row_id',
+                'last_read_receipt_sent_message_row_id',
+                'last_important_message_row_id',
+                'sort_timestamp',
+                'spam_detection',
+                'unseen_earliest_message_received_time',
+                'unseen_message_count',
+                'unseen_row_count',
+                'unseen_message_reaction_count',
+                'unseen_important_message_count',
+                'history_sync_progress',
+                'change_number_notified_message_row_id',
+                ## newer db versions
+                # flaky fields
+                'last_read_message_sort_id',
+                'display_message_sort_id',
+                'last_message_sort_id',
+                'last_read_receipt_sent_message_sort_id',
+                'last_message_reaction_row_id',
+                'last_seen_message_reaction_row_id',
+                'mod_tag',
+                'has_new_community_admin_dialog_been_acknowled',
+                'show_group_description',
+                'growth_lock_level',
+                'growth_lock_expiration_ts',
+                'chat_origin',
+                # NOTE ugh. created_timestamp is a bit flaky? often goes from NULL to the actual value
+                # this might be an interesting usecase/test for extract mode?
+                'created_timestamp',
+                ## for 'extract' mode
+                ## archived?
+            ],
+        )
 
-            'hidden',  # kinda volatile and not that interesting to track
-
-            'display_message_row_id',
-            'last_message_row_id',
-            'last_read_message_row_id',
-            'last_read_receipt_sent_message_row_id',
-            'last_important_message_row_id',
-            'sort_timestamp',
-            'spam_detection',
-            'unseen_earliest_message_received_time',
-            'unseen_message_count',
-            'unseen_row_count',
-            'unseen_message_reaction_count',
-            'unseen_important_message_count',
-            'history_sync_progress',
-            'change_number_notified_message_row_id',
-
-            ## newer db versions
-            # flaky fields
-            'last_read_message_sort_id',
-            'display_message_sort_id',
-            'last_message_sort_id',
-            'last_read_receipt_sent_message_sort_id',
-            'last_message_reaction_row_id',
-            'last_seen_message_reaction_row_id',
-            'mod_tag',
-
-            'has_new_community_admin_dialog_been_acknowled',
-            'show_group_description',
-            'growth_lock_level',
-            'growth_lock_expiration_ts',
-            'chat_origin',
-
-            # NOTE ugh. created_timestamp is a bit flaky? often goes from NULL to the actual value
-            # this might be an interesting usecase/test for extract mode?
-            'created_timestamp',
-
-            ## for 'extract' mode
-            ## archived?
-        ])
-
-        t.drop_cols(table='message', cols=[
-            ## flaky, no idea what is it
-            'origination_flags',
-            'message_add_on_flags',
-            'status',
-            ##
-
-            ## for 'extract' mode:
-            # received_timestamp
-            # receipt_server_timestamp
-        ])
+        t.drop_cols(
+            table='message',
+            cols=[
+                ## flaky, no idea what is it
+                'origination_flags',
+                'message_add_on_flags',
+                'status',
+                ##
+                ## for 'extract' mode:
+                # received_timestamp
+                # receipt_server_timestamp
+            ],
+        )
 
         # if it's not transferred yet gonna be volatile (e.g. size, no path etc)
         # so best to just ignore it
         c.execute('DELETE FROM message_media WHERE transferred != 1')
 
-        t.drop_cols(table='message_media', cols=[
-            'original_file_hash',  # ??? sometimes goes from value to NULL
-
-            ## flaky 0/1
-            'has_streaming_sidecar',
-            'autotransfer_retry_enabled',
-            'transferred',
-            'transcoded'
-            ##
-
-            # todo media_name might be flaky?? sometimes sets from NULL to file name?
-            # same info is in file_path though... so idk
-        ])
+        t.drop_cols(
+            table='message_media',
+            cols=[
+                'original_file_hash',  # ??? sometimes goes from value to NULL
+                ## flaky 0/1
+                'has_streaming_sidecar',
+                'autotransfer_retry_enabled',
+                'transferred',
+                'transcoded',
+                ##
+                # todo media_name might be flaky?? sometimes sets from NULL to file name?
+                # same info is in file_path though... so idk
+            ],
+        )
 
         # the mapping itself is between group_jid_row_id and user_jid_row_id columns
         # seems like sometimes entries are reordered or something
@@ -254,10 +253,13 @@ class Normaliser(SqliteNormaliser):
             'group_past_participant_user',
             # TODO not sure if should do same with message and chat tables?
         ]:
-            t.drop_cols(table=table, cols=[
-                '_id',
-                'rank',
-            ])
+            t.drop_cols(
+                table=table,
+                cols=[
+                    '_id',
+                    'rank',
+                ],
+            )
 
 
 if __name__ == '__main__':

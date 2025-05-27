@@ -47,14 +47,14 @@ class JsonNormaliser(BaseNormaliser):
 
         with cleaned.open('w') as fo:
             if isinstance(j, list):
-                j = {'<toplevel>': j} # meh
+                j = {'<toplevel>': j}  # meh
 
             assert isinstance(j, dict), j
             for k, v in j.items():
                 if not isinstance(v, list):
                     # something like 'profile' data in hypothesis could be a dict
                     # something like 'notes' in rescuetime could be a scalar (str)
-                    v = [v] # meh
+                    v = [v]  # meh
                 assert isinstance(v, list), (k, v)
                 for i in v:
                     print(f'{k} ::: {orjson.dumps(i, option=orjson.OPT_SORT_KEYS).decode("utf8")}', file=fo)
@@ -74,11 +74,13 @@ if __name__ == '__main__':
 #
 def test_nonidempotence(tmp_path: Path) -> None:
     from bleanser.tests.common import actions, hack_attribute
+
     '''
     Just demonstrates that multiway processing might be
     It's probably going to be very hard to fix, likely finding 'minimal' cover (at least in terms of partial ordering) is NP hard?
     '''
 
+    # fmt: off
     sets = [
         [],
         ['a'],
@@ -86,6 +88,7 @@ def test_nonidempotence(tmp_path: Path) -> None:
         [     'b', 'c'],
         ['a', 'b', 'c'],
     ]
+    # fmt: on
     for i, s in enumerate(sets):
         p = tmp_path / f'{i}.json'
         p.write_text(orjson.dumps(s).decode('utf8'))
@@ -95,9 +98,9 @@ def test_nonidempotence(tmp_path: Path) -> None:
         res = actions(paths=paths, Normaliser=JsonNormaliser)
 
         assert [p.name for p in res.remaining] == [
-            '0.json', # keeping as boundary
-            '2.json', # keeping because item a has rolled over
-            '4.json', # keeping as boundary
+            '0.json',  # keeping as boundary
+            '2.json',  # keeping because item a has rolled over
+            '4.json',  # keeping as boundary
         ]
 
         paths = list(res.remaining)
@@ -107,4 +110,3 @@ def test_nonidempotence(tmp_path: Path) -> None:
             # note: 2.json is removed because fully contained in 4.json
             '4.json',
         ]
-
