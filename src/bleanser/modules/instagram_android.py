@@ -124,7 +124,7 @@ def _cleanup_jsons(s):
 
         'visual_messages_newest_cursor',
         'thread_messages_oldest_cursor',
-    ])
+    ])  # fmt: skip
     j = patch_atoms(j, patch=_patch_volatile_urls)
     return json.dumps(j, sort_keys=True).encode('utf8')
 
@@ -133,15 +133,13 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
         msgs = tables['messages']
         assert 'timestamp' in msgs
         assert 'text' in msgs
 
-        threads = tables['threads']
-
+        _threads = tables['threads']
 
     def cleanup(self, c) -> None:
         self.check(c)
@@ -150,14 +148,17 @@ class Normaliser(SqliteNormaliser):
         t.drop('session')  # super volatile
 
         for tbl in ['messages', 'threads']:
-            t.drop_cols(tbl, cols=[
-                # changes all the time without changing content
-                '_id',
-
-                # kinda volatile, seems to change some time after it's inserted?
-                # doesn't seem used in any indexes etc
-                'client_item_id',
-            ])
+            t.drop_cols(
+                tbl,
+                cols=[
+                    # changes all the time without changing content
+                    '_id',
+                    #
+                    # kinda volatile, seems to change some time after it's inserted?
+                    # doesn't seem used in any indexes etc
+                    'client_item_id',
+                ],
+            )
 
         t.drop_cols('threads', cols=['last_activity_time'])
 

@@ -21,6 +21,8 @@ from subprocess import DEVNULL, check_call, check_output
 from tempfile import TemporaryDirectory
 
 Tables = dict[str, dict[str, str]]
+
+
 def _get_tables(db: Path) -> Tables:
     res: Tables = {}
     with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
@@ -36,7 +38,7 @@ def _get_tables(db: Path) -> Tables:
         for table in tables:
             schema: dict[str, str] = {}
             for row in conn.execute(f'PRAGMA table_info({table})'):
-                col   = row[1]
+                col = row[1]
                 type_ = row[2]
                 schema[col] = type_
             res[table] = schema
@@ -88,10 +90,10 @@ def _dumben_db(output_db: Path) -> None:
         # sqlite_sequence is something to do with autoincrement, ends up with some indices noise otherwise
         # sqlite_stat{1,2,3,4} is something to do with ANALYZE query
         'DELETE FROM sqlite_master WHERE name = "sqlite_sequence" OR name LIKE "sqlite_stat%";',
-
+        #
         'DELETE FROM sqlite_master WHERE type IN ("view", "trigger", "index");',
         *updates,
-
+        #
         # without vacuum, sometimes ended up with "rootpage disagrees with header error", from sqlite code seemed like it had something to do with autovacuum
         'VACUUM',
     ]
@@ -188,7 +190,7 @@ CREATE VIEW whatevs AS
     subprocess.run(_sqlite(db), input=sql.encode('utf8'), check=True)
 
     ## precondition -- check that db has multiline CREATE statements
-    dbd = check_output(_sqlite( db, '.dump')).decode('utf8').splitlines()
+    dbd = check_output(_sqlite(db, '.dump')).decode('utf8').splitlines()
     assert 'CREATE TABLE employees' in dbd
     assert '  CONSTRAINT fk_departments' in dbd
     ##
@@ -207,7 +209,7 @@ CREATE VIEW whatevs AS
     dump = dumb_sql.read_text()
     dump_lines = dump.splitlines()
 
-    crt = dump_lines[5] # meh but easiest
+    crt = dump_lines[5]  # meh but easiest
     # make sure it puts the statement on single line
     assert re.fullmatch(r'CREATE TABLE `employees` \(`employee_id` INTEGER,.*`department_id` INTEGER.*\);', crt)
     # make sure it strips off constraints
@@ -225,6 +227,7 @@ CREATE VIEW whatevs AS
 
 def main() -> None:
     from argparse import ArgumentParser
+
     p = ArgumentParser()
     p.add_argument('--output-as-db', action='store_true')
     p.add_argument('--output', type=Path, required=False)

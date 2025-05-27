@@ -29,10 +29,13 @@ class Normaliser(SqliteNormaliser):
             if s is None:
                 return None
             j = json.loads(s)
-            delkeys(j, keys=[
-                'fetchedDate',  # from profilecachev8, very volatile
-                'up',           # from miniprofilecachev8, very volatile
-            ])
+            delkeys(
+                j,
+                keys=[
+                    'fetchedDate',  # from profilecachev8, very volatile
+                    'up',  # from miniprofilecachev8, very volatile
+                ],
+            )
             return json.dumps(j)
 
         c.create_function("CLEANUP_JSONS", 1, _cleanup_jsons)

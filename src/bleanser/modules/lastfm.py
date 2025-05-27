@@ -25,7 +25,9 @@ def test_lastfm() -> None:
     """
     This test also highlights how multiway cleanup is more efficient than twoway
     """
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions, hack_attribute
 
@@ -35,7 +37,7 @@ def test_lastfm() -> None:
     with hack_attribute(Normaliser, key='MULTIWAY', value=False):
         res = actions(paths=paths, Normaliser=Normaliser)
     assert [p.name for p in res.pruned] == [
-        'lastfm_20211107T011431Z.json', # fully contained in lastfm_20211127T011459Z
+        'lastfm_20211107T011431Z.json',  # fully contained in lastfm_20211127T011459Z
     ]
 
     with hack_attribute(Normaliser, key='MULTIWAY', value=True):
@@ -66,5 +68,4 @@ def test_lastfm() -> None:
 
         # last item
         'lastfm_20220103T011522Z.json',
-    ]
-
+    ]  # fmt: skip

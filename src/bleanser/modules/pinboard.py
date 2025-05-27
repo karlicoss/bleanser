@@ -15,10 +15,14 @@ if __name__ == '__main__':
 # if isinstance(j, dict):
 #     del j['tags']
 
+
 def test_pinboard() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions
+
     data = TESTDATA / 'pinboard'
 
     paths = sorted(data.glob('*.json'))
@@ -75,4 +79,4 @@ def test_pinboard() -> None:
         # 'pinboard_20210220T011105Z.json' , : MOVE
         # 'pinboard_20210221T011013Z.json' , : MOVE
         'pinboard_20220103T011019Z.json' , #: will keep
-    ]
+    ]  # fmt: skip

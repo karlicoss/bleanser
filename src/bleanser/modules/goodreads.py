@@ -7,10 +7,10 @@ class Normaliser(XmlNormaliser):
 
     def cleanup(self, t):
         for key in [
-                'average_rating',
-                'text_reviews_count',
-                'ratings_count',
-                'book/description',  # volatile
+            'average_rating',
+            'text_reviews_count',
+            'ratings_count',
+            'book/description',  # volatile
         ]:
             for x in t.findall('.//' + key):
                 x.getparent().remove(x)

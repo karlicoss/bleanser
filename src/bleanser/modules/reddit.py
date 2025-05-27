@@ -175,7 +175,8 @@ REDDIT_IGNORE_KEYS = {
     # profile -> link_karma, comment_karma -- probs useful to keep
     #
     # TODO maybe, num_crossposts? have only seen once so far
-}
+}  # fmt: skip
+
 
 class Normaliser(JsonNormaliser):
     # NOTE: we don't want to prune dominated/use multiway in reddit, because that way we lose timestamps for changes!!!
@@ -196,7 +197,6 @@ class Normaliser(JsonNormaliser):
 
                 i.pop('subreddit_type', None)
 
-
         ## karma is flaky, goes up and down even without actual votes
         ## so make it a bit smoother
         profile = j['profile']
@@ -207,7 +207,6 @@ class Normaliser(JsonNormaliser):
         # ugh, total karma is flaking between two values for me consistently
         # but removing it completely only gets rid of 10% of files?
         ##
-
 
         for u in chain(j['upvoted'], j['downvoted']):
             ## not sure what it is, but flaky from "" to null
@@ -239,7 +238,9 @@ if __name__ == '__main__':
 
 
 def test_reddit_1() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions
     # TODO add a test for multiway
@@ -261,13 +262,16 @@ def test_reddit_1() -> None:
         'reddit_20220102T132059Z.json',  # boundary for the next one
         'reddit_20220102T142057Z.json',  # author changed (likely deleted?)
         'reddit_20220102T164059Z.json',  # last in group
-    ]
+    ]  # fmt: skip
 
 
 def test_reddit_2() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions
+
     data = TESTDATA / 'reddit2'
     paths = sorted(data.glob('*.json*'))
 
@@ -285,4 +289,4 @@ def test_reddit_2() -> None:
         'reddit_20210803T215050Z.json',
 
         'reddit_20210804T213055Z.json',
-    ]
+    ]  # fmt: skip

@@ -6,7 +6,6 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-
     def check(self, c) -> None:
         tool = Tool(c)
         tables = tool.get_tables()
@@ -14,7 +13,7 @@ class Normaliser(SqliteNormaliser):
         if len(info_tables) == 0:
             # old db format
             data = tables['data']
-            assert 'Time'        in data, data
+            assert 'Time' in data, data
             assert 'Temperature' in data, data
         else:
             # TODO hmm how to add some proper check here without too much duplication?
@@ -57,9 +56,12 @@ if __name__ == '__main__':
 
 # TODO think I've had jdoe or something with example databases..
 def test_bluemaestro() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
+
     res = actions2(path=TESTDATA / 'bluemaestro', rglob='**/*.db*', Normaliser=Normaliser)
 
     assert res.remaining == [
@@ -69,7 +71,7 @@ def test_bluemaestro() -> None:
         # '20180730.db',  # move
         '20180731.db',
 
-        '20190723100032.db', # keep, everything changed
+        '20190723100032.db',  # keep, everything changed
         # TODO need to investigate, some values have changed a bit, like 1st digit after decimal point
         # even timestamps changed sometimes (e.g. just last second)
         # hpi bluemaestro module has something for handling this, I think
@@ -77,11 +79,11 @@ def test_bluemaestro() -> None:
         # same as above
         '20190727104723.db',
 
-        '20200208225936.db', # keep, everything changed (several months diff)
+        '20200208225936.db',  # keep, everything changed (several months diff)
         # '20201209083427/bmgateway.db',  # move, completely dominated by the next
         # '20210131102917/bmgateway.db',  # move, completely dominated by the next
         # '20210207183947/bmgateway.db',  # move, completely dominated by the next
         '20210216211844/bmgateway.db',  # keep, errored because couldn't find last _log item
         '20211103234924/bmgateway.db',  # same, previous errored
         '20211106191208/bmgateway.db',
-    ]
+    ]  # fmt: skip

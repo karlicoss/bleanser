@@ -18,9 +18,12 @@ if __name__ == '__main__':
 
 
 def test_smscalls() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions
+
     data = TESTDATA / 'smscalls'
     paths = sorted(data.glob('*.xml*'))
 
@@ -81,4 +84,4 @@ def test_smscalls() -> None:
         # 'sms-20211108043003.xml',
         # 'sms-20211109043004.xml',
         'sms-20211110043004.xml',
-    ]
+    ]  # fmt: skip

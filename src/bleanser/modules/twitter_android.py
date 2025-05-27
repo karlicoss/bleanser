@@ -1,6 +1,7 @@
 """
 Normalises data for official twitter Android app
 """
+
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
@@ -22,7 +23,7 @@ class Normaliser(SqliteNormaliser):
         # another sanity check -- to make sure the content is actually stored in this column and not lost during migrations
         assert statuses_without_content == 0
 
-        timeline = tables['timeline']
+        _timeline = tables['timeline']
 
     def cleanup(self, c) -> None:
         self.check(c)
@@ -44,52 +45,56 @@ class Normaliser(SqliteNormaliser):
 
         t.drop('tokens')  # some internal thing
 
-        t.drop_cols('statuses', cols=[
-            '_id',  # internal id
-
-            ## volatile
-            'favorite_count',
-            'retweet_count',
-            'view_count_info',
-            'reply_count',
-            'bookmark_count',
-            'quote_count',
-            'tweet_source',  # sometimes NULL at first?
-            'flags',
-            'self_thread_id',
-
-            'edit_control',  # no idea what it is
-            'unmention_info',  # no idea, some binary crap (not even text)
-            'quick_promote_eligibility',
-            'quoted_status_permalink',
-            'conversation_control',
-            ##
-
-            'r_ent_content',  # contains same data as 'content'
-
-            # cards contain some extra data embedded from the website (e.g. preview)
-            # might be actually useful to extract data from it
-            'card', 'unified_card',
-        ])
+        t.drop_cols(
+            'statuses',
+            cols=[
+                '_id',  # internal id
+                ## volatile
+                'favorite_count',
+                'retweet_count',
+                'view_count_info',
+                'reply_count',
+                'bookmark_count',
+                'quote_count',
+                'tweet_source',  # sometimes NULL at first?
+                'flags',
+                'self_thread_id',
+                'edit_control',  # no idea what it is
+                'unmention_info',  # no idea, some binary crap (not even text)
+                'quick_promote_eligibility',
+                'quoted_status_permalink',
+                'conversation_control',
+                ##
+                #
+                'r_ent_content',  # contains same data as 'content'
+                #
+                # cards contain some extra data embedded from the website (e.g. preview)
+                # might be actually useful to extract data from it
+                'card',
+                'unified_card',
+            ],
+        )
 
         # NOTE: in principle tweet data is all in statues table
         # but we need timeline to reconstruct some feeds (e.g. users own tweets)
-        t.drop_cols('timeline', cols=[
-            '_id',  # internal id
-
-            ## volatile
-            'is_read',
-            'sort_index',
-            'timeline_chunk_id',
-            'updated_at',
-            'scribe_content',  # some "for you" crap
-            'created_at',  # internal created at, not tweet's
-            'feedback_action_prompts',
-            'social_context',
-            'is_linger_impressed',
-            'dismissed',
-            ##
-        ])
+        t.drop_cols(
+            'timeline',
+            cols=[
+                '_id',  # internal id
+                ## volatile
+                'is_read',
+                'sort_index',
+                'timeline_chunk_id',
+                'updated_at',
+                'scribe_content',  # some "for you" crap
+                'created_at',  # internal created at, not tweet's
+                'feedback_action_prompts',
+                'social_context',
+                'is_linger_impressed',
+                'dismissed',
+                ##
+            ],
+        )
 
         c.execute('''
         DELETE FROM timeline
@@ -116,7 +121,6 @@ class Normaliser(SqliteNormaliser):
         t.drop('user_metadata')
         ##
 
-
         def remove_volatile_content(s):
             if s is None:
                 return None
@@ -125,7 +129,7 @@ class Normaliser(SqliteNormaliser):
                 return s
             else:
                 return s[:xxx]
-            # if b'movie trailer' in s:
+                # if b'movie trailer' in s:
                 print(s.hex(), type(s))
             return s
 

@@ -34,10 +34,10 @@ class Normaliser(JsonNormaliser):
                 # these are gonna be super flaky, so just ignore from diff
                 # for our own repos they are duplicated in events anyway
                 for k in [
-                        *volatile,
-                        'updated_at',
-                        'pushed_at',
-                        'size',
+                    *volatile,
+                    'updated_at',
+                    'pushed_at',
+                    'size',
                 ]:
                     r.pop(k, None)
 
@@ -63,12 +63,12 @@ class Normaliser(JsonNormaliser):
                 continue
             for key in ['clones', 'views']:
                 xxx = traffic[key]
-                xxx.pop('count')   # aggregate
-                xxx.pop('uniques') # aggregate
+                xxx.pop('count')  # aggregate
+                xxx.pop('uniques')  # aggregate
                 assert xxx.keys() == {key}
                 # NOTE: we ignore first and last traffic entry since timestamps are aligned to the closest day
                 # so they are always going to be kinda flaky
-                for c in xxx[key][1: -1]:
+                for c in xxx[key][1:-1]:
                     ts = c['timestamp']
                     j[f'{repo_name}_traffic_{key}_{ts}'] = c
                 xxx.pop(key)

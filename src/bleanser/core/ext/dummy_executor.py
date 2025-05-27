@@ -7,7 +7,7 @@ from typing import Any
 
 
 class DummyExecutor(Executor):
-    def __init__(self, max_workers: int | None=1) -> None:
+    def __init__(self, max_workers: int | None = 1) -> None:
         self._shutdown = False
         self._max_workers = max_workers
 

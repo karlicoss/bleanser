@@ -11,16 +11,18 @@ class Normaliser(SqliteNormaliser):
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
 
-        message = tables['message']
+        # fmt: off
+        message   = tables['message']
+        conv_info = tables['conversation_info']
+
         assert 'id'                in message
         assert 'conversation_id'   in message
         assert 'payload'           in message
         assert 'created_timestamp' in message
 
-        conv_info = tables['conversation_info']
         assert 'user_id'   in conv_info
         assert 'user_name' in conv_info
-
+        # fmt: on
 
     def cleanup(self, c) -> None:
         self.check(c)
@@ -45,7 +47,7 @@ class Normaliser(SqliteNormaliser):
 
             'sending_multimedia_enabled',
             'disabled_multimedia_explanation',
-        ])
+        ])  # fmt: skip
         # for extract: photo_id can be a bit volatile
 
         # mm, user photos are a bit annoying, urls are flaky
@@ -53,11 +55,15 @@ class Normaliser(SqliteNormaliser):
             if s is None:
                 return None
             j = json.loads(s)
-            delkeys(j, keys=[
-                'url',  # for conversation_info.user_photos & message.payload
-                'expiration_timestamp',  # for message.payload
-            ])
+            delkeys(
+                j,
+                keys=[
+                    'url',  # for conversation_info.user_photos & message.payload
+                    'expiration_timestamp',  # for message.payload
+                ],
+            )
             return json.dumps(j)
+
         c.create_function("CLEANUP_JSONS", 1, _cleanup_jsons)
         list(c.execute('UPDATE conversation_info SET user_photos = CLEANUP_JSONS(user_photos)'))
         list(c.execute('UPDATE message           SET payload     = CLEANUP_JSONS(payload)'))

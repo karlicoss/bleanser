@@ -11,7 +11,9 @@ if __name__ == '__main__':
 
 
 def test_rescuetime() -> None:
-    from bleanser.tests.common import skip_if_no_data; skip_if_no_data()
+    from bleanser.tests.common import skip_if_no_data
+
+    skip_if_no_data()
 
     from bleanser.tests.common import TESTDATA, actions2
 
@@ -22,7 +24,7 @@ def test_rescuetime() -> None:
         'rescuetime_2018-01-07.json.xz',
         'rescuetime_2018-01-10.json.xz',
         'rescuetime_2018-01-11.json.xz',
-
+        #
         # todo these should be present in the result for the following group
         # not sure how to properly test?
         # maybe just grep... after applying instructions
@@ -31,7 +33,7 @@ def test_rescuetime() -> None:
         'rescuetime_20200204T010205Z.json',
         'rescuetime_20200219T010207Z.json',
         'rescuetime_20200305T010206Z.json',
-
+        #
         'rescuetime_20211209T011109Z.json.xz',
         'rescuetime_20211218T011116Z.json.xz',
         'rescuetime_20211220T011110Z.json.xz',
