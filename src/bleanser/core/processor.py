@@ -496,7 +496,7 @@ def test_fileset(tmp_path: Path) -> None:
 
 # just for process pool
 def _compute_groups_serial_as_list(*args: Any, **kwargs: Any) -> Iterable[Group]:
-    return list(_compute_groups_serial(*args, **kwargs))
+    return list(_compute_groups_serial(*args, **kwargs))  # ty: ignore[missing-argument]
 
 
 IRes = Union[Exception, Normalised]
@@ -706,7 +706,6 @@ def _compute_groups_serial(
 # note: also some tests in sqlite.py
 
 
-# fmt: off
 @parametrize(
     'multiway,randomize',
     [
@@ -715,8 +714,7 @@ def _compute_groups_serial(
         (True , True),
         (False, True),
     ],
-)
-# fmt: on
+)  # fmt: skip
 def test_bounded_resources(*, tmp_path: Path, multiway: bool, randomize: bool) -> None:
     """
     Check that relation processing is iterative in terms of not using too much disk space for temporary files
