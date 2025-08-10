@@ -421,6 +421,10 @@ class Tool:
             res[name] = schema
         return res
 
+    def count(self, table: str) -> int:
+        [(res,)] = self.connection.execute(f'SELECT COUNT(*) FROM `{table}`')
+        return res
+
     def drop(self, table: str, *tables: str) -> None:
         # NOTE: both table and tables aregs are for backwards compat..
         all_tables = [table, *tables]

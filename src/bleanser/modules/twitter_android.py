@@ -10,14 +10,21 @@ class Normaliser(SqliteNormaliser):
     PRUNE_DOMINATED = True
 
     def check(self, c) -> None:
-        tables = Tool(c).get_tables()
+        tool = Tool(c)
+        tables = tool.get_tables()
 
         statuses = tables['statuses']
         assert 'status_id' in statuses
         assert 'content' in statuses
 
-        [(total_statuses,)] = c.execute('SELECT COUNT(*) FROM statuses')
-        assert total_statuses > 10  # sanity check
+        total_statuses = tool.count('statuses')
+        if total_statuses == 0:
+            # sometimes the database is completely empty (possibly some app shenanigans)
+            # seems easiest to just skip checks for such dbs
+            total_count = sum(tool.count(t) for t in tables if t != 'android_metadata')
+            assert total_count == 0, "database seems broken, but not completely empty"
+        else:
+            assert total_statuses > 10  # sanity check
 
         [(statuses_without_content,)] = c.execute('SELECT COUNT(*) FROM statuses WHERE content IS NULL')
         # another sanity check -- to make sure the content is actually stored in this column and not lost during migrations
