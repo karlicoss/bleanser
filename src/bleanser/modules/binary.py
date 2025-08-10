@@ -2,6 +2,7 @@
 Format-agnostic, clean up as literal file diffs
 """
 # TODO probably should give it a better name...
+# TODO move it to core?
 
 from bleanser.core.processor import BaseNormaliser
 
