@@ -1,4 +1,5 @@
 # not to confuse with __main__.py... meh
+# todo rename to cli? but with a fallback
 from __future__ import annotations
 
 import os
