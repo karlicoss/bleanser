@@ -45,7 +45,7 @@ class Res2:
 
 
 def actions2(*, path: Path, rglob: str, Normaliser, threads: int | None = None) -> Res2:
-    from bleanser.core.main import _get_paths
+    from bleanser.core.cli import _get_paths
 
     pp = str(path) + os.sep + rglob
     paths = _get_paths(path=pp, glob=True, from_=None, to=None)

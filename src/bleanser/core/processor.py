@@ -24,6 +24,7 @@ from typing import (
     Union,
 )
 
+import click
 import more_itertools
 from kompress import CPath, is_compressed
 from plumbum import local  # type: ignore[import-untyped]
@@ -1172,8 +1173,6 @@ def compute_instructions(
 
 
 def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(), need_confirm: bool = True) -> NoReturn:  # noqa: B008
-    import click
-
     # TODO hmm...
     # if we keep it as iterator, would be kinda nice, then it'd print cleaning stats as you run it
     # NOTE: will also need to remove (list) call in 'clean' subcommand
@@ -1225,9 +1224,9 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
             to_delete.append(ins.path)
         else:
             raise RuntimeError(ins)
-        logger.info(f'processing {idx:>4}/{totals:>4} %s : %s  ; %s', ip, action, stat())
+        click.echo(f'processing {idx:>4}/{totals:>4} {ip} : {action}  ; {stat()}')
 
-    logger.info('SUMMARY: %s', stat())
+    click.echo(f'SUMMARY: {stat()}')
 
     for e in errored:
         logger.error('error while processing %s', e)
