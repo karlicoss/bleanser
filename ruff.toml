@@ -1,3 +1,5 @@
+line-length = 120  # impacts import sorting
+
 lint.extend-select = [
     "F",    # flakes rules -- default, but extend just in case
     "E",    # pycodestyle  -- default, but extend just in case

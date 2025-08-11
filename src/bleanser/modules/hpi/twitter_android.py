@@ -30,6 +30,7 @@ class Normaliser(ExtractObjectsNormaliser):
 
         with tmp_config(modules=twitter_android.__name__, config=config):
             assert len(twitter_android.inputs()) == 1  # sanity check to make sure tmp_config worked as expected
+            # TODO maybe compare entities? since it's kind of guaranteed to contain everything useful
             for x in twitter_android.bookmarks():
                 yield 'bookmark', x
             for x in twitter_android.likes():
