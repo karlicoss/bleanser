@@ -57,9 +57,18 @@ Using multiple normalisers is an advanced/experimental feature, will be document
 @click.option('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
 @click.option('--sort-by', type=click.Choice(['size', 'name']), default='name', help='how to sort input files')
 ##
-@click.option('--dry', is_flag=True, default=None, help='Do not prune the input files, just print what would happen after pruning.')
+@click.option(
+    '--dry',
+    is_flag=True,
+    default=None,
+    help='Do not prune the input files, just print what would happen after pruning.',
+)
 @click.option('--remove', is_flag=True, default=None, help='Prune the input files by REMOVING them (be careful!)')
-@click.option('--move', type=Path, help='Prune the input files by MOVING them to the specified path. A bit safer than --remove mode.')
+@click.option(
+    '--move',
+    type=Path,
+    help='Prune the input files by MOVING them to the specified path. A bit safer than --remove mode.',
+)
 ##
 @click.option('--yes', is_flag=True, default=False, help="Do not prompt before pruning files (useful for cron etc)")
 @click.option(
@@ -137,7 +146,9 @@ def prune(
             il = path_instructions[i]
             ir = path_instructions[i + 1]
             if isinstance(il, Prune) and isinstance(ir, Keep):
-                raise RuntimeError(f"Inconsistent normalisers! {il.path} is pruned by {Normalisers[i]} but kept by {Normalisers[i + 1]}")
+                raise RuntimeError(  # noqa: TRY004
+                    f"Inconsistent normalisers! {il.path} is pruned by {Normalisers[i]} but kept by {Normalisers[i + 1]}"
+                )
 
     # for actual pruning, use the least 'agnostic'/most efficient normaliser
     instructions = all_instructions[-1]
@@ -222,7 +233,9 @@ def normalised(ctx: click.Context, *, normaliser: list[str], path: Path, stdout:
                 click.pause(info="Press any key when you've finished")
 
 
-def _get_paths(*, path: str, from_: int | None, to: int | None, sort_by: str = "name", glob: bool = False) -> list[Path]:
+def _get_paths(
+    *, path: str, from_: int | None, to: int | None, sort_by: str = "name", glob: bool = False
+) -> list[Path]:
     if not glob:
         pp = Path(path)
         assert pp.is_dir(), pp

@@ -26,7 +26,7 @@ from ..processor import (
 )
 from ..utils import mime
 
-AllowedBlobs = set[tuple[str, str]]
+AllowedBlobs = frozenset[tuple[str, str]]
 
 
 def checked_no_wal(db: Path) -> Path:
@@ -179,7 +179,7 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     db6 = _dict2db(d, to=tmp_path / '6.db')
 
     dbs = [db1, db2, db3, db4, db5, db6]
-    [g41, g42, g43, g44] = func(dbs)
+    [_g41, _g42, g43, g44] = func(dbs)
     assert g43 == g33
     assert g44.items  == [db4, db5, db6]  # fmt: skip
     assert g44.pivots == [db4,      db6]  # fmt: skip
@@ -262,7 +262,7 @@ def test_sqlite_many(*, tmp_path: Path, multiway: bool) -> None:
 class SqliteNormaliser(BaseNormaliser):
     # FIXME need a test, i.e. with removing single row?
 
-    ALLOWED_BLOBS: AllowedBlobs = set()
+    ALLOWED_BLOBS: AllowedBlobs = frozenset()
 
     @classmethod
     def checked(cls, db: Path) -> Path:
@@ -470,7 +470,9 @@ class Tool:
             return
         assert column_type == 'BLOB', column_type
 
-        actual_types: set[str] = {at for (at,) in self.connection.execute(f'SELECT DISTINCT typeof(`{column}`) FROM `{table}`')}
+        actual_types: set[str] = {
+            at for (at,) in self.connection.execute(f'SELECT DISTINCT typeof(`{column}`) FROM `{table}`')
+        }
         actual_types.discard('null')
 
         if actual_types == {'blob'}:

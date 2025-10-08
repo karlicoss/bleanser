@@ -5,12 +5,12 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
+    ALLOWED_BLOBS = frozenset({
         ('fts_virtual_episode_segments', 'block'),
         ('fts_virtual_episode_segdir', 'root'),
         ('fts_virtual_episode_docsize', 'size'),
         ('fts_virtual_episode_stat', 'value'),
-    }
+    })  # fmt: skip
 
     # TODO this would be useful as a base class method
     # could be called before cleanup/extract etc

@@ -12,7 +12,7 @@ from bleanser.core.modules.extract import ExtractObjectsNormaliser
 # TODO this should be in some sort of common module
 os.environ["CACHEW_DISABLE"] = "*"
 os.environ.pop("ENLIGHTEN_ENABLE", None)
-os.environ["LOGGING_LEVEL_my_whatsapp_android"] = "WARNING"
+os.environ["LOGGING_LEVEL_my_whatsapp_android"] = "WARNING"  # noqa: SIM112
 ##
 
 import my.whatsapp.android as module

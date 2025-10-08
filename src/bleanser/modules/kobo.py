@@ -63,7 +63,9 @@ class Normaliser(SqliteNormaliser):
         )''')
 
         ## this changes all the time (Shelf only contains some meta entries, this isn't actual book access time)
-        c.execute('UPDATE Shelf SET _SyncTime = NULL, LastAccessed = NULL, LastModified = NULL WHERE Id = "ReadingList"')
+        c.execute(
+            'UPDATE Shelf SET _SyncTime = NULL, LastAccessed = NULL, LastModified = NULL WHERE Id = "ReadingList"'
+        )
         ##
 
         tool.drop_cols(

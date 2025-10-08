@@ -93,7 +93,10 @@ def test_nonidempotence(tmp_path: Path) -> None:
         p = tmp_path / f'{i}.json'
         p.write_text(orjson.dumps(s).decode('utf8'))
 
-    with hack_attribute(JsonNormaliser, 'MULTIWAY', value=True), hack_attribute(JsonNormaliser, 'PRUNE_DOMINATED', value=True):
+    with (
+        hack_attribute(JsonNormaliser, 'MULTIWAY', value=True),
+        hack_attribute(JsonNormaliser, 'PRUNE_DOMINATED', value=True),
+    ):
         paths = sorted(tmp_path.glob('*.json'))
         res = actions(paths=paths, Normaliser=JsonNormaliser)
 

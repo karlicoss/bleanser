@@ -1,8 +1,12 @@
 import warnings
 
-from bleanser.core.modules.xml import *  # noqa: F401, F403
+from bleanser.core.modules.xml import *
 
-warnings.warn("Module 'bleanser.modules.xml_clean' is deprecated. Use 'bleanser.core.modules.xml_clean' instead.", DeprecationWarning)
+warnings.warn(
+    "Module 'bleanser.modules.xml_clean' is deprecated. Use 'bleanser.core.modules.xml_clean' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 if __name__ == '__main__':

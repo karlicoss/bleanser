@@ -5,7 +5,7 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
+    ALLOWED_BLOBS = frozenset({
         ('messages_fts_segments', 'block'),
         ('messages_fts_segdir', 'root'),
         ('message_ftsv2_segments', 'block'),
@@ -61,7 +61,7 @@ class Normaliser(SqliteNormaliser):
         # the only interesting ones perhaps? checked manually and it's dumped as hex or something, so should be good
         ('audio_data', 'waveform'),
         ('messages', 'raw_data'),  # this one is mostly NULL except one row??
-    }
+    })  # fmt: skip
 
     def check(self, c) -> None:
         tables = Tool(c).get_tables()

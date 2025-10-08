@@ -4,12 +4,11 @@ dynamic = ["version"]  # version is managed by build backend
 name = "bleanser"
 dependencies = [
     "more-itertools"   ,
-    "typing-extensions",
     "click"            , # nicer cli
     "plumbum"          , # nicer command composition/piping
     "kompress"         , # for compressed files processing (TODO potentially could be optional if they don't use compressed files? but how to detect if they are compressed.. maybe via libmagic?)
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 
 ## these need to be set if you're planning to upload to pypi
 # description = "TODO"
@@ -56,14 +55,22 @@ HPI = [  # for bleanser.modules.hpi
 testing = [
     "pytest",
     "ruff",
-    "mypy",
-    "lxml",  # for mypy html coverage
-    "ty>=0.0.1a17",
-
-    "types-lxml",
 
     # optional deps that we include in all testing
     "bleanser[extra,json,xml]",
+]
+typecheck = [
+    { include-group = "testing" },
+    "mypy",
+    "lxml",  # for mypy coverage
+    "ty>=0.0.1a21",
+
+    "types-lxml",
+]
+typecheck-all = [
+    { include-group = "typecheck" },
+
+    "bleanser[HPI]",
 ]
 
 

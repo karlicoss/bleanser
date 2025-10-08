@@ -5,10 +5,10 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
+    ALLOWED_BLOBS = frozenset({
         ('downloads', 'hash'),
         ('typed_url_sync_metadata', 'value'),
-    }
+    })  # fmt: skip
 
     def check(self, c) -> None:
         tables = Tool(c).get_tables()

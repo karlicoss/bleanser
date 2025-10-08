@@ -7,7 +7,7 @@ class Normaliser(SqliteNormaliser):
 
     # even though we drop some of these, currently columns are dropped via erasing the content, not altering table
     # so need to keep here too
-    ALLOWED_BLOBS = {
+    ALLOWED_BLOBS = frozenset({
         ('channel_messages', 'attach'),
 
         ('messages', 'avatar'),
@@ -35,7 +35,7 @@ class Normaliser(SqliteNormaliser):
         ('dialogs', 'unread_mention_msg_vk_ids'),
 
         ('mutual_friends', 'mutual_friends_ids'),
-    }  # fmt: skip
+    })  # fmt: skip
 
     def is_vkim(self, c) -> bool:
         tables = Tool(c).get_tables()
