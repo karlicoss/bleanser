@@ -48,7 +48,8 @@ class Normaliser(SqliteNormaliser):
 
         t.drop('status_groups')  # doesn't looks like anything interesting, contains read state?
 
-        t.drop('retweets')  # seems like it contains last retweet for each tweet or something.. doesn't actually have tweet data
+        # seems like it contains last retweet for each tweet or something.. doesn't actually have tweet data
+        t.drop('retweets')
 
         t.drop('tokens')  # some internal thing
 

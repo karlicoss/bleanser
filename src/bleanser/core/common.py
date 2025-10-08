@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from .ext.logging import LazyLogger
 
@@ -96,7 +96,7 @@ class Remove(BaseMode):
     pass
 
 
-Mode = Union[Dry, Move, Remove]
+type Mode = Dry | Move | Remove
 
 
 def divide_by_size(*, buckets: int, paths: Sequence[Path]) -> Sequence[Sequence[Path]]:

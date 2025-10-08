@@ -1,11 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if not TYPE_CHECKING:
-    from .compat import assert_never  # noqa: F401
-
-
 from pathlib import Path
 
 
@@ -54,8 +48,8 @@ def timing(f):
 # make it lazy, otherwise it might crash on module import (e.g. on Windows)
 # ideally would be nice to fix it properly https://github.com/ahupp/python-magic#windows
 import warnings
+from collections.abc import Callable
 from functools import lru_cache
-from typing import Callable
 
 
 @lru_cache(1)
@@ -72,7 +66,7 @@ def _magic() -> Callable[[Path], str | None]:
             if 'failed to find libmagic' in emsg:  # probably the actual library is missing?...
                 defensive_msg = "couldn't import magic. See https://github.com/ahupp/python-magic#installation"
         if defensive_msg is not None:
-            warnings.warn(defensive_msg)
+            warnings.warn(defensive_msg, stacklevel=2)
             return lambda path: None  # stub  # noqa: ARG005
         else:
             raise e
@@ -111,7 +105,7 @@ def delkeys(j: Json, *, keys: str | Collection[str]) -> None:
         for v in j.values():
             delkeys(v, keys=keys)
     else:
-        raise RuntimeError(type(j))
+        raise TypeError(type(j))
 
 
 def patch_atoms(j: Json, *, patch):
@@ -126,4 +120,4 @@ def patch_atoms(j: Json, *, patch):
             j[k] = patch_atoms(j[k], patch=patch)
         return j
     else:
-        raise RuntimeError(type(j))
+        raise TypeError(type(j))

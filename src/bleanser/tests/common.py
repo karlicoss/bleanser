@@ -34,7 +34,7 @@ def actions(*, paths: list[Path], Normaliser, threads: int | None = None) -> Res
         elif isinstance(i, Keep):
             remaining.append(i.path)
         else:
-            raise RuntimeError(type(i))
+            raise TypeError(type(i))
     return Res(pruned=pruned, remaining=remaining)
 
 

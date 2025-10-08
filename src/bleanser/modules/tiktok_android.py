@@ -5,13 +5,13 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
+    ALLOWED_BLOBS = frozenset({
         ('msg', 'content_pb'),
         ('im_search_index_official_segments', '*'),
         ('im_search_index_official_segdir', '*'),
         ('im_search_index_official_docsize', '*'),
         ('im_search_index_official_stat', '*'),
-    }
+    })  # fmt: skip
 
     def check(self, c) -> None:
         tables = Tool(c).get_tables()

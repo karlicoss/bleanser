@@ -5,11 +5,11 @@ class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
 
-    ALLOWED_BLOBS = {
+    ALLOWED_BLOBS = frozenset({
         # hopefully should be fine, all the metadata seems to be present in the table
         ('chat_messages', 'serialized'),
         ('channels', 'serialized'),
-    }
+    })  # fmt: skip
 
     def check(self, c) -> None:
         tables = Tool(c).get_tables()
@@ -85,7 +85,8 @@ class Normaliser(SqliteNormaliser):
         for table in remove_ids:
             t.drop_cols(table=table, cols=['id'])
 
-        t.drop(table='standouts_content')  # things are flaky here, even urls are changing between databases -- likely they are expiring
+        # things are flaky here, even urls are changing between databases -- likely they are expiring
+        t.drop(table='standouts_content')
 
         t.drop_cols(table='surveys', cols=['receivedByHinge'])
         t.drop_cols(table='call_prompt_packs', cols=['position'])

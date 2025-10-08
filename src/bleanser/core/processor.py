@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 import warnings
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import ExitStack, contextmanager
 from functools import lru_cache
@@ -18,10 +18,9 @@ from time import time
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     ClassVar,
     NoReturn,
-    Union,
+    Self,
 )
 
 import click
@@ -42,7 +41,6 @@ from .common import (
     logger,
     parametrize,
 )
-from .compat import Self
 from .ext.dummy_executor import DummyExecutor
 from .utils import total_dir_size
 
@@ -174,7 +172,9 @@ class BaseNormaliser:
                     with self.normalise(path=unpacked) as normalised:
                         yield normalised
                 else:
-                    warnings.warn("'do_cleanup' is deprecated. Remove wdir argument and rename it to 'normalise'")
+                    warnings.warn(
+                        "'do_cleanup' is deprecated. Remove wdir argument and rename it to 'normalise'", stacklevel=2
+                    )
                     with do_cleanup(path=unpacked, wdir=self.tmp_dir) as normalised:
                         yield normalised
         finally:
@@ -278,7 +278,10 @@ def compute_groups(
 def get_diff_binary():
     diff = local['diff']
     version = diff['--version']()
-    assert 'GNU' in version, (version, "GNU diff isn't detected, make sure to run 'brew install diffutils' if you are on OSX")
+    assert 'GNU' in version, (
+        version,
+        "GNU diff isn't detected, make sure to run 'brew install diffutils' if you are on OSX",
+    )
     return diff
 
 
@@ -351,7 +354,7 @@ class FileSet:
     def __init__(self, items: Sequence[Path] = (), *, wdir: Path) -> None:
         self.wdir = wdir
         self.items: list[Path] = []
-        tfile = NamedTemporaryFile(dir=self.wdir, delete=False)
+        tfile = NamedTemporaryFile(dir=self.wdir, delete=False)  # noqa: SIM115
         self.merged = Path(tfile.name)
         self._union(*items)
 
@@ -500,7 +503,7 @@ def _compute_groups_serial_as_list(*args: Any, **kwargs: Any) -> Iterable[Group]
     return list(_compute_groups_serial(*args, **kwargs))  # ty: ignore[missing-argument]
 
 
-IRes = Union[Exception, Normalised]
+type IRes = Exception | Normalised
 
 
 # todo these are already normalized paths?
@@ -1172,7 +1175,12 @@ def compute_instructions(
     assert done == len(paths)  # just in case
 
 
-def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(), need_confirm: bool = True) -> NoReturn:  # noqa: B008
+def apply_instructions(
+    instructions: Iterable[Instruction],
+    *,
+    mode: Mode = Dry(),  # noqa: B008
+    need_confirm: bool = True,
+) -> NoReturn:
     # TODO hmm...
     # if we keep it as iterator, would be kinda nice, then it'd print cleaning stats as you run it
     # NOTE: will also need to remove (list) call in 'clean' subcommand
@@ -1223,7 +1231,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
             rem_files += 1
             to_delete.append(ins.path)
         else:
-            raise RuntimeError(ins)
+            raise TypeError(ins)
         click.echo(f'processing {idx:>4}/{totals:>4} {ip} : {action}  ; {stat()}')
 
     click.echo(f'SUMMARY: {stat()}')
@@ -1256,7 +1264,7 @@ def apply_instructions(instructions: Iterable[Instruction], *, mode: Mode = Dry(
     elif isinstance(mode, Remove):
         pass
     else:
-        raise RuntimeError(mode, type(mode))
+        raise TypeError(mode, type(mode))
 
     for i in instructions:
         # just in case, to make sure no one messed with files in the meantime
@@ -1308,7 +1316,9 @@ def compute_diff(paths: list[Path], *, Normaliser: type[BaseNormaliser]) -> list
             group1 = rest
             group2 = [first, last]
 
-        logger.info('comparing [ %s ] vs [ %s ]', ' '.join(str(p) for p, _ in group1), ' '.join(str(p) for p, _ in group2))
+        logger.info(
+            'comparing [ %s ] vs [ %s ]', ' '.join(str(p) for p, _ in group1), ' '.join(str(p) for p, _ in group2)
+        )
 
         fs1 = FileSet([r for _, r in group1], wdir=base_tmp_dir)
         fs2 = FileSet([r for _, r in group2], wdir=base_tmp_dir)

@@ -8,17 +8,21 @@ TODO shit. too late already? maybe use fallback & deprecate
 def test() -> None:
     import logging
     import sys
-    from typing import Callable
+    from collections.abc import Callable
 
     M: Callable[[str], None] = lambda s: print(s, file=sys.stderr)
 
     M("   Logging module's defaults are not great...'")
     l = logging.getLogger('test_logger')
     # todo why is mypy unhappy about these???
-    l.error("For example, this should be logged as error. But it's not even formatted properly, doesn't have logger name or level")
+    l.error(
+        "For example, this should be logged as error. But it's not even formatted properly, doesn't have logger name or level"
+    )
 
     M("   The reason is that you need to remember to call basicConfig() first")
-    l.error("OK, this is better. But the default format kinda sucks, I prefer having timestamps and the file/line number")
+    l.error(
+        "OK, this is better. But the default format kinda sucks, I prefer having timestamps and the file/line number"
+    )
 
     M("")
     M("    With LazyLogger you get a reasonable logging format, colours and other neat things")
@@ -32,10 +36,9 @@ def test() -> None:
 
 import logging
 import os
-from typing import Optional, Union
 
-Level = int
-LevelIsh = Optional[Union[Level, str]]
+type Level = int
+type LevelIsh = Level | str
 
 
 def mklevel(level: LevelIsh) -> Level:
@@ -63,7 +66,7 @@ def setup_logger(logger: logging.Logger, level: LevelIsh) -> None:
     except ModuleNotFoundError:
         import warnings
 
-        warnings.warn("You might want to install 'logzero' for nice colored logs!")
+        warnings.warn("You might want to install 'logzero' for nice colored logs!", stacklevel=2)
         logger.setLevel(lvl)
         h = logging.StreamHandler()
         h.setLevel(lvl)

@@ -12,7 +12,7 @@ from bleanser.core.modules.extract import ExtractObjectsNormaliser
 # TODO this should be in some sort of common module
 os.environ["CACHEW_DISABLE"] = "*"
 os.environ.pop("ENLIGHTEN_ENABLE", None)
-os.environ["LOGGING_LEVEL_my_fbmessenger_android"] = "WARNING"
+os.environ["LOGGING_LEVEL_my_fbmessenger_android"] = "WARNING"  # noqa: SIM112
 ##
 
 import my.fbmessenger.android as module

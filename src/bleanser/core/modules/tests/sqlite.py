@@ -83,7 +83,7 @@ def test_sqlite_blobs_allowed(tmp_path: Path) -> None:
         MULTIWAY = False
         PRUNE_DOMINATED = True
 
-        ALLOWED_BLOBS = {('test', 'bbb')}
+        ALLOWED_BLOBS = frozenset({('test', 'bbb')})
 
     db0 = _make_db(tmp_path / '0.db', [b'\x00\x01'], bad=True)
     db1 = _make_db(tmp_path / '1.db', [b'\x00\x02'], bad=True)
