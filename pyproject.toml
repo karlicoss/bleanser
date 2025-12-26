@@ -5,7 +5,6 @@ name = "bleanser"
 dependencies = [
     "more-itertools"   ,
     "click"            , # nicer cli
-    "plumbum"          , # nicer command composition/piping
     "kompress"         , # for compressed files processing (TODO potentially could be optional if they don't use compressed files? but how to detect if they are compressed.. maybe via libmagic?)
 ]
 requires-python = ">=3.12"

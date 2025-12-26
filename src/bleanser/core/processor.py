@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import inspect
 import shutil
+import subprocess
 import sys
 import warnings
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from subprocess import check_call
 from tempfile import NamedTemporaryFile, TemporaryDirectory, gettempdir
@@ -24,7 +25,6 @@ from typing import (
 import click
 import more_itertools
 from kompress import CPath, is_compressed
-from plumbum import local  # type: ignore[import-untyped]
 
 from .common import (
     Dry,
@@ -265,10 +265,10 @@ def compute_groups(
     assert emitted == set(paths), (paths, emitted)  # just in case
 
 
-@lru_cache(1)
-def get_diff_binary():
-    diff = local['diff']
-    version = diff['--version']()
+@cache
+def _get_gnu_diff_binary() -> str:
+    diff = 'diff'
+    version = subprocess.check_output([diff, '--version'], text=True)
     # it's important to use consistent diff version for pruning
     # otherwise we might delete some files by accident
     assert 'GNU' in version, (
@@ -278,41 +278,40 @@ def get_diff_binary():
     return diff
 
 
-grep = local['grep']
-cmp_cmd = local['cmp']
-sort = local['sort']
-
-
-def _subtract_files(lfile: Path, rfile: Path) -> list[str]:
+def _subtract_files(lfile: Path, rfile: Path) -> str | None:
     """
-    Returns lines present in lfile but not in rfile
+    If lfile is fully contained in rfile, returns None. Otherwise returns the diff.
     """
-    diff = get_diff_binary()
-    dcmd = diff[lfile, rfile]
     # Use custom group format to only show actual changes without the line number ranges/action codes
     #  %< means lines only in left file, %> means lines only in right file
     # Just in case, I benchmarked with hyperfine and seems like using custom formats makes no difference to speed.
-    dcmd = dcmd["--changed-group-format=%<", "--unchanged-group-format="]
-    diff_lines = dcmd(retcode=(0, 1))
+    custom_diff_format = ["--changed-group-format=%<", "--unchanged-group-format="]
 
-    # FIXME move splitlines under print_diff and len() check
-    rem = diff_lines.splitlines()
+    res = subprocess.run(
+        [_get_gnu_diff_binary(), lfile, rfile, *custom_diff_format], check=False, text=True, capture_output=True
+    )
+    if res.returncode not in (0, 1):
+        res.check_returncode()
+
+    if len(res.stdout) == 0:
+        return None
 
     # TODO maybe log in a separate file
     # TODO not sure what's the best way to provide some quick debug means...
     # need grep -C or something like that...
     print_diff = True
-    if print_diff and len(rem) > 0:
+    if print_diff:
         logger.debug('diff %s %s', lfile, rfile)
         logger.debug('vvvvvvvvvvvvv DIFF vvvvvvvvvvvvv')
         if sys.stdin.isatty():
             # only log when running interactively... otherwise spams syslog too much
-            for line in rem:
+            for line in res.stdout.splitlines():
                 logger.debug(line)
         else:
             logger.debug('non-interactive session, skipping diff logging (otherwise spams syslog too much)')
         logger.debug('^^^^^^^^^^^^^ DIFF ^^^^^^^^^^^^^')
-    return rem
+
+    return res.stdout
 
 
 # TODO shit. it has to own tmp dir...
@@ -365,14 +364,16 @@ class FileSet(AbstractContextManager):
         # todo make less hacky... ideally the callee would maintain the sorted files
         is_sorted = []
         for p in tomerge:  # todo no need to check self.merged?
-            (rc, _, _) = sort['--check', p].run(retcode=(0, 1))
-            is_sorted.append(rc == 0)
+            res = subprocess.run(['sort', '--check', p], check=False)
+            if res.returncode not in (0, 1):
+                res.check_returncode()
+            is_sorted.append(res.returncode == 0)
         mflag = []
         if all(is_sorted):
             mflag = ['--merge']
 
         # sort also has --parallel option... but pretty pointless, in most cases we'll be merging two files?
-        (sort['--unique'])(*mflag, *tomerge, '-o', self.merged)
+        subprocess.check_call(['sort', '--unique', *mflag, *tomerge, '-o', self.merged])
 
         self.items.extend(extra)
 
@@ -382,8 +383,10 @@ class FileSet(AbstractContextManager):
         # TODO meh. maybe get rid of cmp, it's not really faster
         # even on exactly same file (copy) it seemed to be slower
         # https://unix.stackexchange.com/questions/153286/is-cmp-faster-than-diff-q
-        (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
-        return rc == 0
+        res = subprocess.run(['cmp', '--silent', lfile, rfile], check=False)
+        if res.returncode not in (0, 1):
+            res.check_returncode()
+        return res.returncode == 0
 
     def issubset(self, other: FileSet) -> bool:
         # short circuit
@@ -397,12 +400,12 @@ class FileSet(AbstractContextManager):
         # TODO tbh should just use cmp/comm for the rest... considering it's all sorted
         # first check if they are identical (should be super fast, stops at the first byte difference)
         # TODO this is more or less usefless ATM.. because files in fileset are always different
-        (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
-        if rc == 0:
+        if self.issame(other):
+            # short circuit
             return True
 
-        remaining = _subtract_files(lfile, rfile)
-        return len(remaining) == 0
+        difference = _subtract_files(lfile, rfile)
+        return difference is None
 
     def __repr__(self) -> str:
         return repr((self.items, self.merged))

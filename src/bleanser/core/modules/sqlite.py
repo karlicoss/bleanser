@@ -7,12 +7,11 @@ from __future__ import annotations
 import re
 import shutil
 import sqlite3
+import subprocess
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from sqlite3 import Connection
-
-from plumbum import local  # type: ignore[import-untyped]
 
 from ..processor import (
     BaseNormaliser,
@@ -103,10 +102,6 @@ def checked_db(db: Path, *, allowed_blobs: AllowedBlobs | None) -> Path:
     return db
 
 
-grep = local['grep']
-sqlite_cmd = local['sqlite3']
-
-
 class SqliteNormaliser(BaseNormaliser):
     # FIXME need a test, i.e. with removing single row?
 
@@ -187,9 +182,8 @@ class SqliteNormaliser(BaseNormaliser):
         dump_file = unique_tmp_dir / 'dump.sql'
 
         # dumping also takes a bit of time for big databases...
-        dump_cmd = sqlite_cmd['-readonly', f'file://{cleaned_db}?immutable=1', '.dump']
-        cmd = dump_cmd > str(dump_file)
-        cmd()
+        with dump_file.open('wb') as fo:
+            subprocess.check_call(['sqlite3', '-readonly', f'file://{cleaned_db}?immutable=1', '.dump'], stdout=fo)
 
         ## one issue is that .dump dumps sometimes text columns as hex-encoded and prefixed with X
         ## this makes sense if you're using .dump output to create another db
