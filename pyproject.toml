@@ -53,7 +53,7 @@ HPI = [  # for bleanser.modules.hpi
 # On the other hand, it's a bit annoying that it's always included by default? 
 # To make sure it's not included, need to use `uv run --exact --no-default-groups ...`
 testing = [
-    "pytest",
+    "pytest>=9",  # need version 9 for proper namespace package support
     "ruff",
 
     # optional deps that we include in all testing
@@ -62,8 +62,8 @@ testing = [
 typecheck = [
     { include-group = "testing" },
     "mypy",
-    "lxml",  # for mypy coverage
-    "ty>=0.0.1a21",
+    "lxml", # for mypy html coverage
+    "ty>=0.0.7",
 
     "types-lxml",
 ]
