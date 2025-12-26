@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import inspect
-import os
 import re
 import shutil
-import subprocess
 import sys
 import warnings
 from collections.abc import Callable, Iterable, Iterator, Sequence
@@ -277,6 +275,8 @@ def compute_groups(
 def get_diff_binary():
     diff = local['diff']
     version = diff['--version']()
+    # it's important to use consistent diff version for pruning
+    # otherwise we might delete some files by accident
     assert 'GNU' in version, (
         version,
         "GNU diff isn't detected, make sure to run 'brew install diffutils' if you are on OSX",
@@ -819,54 +819,3 @@ def apply_instructions(
             p.unlink()
 
     sys.exit(exit_code)
-
-
-# TODO write a test for this
-def compute_diff(paths: list[Path], *, Normaliser: type[BaseNormaliser]) -> list[str]:
-    assert len(paths) >= 2, paths
-
-    difftool = os.environ.get('DIFFTOOL', None)
-    difftool_args: list[str] = []
-    if difftool == 'vimdiff':
-        wrap = ['-c', 'windo set wrap']
-        diffopts = ['-c', 'set diffopt=filler,context:0']  # show only diffs and hide identical lines
-        difftool_args.extend(wrap)
-        difftool_args.extend(diffopts)
-
-    with bleanser_tmp_directory() as base_tmp_dir, ExitStack() as exit_stack:
-        results = []
-        for path in paths:
-            pn = Normaliser(original=path, base_tmp_dir=base_tmp_dir)
-            results.append((path, exit_stack.enter_context(pn.do_normalise())))
-
-        # if > 2 paths are passed, we're treating first and last path as 'pivots', and comparing to all the stuff in the middle
-        # fmt: off
-        first = results[0]
-        last  = results[-1]
-        rest  = results[1:-1]
-        # fmt: on
-
-        if len(rest) == 0:
-            group1 = [first]
-            group2 = [last]
-        else:
-            group1 = rest
-            group2 = [first, last]
-
-        logger.info(
-            'comparing [ %s ] vs [ %s ]', ' '.join(str(p) for p, _ in group1), ' '.join(str(p) for p, _ in group2)
-        )
-
-        fs1 = FileSet([r for _, r in group1], wdir=base_tmp_dir)
-        fs2 = FileSet([r for _, r in group2], wdir=base_tmp_dir)
-        c1 = fs1.merged
-        c2 = fs2.merged
-
-        if difftool is not None:
-            # note: we don't want to exec here, otherwise context manager won't have a chance to clean up?
-            subprocess.run([difftool, *difftool_args, str(c1), str(c2)], check=False)
-            return []  # no need to print again
-
-        return do_diff(c1, c2, diff_filter=None)
-
-    return []  # ugh, mypy complains "Missing return statement" without it? try to remove later
