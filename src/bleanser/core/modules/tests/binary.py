@@ -1,26 +1,29 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
+import more_itertools
 import pytest
 
-from bleanser.modules.binary import Normaliser
-from bleanser.tests.common import TESTDATA, actions, hack_attribute, skip_if_no_data
-
-# TODO ugh. how to make relative imports work? pytest doesn't like them...
+from ....tests.common import TESTDATA, actions, skip_if_no_data
+from ..binary import BinaryNormaliser
 
 
-def via_fdupes(path: Path) -> list[str]:
-    from subprocess import check_output
+def via_md5(path: Path) -> list[Path]:
+    files = sorted(path.iterdir())
 
-    lines = check_output(['fdupes', '-1', path]).decode('utf8').splitlines()
+    def _file_hash(p: Path) -> str:
+        return hashlib.md5(p.read_bytes()).hexdigest()
+
+    grouped = more_itertools.map_reduce(files, keyfunc=_file_hash)
+
     to_delete = []
-    for line in lines:
-        items = line.split()
-        # meh... don't get why it's not processing them in order...
-        items = sorted(items)
+    for group in grouped.values():
+        items = sorted(group)
+        # keep the first and the last, prune the rest
         to_delete.extend(items[1:-1])
-    return sorted(to_delete)
+    return to_delete
 
 
 # TODO maybe add some sanity checks?
@@ -40,10 +43,9 @@ def test_all(data: Path) -> None:
     paths = sorted(data.glob('*.json*'))
     assert len(paths) > 20, paths  # precondition
 
-    with hack_attribute(Normaliser, '_DIFF_FILTER', None):
-        res = actions(paths=paths, Normaliser=Normaliser)
+    res = actions(paths=paths, Normaliser=BinaryNormaliser)
 
-    expected_deleted = [Path(p) for p in via_fdupes(path=data)]
+    expected_deleted = via_md5(path=data)
     assert res.pruned == expected_deleted
 
 
