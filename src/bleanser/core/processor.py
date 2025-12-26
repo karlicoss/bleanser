@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import inspect
-import re
 import shutil
 import sys
 import warnings
@@ -87,17 +86,12 @@ def sort_file(filepath: str | Path) -> None:
 Input = Path
 Normalised = Path
 
-_FILTER_ALL_ADDED = '> '
-
 
 class BaseNormaliser:
     ## user overridable configs
     PRUNE_DOMINATED: ClassVar[bool] = False
     MULTIWAY: ClassVar[bool] = False
     ##
-
-    # todo maybe get rid of it? might be overridden by subclasses but probs. shouldn't
-    _DIFF_FILTER: ClassVar[str | None] = _FILTER_ALL_ADDED
 
     def __init__(self, *, original: Input, base_tmp_dir: Path) -> None:
         ## some sanity checks just in case
@@ -288,47 +282,21 @@ grep = local['grep']
 cmp_cmd = local['cmp']
 sort = local['sort']
 
-# ok so there is no time difference if using special diff line format
-# $ hyperfine -i -- 'diff --new-line-format="> %L" --old-line-format="" --unchanged-line-format="" tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted'
-# Benchmark 1: diff --new-line-format="> %L" --old-line-format="" --unchanged-line-format="" tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted
-#   Time (mean ±  ):      28.9 ms ±   2.3 ms    [User: 17.5 ms, System: 11.1 ms]
-#   Range (min … max):    26.4 ms …  37.1 ms    109 runs
-#
-#   Warning: Ignoring non-zero exit code.
-#
-# $ hyperfine -i -- 'diff tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted'
-# Benchmark 1: diff tmp/lastfm_2017-08-29_sorted tmp/lastfm_2017-09-01_sorted
-#   Time (mean ±  ):      27.6 ms ±   1.5 ms    [User: 16.8 ms, System: 10.7 ms]
-#   Range (min … max):    26.0 ms …  32.9 ms    107 runs
-#
-#   Warning: Ignoring non-zero exit code.
 
-
-def do_diff(lfile: Path, rfile: Path, *, diff_filter: str | None) -> list[str]:
+def _subtract_files(lfile: Path, rfile: Path) -> list[str]:
+    """
+    Returns lines present in lfile but not in rfile
+    """
     diff = get_diff_binary()
     dcmd = diff[lfile, rfile]
-    filter_crap = True
-    if diff_filter is not None:
-        # if it's empty gonna strip away everything... too unsafe
-        assert diff_filter.strip() != '', diff_filter
-
-        # shortcut...
-        if diff_filter == '> ':
-            # TODO wtf?? is plumbum messing with "" escaping or something??
-            # passing '--old-line-format="< %L"' ended up in extra double quotes emitted
-            dcmd = dcmd['--new-line-format=', '--unchanged-line-format=', '--old-line-format=< %L']
-            filter_crap = False
-        else:
-            dcmd = dcmd | grep['-vE', '^' + diff_filter]
+    # Use custom group format to only show actual changes without the line number ranges/action codes
+    #  %< means lines only in left file, %> means lines only in right file
+    # Just in case, I benchmarked with hyperfine and seems like using custom formats makes no difference to speed.
+    dcmd = dcmd["--changed-group-format=%<", "--unchanged-group-format="]
     diff_lines = dcmd(retcode=(0, 1))
 
     # FIXME move splitlines under print_diff and len() check
     rem = diff_lines.splitlines()
-    if filter_crap:
-        # TODO remove later perhaps once we make diff_filter non-configurable
-        # clean up diff crap like
-        # 756587a756588,762590 and 88888,88890d88639
-        rem = [l for l in rem if not re.fullmatch(r'(\d+,)?\d+[ad]\d+(,\d+)?', l)]
 
     # TODO maybe log in a separate file
     # TODO not sure what's the best way to provide some quick debug means...
@@ -417,7 +385,7 @@ class FileSet(AbstractContextManager):
         (rc, _, _) = cmp_cmd['--silent', lfile, rfile].run(retcode=(0, 1))
         return rc == 0
 
-    def issubset(self, other: FileSet, *, diff_filter: str | None) -> bool:
+    def issubset(self, other: FileSet) -> bool:
         # short circuit
         # this doesn't really speed up much though? so guess better to keep the code more uniform..
         # if set(self.items) <= set(other.items):
@@ -433,10 +401,8 @@ class FileSet(AbstractContextManager):
         if rc == 0:
             return True
 
-        remaining = do_diff(lfile, rfile, diff_filter=diff_filter)
-        # TODO maybe log verbose differences to a file?
+        remaining = _subtract_files(lfile, rfile)
         return len(remaining) == 0
-        # TODO could return diff...
 
     def __repr__(self) -> str:
         return repr((self.items, self.merged))
@@ -606,7 +572,7 @@ def _compute_groups_serial(
 
                         # in multiway mode we check if the boundaries (pivots) contain the rest
                         npivots = rstack.enter_context(fset(lpfile, right_res))
-                        dominated = nitems.issubset(npivots, diff_filter=Normaliser._DIFF_FILTER)
+                        dominated = nitems.issubset(npivots)
                     else:
                         # in two-way mode we check if successive paths include each other
                         before_right = nitems.items[-2]
@@ -616,7 +582,7 @@ def _compute_groups_serial(
                         if not Normaliser.PRUNE_DOMINATED:
                             dominated = s1.issame(s2)
                         else:
-                            dominated = s1.issubset(s2, diff_filter=Normaliser._DIFF_FILTER)
+                            dominated = s1.issubset(s2)
 
                     if dominated:
                         next_state = (nitems, right_res)

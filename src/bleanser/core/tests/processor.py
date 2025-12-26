@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from ..common import Group, Keep, Prune
-from ..processor import _FILTER_ALL_ADDED, BaseNormaliser, FileSet, Normalised, compute_groups, groups_to_instructions
+from ..processor import BaseNormaliser, FileSet, Normalised, compute_groups, groups_to_instructions
 from ..utils import total_dir_size
 
 
@@ -13,7 +13,8 @@ def test_fileset(tmp_path: Path) -> None:
     wdir = tmp_path / 'wdir'
     wdir.mkdir()
 
-    FS = lambda *paths: FileSet(paths, wdir=wdir)
+    def FS(*paths: Path) -> FileSet:
+        return FileSet(paths, wdir=wdir)
 
     fid = 0
 
@@ -24,11 +25,10 @@ def test_fileset(tmp_path: Path) -> None:
         fid += 1
         return f
 
-    dfilter = _FILTER_ALL_ADDED
     f1 = lines([])
     fs_ = FS(f1)
     f2 = lines([])
-    assert FS(f1).issubset(FS(f2), diff_filter=dfilter)
+    assert FS(f1).issubset(FS(f2))
 
     assert FS(f1).issame(FS(f2))
 
@@ -39,20 +39,19 @@ def test_fileset(tmp_path: Path) -> None:
     assert not fsac.issame(FS(lines(['a', 'c', 'b'])))
     assert not FS(lines(['a', 'c', 'b'])).issame(fsac)
 
-    assert     fs_ .issubset(fsac, diff_filter=dfilter)
-    assert not fsac.issubset(fs_ , diff_filter=dfilter)
-    assert     fsac.issubset(fs_ , diff_filter='.*')
+    assert     fs_ .issubset(fsac)
+    assert not fsac.issubset(fs_)
     # fmt: on
 
     fc = lines(['c'])
     fe = lines(['e'])
     fsce = FS(fc, fe)
-    assert not fsce.issubset(fsac, diff_filter=_FILTER_ALL_ADDED)
-    assert not fsac.issubset(fsce, diff_filter=_FILTER_ALL_ADDED)
+    assert not fsce.issubset(fsac)
+    assert not fsac.issubset(fsce)
 
     fa = lines(['a'])
     fscea = fsce.union(fa)
-    assert fsce.issubset(fscea, diff_filter=_FILTER_ALL_ADDED)
+    assert fsce.issubset(fscea)
 
 
 @pytest.mark.parametrize(

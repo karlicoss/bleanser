@@ -1,17 +1,17 @@
-"""
-Format-agnostic, clean up as literal file diffs
-"""
-# TODO probably should give it a better name...
-# TODO move it to core?
+import warnings
 
-from bleanser.core.processor import BaseNormaliser
+warnings.warn(
+    "Module 'bleanser.modules.binary' is deprecated. Use 'bleanser.core.modules.binary' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+from typing import TYPE_CHECKING
 
-class Normaliser(BaseNormaliser):
-    # TODO need to be careful about using it...
-    # for non-structured data might mess it up by accident if it's weirdly ordered
-    pass
+if not TYPE_CHECKING:
+    from bleanser.core.modules.binary import *
 
+    Normaliser = BinaryNormaliser  # noqa: F405  # legacy name
 
-if __name__ == '__main__':
-    Normaliser.main()
+    if __name__ == '__main__':
+        BinaryNormaliser.main()  # noqa: F405
