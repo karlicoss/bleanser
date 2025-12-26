@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import cast
 
 import click
-from more_itertools import zip_equal
 
 from .common import Dry, Instruction, Keep, Mode, Move, Prune, Remove, logger
 from .processor import BaseNormaliser, apply_instructions, bleanser_tmp_directory, compute_diff, compute_instructions
@@ -135,7 +134,7 @@ def prune(
         instructions = list(compute_instructions(paths, Normaliser=Normaliser, threads=threads))
         all_instructions.append(instructions)
 
-    for path_instructions in zip_equal(*all_instructions):
+    for path_instructions in zip(*all_instructions, strict=True):
         # just in case
         assert len({i.path for i in path_instructions}) == 1, path_instructions
 
