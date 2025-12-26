@@ -20,7 +20,6 @@ UV_PUBLISH_TOKEN = 'UV_PUBLISH_TOKEN'
 
 import argparse
 import os
-import shutil
 from pathlib import Path
 from subprocess import check_call
 
@@ -37,13 +36,7 @@ def main() -> None:
     root = Path(__file__).absolute().parent.parent
     os.chdir(root)  # just in case
 
-    # TODO ok, for now uv won't remove dist dir if it already exists
-    #  https://github.com/astral-sh/uv/issues/10293
-    dist = root / 'dist'
-    if dist.exists():
-        shutil.rmtree(dist)
-
-    check_call(['uv', 'build'])
+    check_call(['uv', 'build', '--clear'])
 
     if not is_ci:
         # CI relies on trusted publishers so doesn't need env variable

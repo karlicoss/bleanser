@@ -500,7 +500,7 @@ def test_fileset(tmp_path: Path) -> None:
 
 # just for process pool
 def _compute_groups_serial_as_list(*args: Any, **kwargs: Any) -> Iterable[Group]:
-    return list(_compute_groups_serial(*args, **kwargs))  # ty: ignore[missing-argument]
+    return list(_compute_groups_serial(*args, **kwargs))
 
 
 type IRes = Exception | Normalised
