@@ -3,13 +3,15 @@ from __future__ import annotations
 import glob as stdlib_glob
 import importlib
 import os
+import subprocess
+from contextlib import ExitStack
 from pathlib import Path
 from typing import cast
 
 import click
 
 from .common import Dry, Instruction, Keep, Mode, Move, Prune, Remove, logger
-from .processor import BaseNormaliser, apply_instructions, bleanser_tmp_directory, compute_diff, compute_instructions
+from .processor import BaseNormaliser, FileSet, apply_instructions, bleanser_tmp_directory, compute_instructions
 
 
 @click.group(context_settings={'max_content_width': 120, 'show_default': True})
@@ -171,10 +173,11 @@ _DEFAULT = '<default>'
 @click.argument('path1', type=str)
 @click.argument('path2', default=_DEFAULT)
 @click.option('--glob', is_flag=True, default=False, help='Treat the path as glob (in the glob.glob sense)')
-@click.option('--vim', is_flag=True, default=False, help='Use vimdiff')
-@click.option('--difftool', type=str, help='Custom difftool to use')
+@click.option('--vimdiff', is_flag=True, default=False, help='Use vimdiff')
+@click.option('--difftool', type=str, help='Custom difftool to use (uses DIFFTOOL otherwise)', envvar='DIFFTOOL')
 @click.option('--from', 'from_', type=int, default=None)
 @click.option('--to', type=int, default=None, help='non-inclusive, i.e. [from, to)')
+@click.pass_context
 def diff(
     ctx: click.Context,
     *,
@@ -184,7 +187,7 @@ def diff(
     glob: bool,
     from_: int | None,
     to: int | None,
-    vim: bool,
+    vimdiff: bool,
     difftool: str,
 ) -> None:
     Normalisers = _get_Normalisers(ctx=ctx, normalisers=normaliser)
@@ -205,20 +208,19 @@ def diff(
         path2 = Path(path2)
         paths = [path1_, path2]
 
-    # meh..
-    if vim:
+    if difftool is None:
+        difftool = 'diff'
+    if vimdiff:
         difftool = 'vimdiff'
-    if difftool is not None:
-        os.environ['DIFFTOOL'] = difftool
 
-    for line in compute_diff(paths, Normaliser=Normaliser):
-        print(line)
+    _print_diff(paths, Normaliser=Normaliser, difftool=difftool)
 
 
 @main.command(name='normalised', short_help='normalise file and dump to stdout')
 @option_normaliser
 @click.argument('path', type=Path)
 @click.option('--stdout', is_flag=True, help='print normalised files to stdout instead of printing the path to it')
+@click.pass_context
 def normalised(ctx: click.Context, *, normaliser: list[str], path: Path, stdout: bool) -> None:
     Normalisers = _get_Normalisers(ctx=ctx, normalisers=normaliser)
     [Normaliser] = Normalisers
@@ -256,3 +258,46 @@ def _get_paths(
 
     logger.info('processing %d files (%s ... %s)', len(paths), paths[0], paths[-1])
     return paths
+
+
+def _print_diff(paths: list[Path], *, Normaliser: type[BaseNormaliser], difftool: str) -> None:
+    assert len(paths) >= 2, paths
+
+    difftool_extra_args: list[str] = []
+    if difftool == 'vimdiff':
+        wrap = ['-c', 'windo set wrap']
+        diffopts = ['-c', 'set diffopt=filler,context:0']  # show only diffs and hide identical lines
+        difftool_extra_args.extend(wrap)
+        difftool_extra_args.extend(diffopts)
+
+    with bleanser_tmp_directory() as base_tmp_dir, ExitStack() as exit_stack:
+        results = []
+        for path in paths:
+            pn = Normaliser(original=path, base_tmp_dir=base_tmp_dir)
+            results.append((path, exit_stack.enter_context(pn.do_normalise())))
+
+        # if > 2 paths are passed, we're treating first and last path as 'pivots', and comparing to all the stuff in the middle
+        # fmt: off
+        first = results[0]
+        last  = results[-1]
+        rest  = results[1:-1]
+        # fmt: on
+
+        if len(rest) == 0:
+            group1 = [first]
+            group2 = [last]
+        else:
+            group1 = rest
+            group2 = [first, last]
+
+        logger.info(
+            'comparing [ %s ] vs [ %s ]', ' '.join(str(p) for p, _ in group1), ' '.join(str(p) for p, _ in group2)
+        )
+
+        fs1 = FileSet([r for _, r in group1], wdir=base_tmp_dir)
+        fs2 = FileSet([r for _, r in group2], wdir=base_tmp_dir)
+        c1 = fs1.merged
+        c2 = fs2.merged
+
+        # note: we don't want to exec here, otherwise context manager won't have a chance to clean up?
+        subprocess.run([difftool, *difftool_extra_args, str(c1), str(c2)], check=False)
