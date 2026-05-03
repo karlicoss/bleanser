@@ -142,7 +142,7 @@ def test_sqlite_many(*, tmp_path: Path, multiway: bool) -> None:
         if i % 10 == 0:
             # flush so sometimes it emits groups
             d = {'t': [('number',)]}
-        d['t'].append((i,))
+        d['t'].append((i,))  # ty: ignore[invalid-argument-type]
         p = _dict2db(d, to=tmp_path / f'{i:04}.db')
         paths.append(p)
 

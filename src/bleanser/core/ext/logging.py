@@ -14,12 +14,12 @@ def test() -> None:
 
     M("   Logging module's defaults are not great...'")
     l = logging.getLogger('test_logger')
-    # todo why is mypy unhappy about these???
     l.error(
         "For example, this should be logged as error. But it's not even formatted properly, doesn't have logger name or level"
     )
 
     M("   The reason is that you need to remember to call basicConfig() first")
+    logging.basicConfig()
     l.error(
         "OK, this is better. But the default format kinda sucks, I prefer having timestamps and the file/line number"
     )
@@ -36,9 +36,10 @@ def test() -> None:
 
 import logging
 import os
+from typing import Self, cast
 
 type Level = int
-type LevelIsh = Level | str
+type LevelIsh = Level | str | None
 
 
 def mklevel(level: LevelIsh) -> Level:
@@ -54,9 +55,13 @@ def mklevel(level: LevelIsh) -> Level:
 
 
 FORMAT = '{start}[%(levelname)-7s %(asctime)s %(name)s %(filename)s:%(lineno)d]{end} %(message)s'
-FORMAT_COLOR = FORMAT.format(start='%(color)s', end='%(end_color)s')
-FORMAT_NOCOLOR = FORMAT.format(start='', end='')
+# fmt: off
+FORMAT_COLOR   = FORMAT.format(start='%(color)s', end='%(end_color)s')
+FORMAT_NOCOLOR = FORMAT.format(start=''         , end='')
+# fmt: on
 DATEFMT = '%Y-%m-%d %H:%M:%S'
+
+_init_done = 'lazylogger_init_done'
 
 
 def setup_logger(logger: logging.Logger, level: LevelIsh) -> None:
@@ -82,19 +87,23 @@ def setup_logger(logger: logging.Logger, level: LevelIsh) -> None:
 
 
 class LazyLogger(logging.Logger):
-    def __new__(cls, name: str, level: LevelIsh = 'INFO') -> 'LazyLogger':
+    def __new__(cls, name: str, level: LevelIsh = 'INFO') -> Self:
         logger = logging.getLogger(name)
 
         # this is called prior to all _log calls so makes sense to do it here?
-        def isEnabledFor_lazyinit(*args, logger=logger, orig=logger.isEnabledFor, **kwargs):
-            att = 'lazylogger_init_done'
-            if not getattr(logger, att, False):  # init once, if necessary
+        def isEnabledFor_lazyinit(*args, logger: logging.Logger = logger, orig=logger.isEnabledFor, **kwargs) -> bool:
+            if not getattr(logger, _init_done, False):  # init once, if necessary
                 setup_logger(logger, level=level)
-                setattr(logger, att, True)
+                setattr(logger, _init_done, True)
+                # restore the callback
+                logger.isEnabledFor = orig  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]
             return orig(*args, **kwargs)
 
-        logger.isEnabledFor = isEnabledFor_lazyinit  # type: ignore[method-assign]
-        return logger  # type: ignore[return-value]
+        # oh god.. otherwise might go into an inf loop
+        if not hasattr(logger, _init_done):
+            setattr(logger, _init_done, False)  # will setup on the first call
+            logger.isEnabledFor = isEnabledFor_lazyinit  # type: ignore[method-assign]  # ty: ignore[invalid-assignment]
+        return cast(Self, logger)
 
 
 if __name__ == '__main__':

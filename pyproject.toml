@@ -9,22 +9,13 @@ dependencies = [
 ]
 requires-python = ">=3.12"
 
-## these need to be set if you're planning to upload to pypi
-# description = "TODO"
-license = {file = "LICENSE"}
-authors = [
-    {name = "Dima Gerasimov (@karlicoss)", email = "karlicoss@gmail.com"},
-]
-maintainers = [
-    {name = "Dima Gerasimov (@karlicoss)", email = "karlicoss@gmail.com"},
-]
-# keywords = []
-# # see: http://pypi.python.org/pypi?%3Aaction=list_classifiers
-# classifiers = [
-# ]
+## these are only useful for pypi
+description = "Tool for cleaning old and redundant backups"
+license     = {file = "LICENSE"}
+authors     = [{name = "Dima Gerasimov (@karlicoss)", email = "karlicoss@gmail.com"}]
+maintainers = [{name = "Dima Gerasimov (@karlicoss)", email = "karlicoss@gmail.com"}]
 
-
-[project.urls]
+[project.urls]  # pypi will fetch some github stats/link, so somewhat useful
 Homepage = "https://github.com/karlicoss/bleanser"
 ##
 
@@ -59,17 +50,18 @@ testing = [
     "bleanser[extra,json,xml]",
 ]
 typecheck = [
-    { include-group = "testing" },
     "mypy",
     "lxml", # for mypy html coverage
-    "ty>=0.0.7",
+    "ty>=0.0.34",
 
     "types-lxml",
+
+    { include-group = "testing" },
 ]
 typecheck-all = [
-    { include-group = "typecheck" },
-
     "bleanser[HPI]",
+
+    { include-group = "typecheck" },
 ]
 
 

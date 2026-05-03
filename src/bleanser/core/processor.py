@@ -171,7 +171,7 @@ class BaseNormaliser:
         finally:
             # ugh, kinda annoying that TemporaryDirectory doesn't allow creating a dir with exact name
             # so here we at least reuse its cleanup method
-            TemporaryDirectory._rmtree(str(self.tmp_dir))  # type: ignore[attr-defined]
+            TemporaryDirectory._rmtree(str(self.tmp_dir))  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     if TYPE_CHECKING:
         # deliberately keep this during type checking to indicate users need to migrate to normalise()
@@ -698,13 +698,11 @@ def apply_instructions(
     else:
         totals = '???'
 
-    # fmt: off
     rm_action = {
         Dry   : click.style('REMOVE (dry mode)', fg='yellow'),
         Move  : click.style('MOVE             ', fg='yellow'),
         Remove: click.style('REMOVE           ', fg='red'   ),
-    }[type(mode)]
-    # fmt: on
+    }[type(mode)]  # fmt: skip  # ty: ignore[invalid-argument-type]
 
     tot_files = 0
     rem_files = 0

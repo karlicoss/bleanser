@@ -69,7 +69,7 @@ if TYPE_CHECKING or under_pytest:
 
     parametrize = pytest.mark.parametrize
 else:
-    parametrize = lambda *_args, **_kwargs: (lambda f: f)
+    parametrize = lambda *_args, **_kwargs: lambda f: f
 ###
 
 

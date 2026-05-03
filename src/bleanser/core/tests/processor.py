@@ -378,7 +378,7 @@ def test_groups_to_instructions() -> None:
             for p in ppp
         )
         res = groups_to_instructions(list(grit))
-        return [(str(p.path), {Keep: 'keep', Prune: 'prune'}[type(p)]) for p in res]
+        return [(str(p.path), {Keep: 'keep', Prune: 'prune'}[type(p)]) for p in res]  # ty: ignore[invalid-argument-type]
 
     assert do(
         ('a', 'b'),
