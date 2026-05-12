@@ -45,48 +45,10 @@ def timing(f):
     return wrapped
 
 
-# make it lazy, otherwise it might crash on module import (e.g. on Windows)
-# ideally would be nice to fix it properly https://github.com/ahupp/python-magic#windows
-import warnings
-from collections.abc import Callable
-from functools import lru_cache
-
-
-@lru_cache(1)
-def _magic() -> Callable[[Path], str | None]:
-    try:
-        import magic
-    except Exception as e:
-        # logger.exception(e)
-        defensive_msg: str | None = None
-        if isinstance(e, ModuleNotFoundError) and e.name == 'magic':
-            defensive_msg = "python-magic is not detected. It's recommended for better file type detection (pip3 install --user python-magic). See https://github.com/ahupp/python-magic#installation"
-        elif isinstance(e, ImportError):
-            emsg = getattr(e, 'msg', '')  # make mypy happy
-            if 'failed to find libmagic' in emsg:  # probably the actual library is missing?...
-                defensive_msg = "couldn't import magic. See https://github.com/ahupp/python-magic#installation"
-        if defensive_msg is not None:
-            warnings.warn(defensive_msg, stacklevel=2)
-            return lambda path: None  # stub  # noqa: ARG005
-        else:
-            raise e
-    else:
-        mm = magic.Magic(mime=True)
-        return lambda path: mm.from_file(str(path))
-
-
-def mime(path: Path) -> str | None:
-    # next, libmagic, it might access the file, so a bit slower
-    magic = _magic()
-    return magic(path)
-
-
+from collections.abc import Collection
 from typing import Any
 
 Json = Any
-
-
-from collections.abc import Collection
 
 
 def delkeys(j: Json, *, keys: str | Collection[str]) -> None:

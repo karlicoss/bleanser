@@ -22,7 +22,6 @@ Homepage = "https://github.com/karlicoss/bleanser"
 
 [project.optional-dependencies]
 extra = [
-    "python-magic",  # more reliable mimetype detection -- requires extra binaries, so perhaps best to keep optional
     "logzero"     ,  # nicer logging, but can work without it
 ]
 json = [

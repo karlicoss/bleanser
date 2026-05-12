@@ -18,7 +18,6 @@ if [ -n "${CI-}" ]; then
     case "$OSTYPE" in
     darwin*)
         # macos
-        brew install libmagic # for python-magic
         brew install diffutils # for GNU diff
         ;;
     cygwin* | msys* | win*)

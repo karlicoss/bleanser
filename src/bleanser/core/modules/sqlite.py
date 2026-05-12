@@ -19,7 +19,6 @@ from ..processor import (
     sort_file,
     unique_file_in_tempdir,
 )
-from ..utils import mime
 
 AllowedBlobs = frozenset[tuple[str, str]]
 
@@ -125,13 +124,10 @@ class SqliteNormaliser(BaseNormaliser):
     @contextmanager
     def normalise(self, *, path: Path) -> Iterator[Normalised]:
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
-        # otherwise it essentially blocks waiting for all mimes to compute..
-        mp = mime(path)
-        assert mp in {
-            'application/x-sqlite3',
-            'application/vnd.sqlite3',
-        }, mp
-        ##
+        # ok, this is much easier than detecting mime or whatever...
+        with path.open('rb') as fb:
+            header = fb.read(16)
+            assert header == b"SQLite format 3\x00", header
 
         # TODO handle compressed databases later... need to think how to work around checking for no wal etc..
         upath = path
