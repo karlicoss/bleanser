@@ -67,7 +67,8 @@ class Normaliser(JsonNormaliser):
                 xxx = traffic[key]
                 xxx.pop('count')  # aggregate
                 xxx.pop('uniques')  # aggregate
-                assert xxx.keys() == {key}
+                xxx.pop('url')  # just an api link
+                assert xxx.keys() == {key}, xxx.keys()
                 # NOTE: we ignore first and last traffic entry since timestamps are aligned to the closest day
                 # so they are always going to be kinda flaky
                 for c in xxx[key][1:-1]:
