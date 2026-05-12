@@ -19,6 +19,7 @@ from typing import (
     ClassVar,
     NoReturn,
     Self,
+    assert_never,
     override,
 )
 
@@ -768,7 +769,7 @@ def apply_instructions(
     elif isinstance(mode, Remove):
         pass
     else:
-        raise TypeError(mode, type(mode))
+        assert_never(mode)
 
     for i in instructions:
         # just in case, to make sure no one messed with files in the meantime

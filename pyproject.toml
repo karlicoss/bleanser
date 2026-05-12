@@ -52,7 +52,7 @@ testing = [
 typecheck = [
     "mypy",
     "lxml", # for mypy html coverage
-    "ty>=0.0.34",
+    "ty>=0.0.35",
 
     "types-lxml",
 
