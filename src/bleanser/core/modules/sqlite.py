@@ -171,6 +171,11 @@ class SqliteNormaliser(BaseNormaliser):
             # for possible later use
             master_info = tool.get_sqlite_master()
         conn.close()
+        # FIXME ugh annoying -- conn/tool can hold a reference to connection, so despite closing might hold the reference to the file (even though it's unlinked)
+        # this can result in running out of file descriptors
+        # really need to cover the whole things with tests more and then refactor...
+        del tool
+        del conn
         cleaned_db = self.checked(cleaned_db)
 
         ### dump to text file
