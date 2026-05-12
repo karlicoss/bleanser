@@ -86,6 +86,7 @@ Using multiple normalisers is an advanced/experimental feature, will be document
 ##
 @click.option('--multiway', is_flag=True, default=None, help='force "multiway" cleanup')
 @click.option('--prune-dominated', is_flag=True, default=None)
+@click.option('--prune-empty-dirs', is_flag=True, help='remove leftover empty dirs (useful in glob mode)')
 @click.pass_context
 def prune(
     ctx: click.Context,
@@ -102,6 +103,7 @@ def prune(
     to: int | None,
     multiway: bool | None,
     prune_dominated: bool | None,
+    prune_empty_dirs: bool,
     yes: bool,
 ) -> None:
     Normalisers = _get_Normalisers(ctx=ctx, normalisers=normaliser)
@@ -161,7 +163,7 @@ def prune(
         assert p.exists(), p
 
     need_confirm = not yes
-    apply_instructions(instructions, mode=mode, need_confirm=need_confirm)
+    apply_instructions(instructions, mode=mode, need_confirm=need_confirm, prune_empty_dirs=prune_empty_dirs)
 
 
 # meh... would be nice to use object but it gets casted to str by click??

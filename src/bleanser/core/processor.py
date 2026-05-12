@@ -687,6 +687,7 @@ def apply_instructions(
     *,
     mode: Mode = Dry(),  # noqa: B008
     need_confirm: bool = True,
+    prune_empty_dirs: bool,
 ) -> NoReturn:
     # TODO hmm...
     # if we keep it as iterator, would be kinda nice, then it'd print cleaning stats as you run it
@@ -785,5 +786,11 @@ def apply_instructions(
         else:
             logger.info('rm %s', p)
             p.unlink()
+        if prune_empty_dirs:
+            try:
+                p.parent.rmdir()
+            except OSError:
+                # easier to handle defensively (kind of like rmdir --ignore-fail-on-non-empty)
+                pass
 
     sys.exit(exit_code)
