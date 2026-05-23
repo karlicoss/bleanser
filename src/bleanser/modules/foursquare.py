@@ -70,7 +70,7 @@ class Normaliser(JsonNormaliser):
         # ok, a bit nasty -- foursquare export seems to be a list of some sort of responses..
         assert isinstance(j, list)
 
-        res = []
+        res: list[Json] = []
         for d in j:
             l = check_and_extract(x=d, schema=SCHEMA)
             assert isinstance(l, list)
