@@ -16,6 +16,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+from contextlib import closing
 from pathlib import Path
 from subprocess import DEVNULL, check_call, check_output
 from tempfile import TemporaryDirectory
@@ -23,9 +24,13 @@ from tempfile import TemporaryDirectory
 Tables = dict[str, dict[str, str]]
 
 
+def connect_immutable(db: Path) -> sqlite3.Connection:
+    return sqlite3.connect(f'file:{db}?immutable=1', uri=True)
+
+
 def _get_tables(db: Path) -> Tables:
     res: Tables = {}
-    with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
+    with closing(connect_immutable(db)) as conn, conn:
         tables = []
         for row in conn.execute('SELECT name, type FROM sqlite_master'):
             (table, type_) = row
@@ -68,11 +73,10 @@ def _dumben_db(output_db: Path) -> None:
     # first delete virtual tables -- they might render it impossible to do anything with database at all due to USING
     # e.g. fb messenger android msys database has this CREATE VIRTUAL TABLE msys_experiment_cache USING experiment_cache
     # either way virtual tables are basically views, no need to keep them
-    with sqlite3.connect(output_db) as conn:
+    with closing(sqlite3.connect(output_db)) as conn, conn:
         for cmd in allow_writable_schema:
             conn.execute(cmd)
         conn.execute('DELETE FROM sqlite_master WHERE sql LIKE "%CREATE VIRTUAL TABLE%"')
-    conn.close()
 
     tables = _get_tables(output_db)
 
@@ -99,10 +103,9 @@ def _dumben_db(output_db: Path) -> None:
     ]
 
     # need to set isolation level to None, otherwise VACUUM fails
-    with sqlite3.connect(output_db, isolation_level=None) as conn:
+    with closing(sqlite3.connect(output_db, isolation_level=None)) as conn, conn:
         for cmd in cmds:
             conn.execute(cmd)
-    conn.close()
 
     # make sure it's not corrupted
     # redirect output to DEVNULL, otherwise it's printing "ok" which is a bit annoying
@@ -187,22 +190,22 @@ CREATE VIEW whatevs AS
 '''
 
     db = tmp_path / 'tmp.db'
-    subprocess.run(_sqlite(db), input=sql.encode('utf8'), check=True)
+    subprocess.run(_sqlite(db), input=sql.encode(), check=True)
 
     ## precondition -- check that db has multiline CREATE statements
-    dbd = check_output(_sqlite(db, '.dump')).decode('utf8').splitlines()
+    dbd = check_output(_sqlite(db, '.dump')).decode().splitlines()
     assert 'CREATE TABLE employees' in dbd
     assert '  CONSTRAINT fk_departments' in dbd
     ##
 
     ## precondition -- check that with foreign key it will indeed impact other tables
     check_call(_sqlite(db, 'PRAGMA foreign_keys=on; DELETE FROM departments WHERE department_id = 30;'))
-    ecnt = int(check_output(_sqlite(db, 'SELECT COUNT(*) FROM employees')).decode('utf8').strip())
+    ecnt = int(check_output(_sqlite(db, 'SELECT COUNT(*) FROM employees')).decode().strip())
     assert ecnt == 1, ecnt
     ##
 
     db.unlink()
-    subprocess.run(_sqlite(db), input=sql.encode('utf8'), check=True)
+    subprocess.run(_sqlite(db), input=sql.encode(), check=True)
 
     dumb_sql = tmp_path / 'dumb.sql'
     run(db=db, output=dumb_sql, output_as_db=False)
@@ -221,8 +224,78 @@ CREATE VIEW whatevs AS
     dumb_db = tmp_path / 'dumb.db'
     run(db=db, output=dumb_db, output_as_db=True)
     check_call(_sqlite(dumb_db, 'PRAGMA foreign_keys=on; DELETE FROM departments WHERE department_id = 30;'))
-    ecnt = int(check_output(_sqlite(dumb_db, 'SELECT COUNT(*) FROM employees')).decode('utf8').strip())
+    ecnt = int(check_output(_sqlite(dumb_db, 'SELECT COUNT(*) FROM employees')).decode().strip())
     assert ecnt == 2, ecnt
+
+
+def test_dumben_strips_trigger_side_effects(tmp_path: Path) -> None:
+    sql = '''
+CREATE TABLE cleanup_requests
+( department_id INTEGER PRIMARY KEY
+);
+
+CREATE TABLE audit_log
+( id INTEGER PRIMARY KEY AUTOINCREMENT,
+  department_id INTEGER,
+  note TEXT NOT NULL
+);
+
+CREATE INDEX audit_log_by_department ON audit_log(department_id);
+
+CREATE TRIGGER cleanup_requests_ad
+AFTER DELETE ON cleanup_requests
+BEGIN
+    DELETE FROM audit_log WHERE department_id = OLD.department_id;
+END;
+
+CREATE VIEW audit_notes AS
+    SELECT note FROM audit_log;
+
+INSERT INTO cleanup_requests VALUES (30);
+INSERT INTO cleanup_requests VALUES (999);
+
+INSERT INTO audit_log VALUES (1, 30, 'keep this hr audit entry');
+INSERT INTO audit_log VALUES (2, 999, 'keep this sales audit entry');
+'''
+
+    def create_db(db: Path) -> None:
+        db.unlink(missing_ok=True)
+        subprocess.run(_sqlite(db), input=sql.encode(), check=True)
+
+    def count(db: Path, table: str) -> int:
+        return int(check_output(_sqlite(db, f'SELECT COUNT(*) FROM {table}')).decode().strip())
+
+    raw_db = tmp_path / 'raw.db'
+    create_db(raw_db)
+
+    # Precondition: deleting from a cleanup table fires a trigger and deletes audit rows we did not name explicitly.
+    assert count(raw_db, 'cleanup_requests') == 2
+    assert count(raw_db, 'audit_log') == 2
+    check_call(_sqlite(raw_db, 'DELETE FROM cleanup_requests WHERE department_id = 999;'))
+    assert count(raw_db, 'cleanup_requests') == 1
+    assert count(raw_db, 'audit_log') == 1
+
+    db = tmp_path / 'tmp.db'
+    create_db(db)
+
+    dumb_sql = tmp_path / 'dumb.sql'
+    run(db=db, output=dumb_sql, output_as_db=False)
+    dump = dumb_sql.read_text()
+    assert 'CREATE TRIGGER' not in dump
+    assert 'CREATE INDEX' not in dump
+    assert 'CREATE VIEW' not in dump
+
+    dumb_db = tmp_path / 'dumb.db'
+    run(db=db, output=dumb_db, output_as_db=True)
+
+    with closing(connect_immutable(dumb_db)) as conn, conn:
+        object_types = dict(conn.execute('SELECT type, COUNT(*) FROM sqlite_master GROUP BY type'))
+    assert object_types == {'table': 2}
+
+    # Postcondition: after dumbening, the same cleanup statement only removes the explicit row.
+    check_call(_sqlite(dumb_db, 'DELETE FROM cleanup_requests WHERE department_id = 999;'))
+    assert count(dumb_db, 'cleanup_requests') == 1
+    assert count(dumb_db, 'audit_log') == 2
 
 
 def main() -> None:
