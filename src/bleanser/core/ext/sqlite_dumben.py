@@ -16,12 +16,13 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+from collections.abc import Sequence
 from contextlib import closing
 from pathlib import Path
-from subprocess import DEVNULL, check_call, check_output
+from subprocess import check_call, check_output
 from tempfile import TemporaryDirectory
 
-Tables = dict[str, dict[str, str]]
+type Tables = dict[str, dict[str, str]]
 
 
 def connect_immutable(db: Path) -> sqlite3.Connection:
@@ -50,7 +51,7 @@ def _get_tables(db: Path) -> Tables:
     return res
 
 
-def _sqlite(*cmd):
+def _sqlite(*cmd: Path | str) -> Sequence[Path | str]:
     return ['sqlite3', '-bail', *cmd]
 
 
@@ -107,9 +108,10 @@ def _dumben_db(output_db: Path) -> None:
         for cmd in cmds:
             conn.execute(cmd)
 
-    # make sure it's not corrupted
-    # redirect output to DEVNULL, otherwise it's printing "ok" which is a bit annoying
-    subprocess.check_call(_sqlite(output_db, 'PRAGMA integrity_check;'), stdout=DEVNULL)
+        # in principle full integrity check may be not really necessary considering we removed all indices etc
+        # but even on big firefox databases it takes just ~50ms, so probably no harm
+        [(check_result,)] = list(conn.execute('PRAGMA integrity_check;'))
+        assert check_result == 'ok', check_result
 
 
 def run(*, db: Path, output: Path | None, output_as_db: bool) -> None:
