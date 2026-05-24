@@ -9,9 +9,10 @@ import shutil
 import sqlite3
 import subprocess
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 from sqlite3 import Connection
+from typing import Literal
 
 from ..processor import (
     BaseNormaliser,
@@ -23,7 +24,7 @@ from ..processor import (
 AllowedBlobs = frozenset[tuple[str, str]]
 
 
-def checked_no_wal(db: Path) -> Path:
+def _checked_no_wal(db: Path) -> Path:
     shm = db.parent / (db.name + '-shm')
     wal = db.parent / (db.name + '-wal')
     assert not shm.exists(), shm
@@ -86,18 +87,22 @@ def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> No
         )
 
 
-def checked_db(db: Path, *, allowed_blobs: AllowedBlobs | None) -> Path:
-    # integrity check
-    db = checked_no_wal(db)
-    with sqlite3.connect(f'file:{db}?immutable=1', uri=True) as conn:
+def _checked_db(db: Path, *, check: Literal['integrity', 'quick'], allowed_blobs: AllowedBlobs | None) -> Path:
+    """
+    check: 'integrity' can be quite slow, O(N log N) in number of rows, because it checks all indices and UNIQUE constraints.
+           'quick' is O(N), and mostly achieves same result.
+    """
+    db = _checked_no_wal(db)
+    with closing(sqlite3.connect(f'file:{db}?immutable=1', uri=True)) as conn, conn:
         # note: .execute only does statement at a time?
+        # TODO what does schema_version do?
         list(conn.execute('PRAGMA schema_version;'))
-        list(conn.execute('PRAGMA integrity_check;'))
+        [(check_result,)] = list(conn.execute(f'PRAGMA {check}_check;'))
+        assert check_result == 'ok', check_result
         if allowed_blobs is not None:
             _check_allowed_blobs(conn=conn, allowed_blobs=allowed_blobs)
 
-    conn.close()
-    db = checked_no_wal(db)
+    db = _checked_no_wal(db)
     return db
 
 
@@ -105,11 +110,6 @@ class SqliteNormaliser(BaseNormaliser):
     # FIXME need a test, i.e. with removing single row?
 
     ALLOWED_BLOBS: AllowedBlobs = frozenset()
-
-    @classmethod
-    def checked(cls, db: Path) -> Path:
-        """common schema checks (for both cleanup/extract)"""
-        return checked_db(db, allowed_blobs=cls.ALLOWED_BLOBS)
 
     # TODO in principle we can get away with using only 'extract'?
     # 'cleanup' is just a sanity check? so you don't cleanup too much by accident?
@@ -134,7 +134,9 @@ class SqliteNormaliser(BaseNormaliser):
         del path  # just to prevent from using by accident
 
         # first, do not check for blobs -- we might not even be able to get the table list in python due to virtual tables
-        upath = checked_db(upath, allowed_blobs=None)
+        # NOTE: quick check (instead of integrity) is fine here -- we're going to drop all indices during dumben step anyway,
+        #   and it does introduce substantial speedup for bigger databases (e.g. browser history).
+        upath = _checked_db(upath, check='quick', allowed_blobs=None)
         # NOTE: upath here is still the _original_  path passed to bleanser, so we can't modify in place
 
         assert upath.is_absolute(), f'{upath} is not an absolute path'
@@ -148,11 +150,11 @@ class SqliteNormaliser(BaseNormaliser):
 
         # eh.. not sure if really necessary
         # but we don't wanna check for blobs yet, better to do this after the cleanup
-        cleaned_db = checked_db(cleaned_db, allowed_blobs=None)
+        cleaned_db = _checked_db(cleaned_db, check='integrity', allowed_blobs=None)
 
         # ugh. in principle could use :memory: database here...
         # but then dumping it via iterdump() takes much more time then sqlite3 .dump command..
-        with sqlite3.connect(cleaned_db) as conn:
+        with closing(sqlite3.connect(cleaned_db)) as conn, conn:
             # prevent it from generating unnecessary wal files
             conn.execute('PRAGMA journal_mode=MEMORY;')
 
@@ -167,16 +169,13 @@ class SqliteNormaliser(BaseNormaliser):
             # cleanup might take a bit of time, especially with UPDATE statements
             # but probably unavoidable?
             self.cleanup(conn)
-
-            # for possible later use
-            master_info = tool.get_sqlite_master()
-        conn.close()
         # FIXME ugh annoying -- conn/tool can hold a reference to connection, so despite closing might hold the reference to the file (even though it's unlinked)
         # this can result in running out of file descriptors
         # really need to cover the whole things with tests more and then refactor...
         del tool
         del conn
-        cleaned_db = self.checked(cleaned_db)
+
+        cleaned_db = _checked_db(cleaned_db, check='integrity', allowed_blobs=self.ALLOWED_BLOBS)
 
         ### dump to text file
         ## prepare a fake path for dump, just to preserve original file paths at least to some extent
