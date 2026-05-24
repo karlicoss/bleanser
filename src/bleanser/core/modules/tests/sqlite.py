@@ -128,6 +128,39 @@ def test_sqlite_simple(tmp_path: Path) -> None:
     ]  # fmt: skip
 
 
+def _make_long_dump_db(to: Path, *, ignored_value: int, payload_suffix: str = '') -> Path:
+    with sqlite3.connect(to) as conn:
+        conn.execute('CREATE TABLE payloads (id INTEGER, body TEXT)')
+        conn.execute('CREATE TABLE ignored (value INTEGER)')
+        conn.execute('INSERT INTO ignored VALUES (?)', (ignored_value,))
+        # Regression shape for uutils sort 0.8.0: a few long lines made only of "a" are enough for `sort --unique --merge` to split SQL dump lines.
+        body = 'a' * 32_000 + payload_suffix
+        for i in range(3):
+            conn.execute('INSERT INTO payloads VALUES (?, ?)', (i, body))
+
+    return to
+
+
+def test_sqlite_long_dump_lines_end_to_end(tmp_path: Path) -> None:
+    class TestNormaliser(SqliteNormaliser):
+        def cleanup(self, c: sqlite3.Connection) -> None:
+            c.execute('DROP TABLE ignored')
+
+    db0 = _make_long_dump_db(tmp_path / '0.db', ignored_value=0)
+    db1 = _make_long_dump_db(tmp_path / '1.db', ignored_value=1)
+    db2 = _make_long_dump_db(tmp_path / '2.db', ignored_value=2)
+    db3 = _make_long_dump_db(tmp_path / '3.db', ignored_value=3, payload_suffix='b')
+
+    instructions = list(compute_instructions([db0, db1, db2, db3], Normaliser=TestNormaliser, threads=None))
+
+    assert [type(i) for i in instructions] == [
+        Keep,
+        Prune,
+        Keep,
+        Keep,
+    ]
+
+
 @pytest.mark.parametrize('multiway', [False, True])
 def test_sqlite_many(*, tmp_path: Path, multiway: bool) -> None:
     class TestNormaliser(SqliteNormaliser):

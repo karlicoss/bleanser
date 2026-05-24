@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 import shutil
 import subprocess
 import sys
@@ -10,7 +11,6 @@ from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from functools import cache
 from pathlib import Path
-from subprocess import check_call
 from tempfile import NamedTemporaryFile, TemporaryDirectory, gettempdir
 from time import time
 from typing import (
@@ -40,6 +40,12 @@ from .common import (
     logger,
 )
 from .ext.dummy_executor import DummyExecutor
+
+
+def run_sort(*args: str | Path) -> None:
+    # Use bytewise collation for internal canonicalisation sorts; locale-aware sort can be much slower and may vary across environments, and bleanser compares exact dump lines rather than human-collated text.
+    env = {**os.environ, 'LC_ALL': 'C'}
+    subprocess.run(['sort', *(str(a) for a in args)], env=env, check=True)
 
 
 @contextmanager
@@ -81,7 +87,7 @@ def unique_file_in_tempdir(*, input_filepath: Path, dir: Path, suffix: str | Non
 # meh... see Fileset._union
 # this gives it a bit of a speedup when comparing
 def sort_file(filepath: str | Path) -> None:
-    check_call(['sort', '-o', str(filepath), str(filepath)])
+    run_sort('-o', filepath, filepath)
 
 
 Input = Path
@@ -361,20 +367,10 @@ class FileSet(AbstractContextManager):
         # allow it not to have merged file if set is empty
         tomerge = ([] if len(self.items) == 0 else [self.merged]) + extra
 
-        # hmm sadly sort command doesn't detect it itself?
-        # todo make less hacky... ideally the callee would maintain the sorted files
-        is_sorted = []
-        for p in tomerge:  # todo no need to check self.merged?
-            res = subprocess.run(['sort', '--check', p], check=False)
-            if res.returncode not in (0, 1):
-                res.check_returncode()
-            is_sorted.append(res.returncode == 0)
-        mflag = []
-        if all(is_sorted):
-            mflag = ['--merge']
-
-        # sort also has --parallel option... but pretty pointless, in most cases we'll be merging two files?
-        subprocess.check_call(['sort', '--unique', *mflag, *tomerge, '-o', self.merged])
+        # If every input is already sorted, sort --unique --merge can be a nice optimization because merge is linear and avoids re-sorting all lines from scratch.
+        # In practice it also needs a sort --check pass, and with LC_ALL=C the full sort --unique path is already cheap for current sqlite dumps: about 0.10s for one ~70MB dump and about 0.16-0.20s for two ~70MB dumps on observed Firefox history data.
+        # TODO: re-evaluate --merge if useful; uutils sort 0.8.0 can corrupt long lines in --merge mode.
+        run_sort('--unique', *tomerge, '-o', self.merged)
 
         self.items.extend(extra)
 

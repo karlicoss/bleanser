@@ -93,6 +93,8 @@ def _checked_db(db: Path, *, check: Literal['integrity', 'quick'], allowed_blobs
            'quick' is O(N), and mostly achieves same result.
     """
     db = _checked_no_wal(db)
+    # NOTE: with immutable=1, SQLite can skip some checks; e.g. integrity_check can return ok even if a normal
+    # connection reports CHECK constraint violations. Here this is mostly a cheap readonly sanity check.
     with closing(sqlite3.connect(f'file:{db}?immutable=1', uri=True)) as conn, conn:
         # note: .execute only does statement at a time?
         # TODO what does schema_version do?
