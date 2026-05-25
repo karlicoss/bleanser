@@ -8,7 +8,7 @@ import pytest
 
 from ...common import Keep, Prune
 from ...processor import compute_groups, compute_instructions, groups_to_instructions
-from ..sqlite import SqliteNormaliser
+from ..sqlite import SqliteNormaliser, _postprocess_dump_hex, _postprocess_dump_hex_line
 
 
 def _dict2db(d: dict, *, to: Path) -> Path:
@@ -159,6 +159,47 @@ def test_sqlite_long_dump_lines_end_to_end(tmp_path: Path) -> None:
         Keep,
         Keep,
     ]
+
+
+@pytest.mark.parametrize(
+    ('line', 'expected'),
+    [
+        (b"INSERT INTO test VALUES(1, 'plain');\n", b"INSERT INTO test VALUES(1, 'plain');\n"),
+        (b"INSERT INTO test VALUES(X'ffd8');\n", b"INSERT INTO test VALUES(X'ffd8');\n"),
+        (b"INSERT INTO test VALUES(X'7b7d');\n", b"INSERT INTO test VALUES(X'{}');\n"),
+        (b"INSERT INTO test VALUES(X'7B7D');\n", b"INSERT INTO test VALUES(X'{}');\n"),
+        (b"INSERT INTO test VALUES(X'5b5d');\n", b"INSERT INTO test VALUES(X'5b5d');\n"),
+        (b"INSERT INTO test VALUES(X'7b2261223a317d');\n", b"INSERT INTO test VALUES(X'{\"a\":1}');\n"),
+        (b"INSERT INTO test VALUES(X'7B2261223A317D');\n", b"INSERT INTO test VALUES(X'{\"a\":1}');\n"),
+        (b"INSERT INTO test VALUES(X'7b0a7d');\n", b"INSERT INTO test VALUES(X'{<NEWLINE>}');\n"),
+        (
+            b"INSERT INTO test VALUES(X'7b7d', X'5b5d', X'7b0d0a7d');\n",
+            b"INSERT INTO test VALUES(X'{}', X'5b5d', X'{<NEWLINE>}');\n",
+        ),
+    ],
+)
+def test_sqlite_hex_postprocess_line(line: bytes, expected: bytes) -> None:
+    assert _postprocess_dump_hex_line(line) == expected
+
+
+def test_sqlite_hex_postprocess_file(tmp_path: Path) -> None:
+    src = tmp_path / 'dump.sql'
+    dst = tmp_path / 'dump_nohex.sql'
+
+    src.write_bytes(b"INSERT INTO test VALUES(1, 'plain');\n")
+    assert _postprocess_dump_hex(src=src, dst=dst) == src
+    assert src.read_bytes() == b"INSERT INTO test VALUES(1, 'plain');\n"
+    assert not dst.exists()
+
+    src.write_bytes(b"INSERT INTO test VALUES(X'5b5d');\n")
+    assert _postprocess_dump_hex(src=src, dst=dst) == src
+    assert src.read_bytes() == b"INSERT INTO test VALUES(X'5b5d');\n"
+    assert not dst.exists()
+
+    src.write_bytes(b"INSERT INTO a VALUES(1);\nINSERT INTO test VALUES(X'7b7d');\n")
+    assert _postprocess_dump_hex(src=src, dst=dst) == src
+    assert src.read_bytes() == b"INSERT INTO a VALUES(1);\nINSERT INTO test VALUES(X'{}');\n"
+    assert not dst.exists()
 
 
 @pytest.mark.parametrize('multiway', [False, True])
