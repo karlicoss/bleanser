@@ -24,6 +24,48 @@ from ..processor import (
 AllowedBlobs = frozenset[tuple[str, str]]
 
 
+_SQLITE_HEX_BLOB_PREFIX = b"X'"
+_JSON_OBJECT_START_HEX = f'{ord("{"):02x}'.encode()
+_JSON_OBJECT_END_HEX = f'{ord("}"):02x}'.encode()
+_JSON_OBJECT_HEX_CANDIDATE = _SQLITE_HEX_BLOB_PREFIX + _JSON_OBJECT_START_HEX[:1]
+# SQLite dumps BLOBs as X'ABCD'. JSON objects start with "{" (0x7b) and end with "}" (0x7d), so only those blobs need this readability rewrite.
+_JSON_HEX_BLOB_RE = re.compile(
+    rb"X'(" + _JSON_OBJECT_START_HEX + rb"[0-9a-f]*" + _JSON_OBJECT_END_HEX + rb")'",
+    re.IGNORECASE,  # sqlite hex output can be both upper and lower case
+)
+
+
+def _postprocess_dump_hex_bytes(data: bytes) -> bytes:
+    if _JSON_OBJECT_HEX_CANDIDATE not in data:
+        # Coarse fast path: the first hex digit of "{" is enough to skip dumps with no JSON-ish blobs; the regex below checks the full 7b...7d shape.
+        return data
+
+    def replace(match: re.Match[bytes]) -> bytes:
+        ss = bytes.fromhex(match.group(1).decode())
+        # Keep one dump record per line, otherwise sorting/diffing the dump gets ambiguous.
+        ss = re.sub(rb'(\r\n|\r|\n)', b'<NEWLINE>', ss)
+        return b"X'" + ss + b"'"
+
+    return _JSON_HEX_BLOB_RE.sub(replace, data)
+
+
+def _postprocess_dump_hex_line(line: bytes) -> bytes:
+    return _postprocess_dump_hex_bytes(line)
+
+
+def _postprocess_dump_hex(*, src: Path, dst: Path) -> Path:
+    data = src.read_bytes()
+    processed = _postprocess_dump_hex_bytes(data)
+    if processed == data:
+        # if hex processing had no effect, no need to write out files (can waste hundreds of ms of time/disk IO)
+        # just reuse the src
+        return src
+
+    dst.write_bytes(processed)
+    shutil.move(dst, src)
+    return src
+
+
 def _checked_no_wal(db: Path) -> Path:
     shm = db.parent / (db.name + '-shm')
     wal = db.parent / (db.name + '-wal')
@@ -192,22 +234,8 @@ class SqliteNormaliser(BaseNormaliser):
         ## but in our case makes diffs very cryptic
         dump_file_nohex = unique_tmp_dir / 'dump_nohex.sql'
         # TODO hmm this might break if it's a legit binary BLOB?
-        with dump_file.open('rb') as fi, dump_file_nohex.open('wb') as fo:
-            for line in fi:
-                assert line.endswith(b'\n')
-                # fixme need to find all in case of multiple hex columns
-                m = re.search(b"X'([0-9a-f]*)'", line)
-                if m is not None:
-                    hh = m.group(1).decode('utf8')
-                    ss = bytes.fromhex(hh)
-                    if len(ss) > 0 and ss[0] == b'{' and ss[-1] == b'}':  # type: ignore[comparison-overlap]
-                        # json-ish
-                        # replace newlines just in case, otherwise it might mangle the sorting
-                        ss = re.sub(rb'(\r\n|\r|\n)', b'<NEWLINE>', ss)
-                        line = line[: m.start(1)] + ss + line[m.end(1) :]
-                fo.write(line)
         # TODO maybe only do it in diff mode? not sure
-        shutil.move(str(dump_file_nohex), str(dump_file))
+        dump_file = _postprocess_dump_hex(src=dump_file, dst=dump_file_nohex)
         ##
 
         # alternative way to dump database
