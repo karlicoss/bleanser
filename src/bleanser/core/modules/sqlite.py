@@ -33,6 +33,7 @@ _JSON_HEX_BLOB_RE = re.compile(
     rb"X'(" + _JSON_OBJECT_START_HEX + rb"[0-9a-f]*" + _JSON_OBJECT_END_HEX + rb")'",
     re.IGNORECASE,  # sqlite hex output can be both upper and lower case
 )
+_MALFORMED_FTS_CHECK_PREFIX = 'malformed inverted index for FTS'
 
 
 def _postprocess_dump_hex_bytes(data: bytes) -> bytes:
@@ -141,8 +142,10 @@ def _checked_db(db: Path, *, check: Literal['integrity', 'quick'], allowed_blobs
         # note: .execute only does statement at a time?
         # TODO what does schema_version do?
         list(conn.execute('PRAGMA schema_version;'))
-        [(check_result,)] = list(conn.execute(f'PRAGMA {check}_check;'))
-        assert check_result == 'ok', check_result
+        check_results = [r for (r,) in conn.execute(f'PRAGMA {check}_check;')]
+        # PRAGMA *_check returns one row per problem, or a single "ok" row. Ignore malformed FTS indexes: they are derived search data and dumben strips virtual tables anyway. Seen with PodcastAddict.
+        bad_results = [r for r in check_results if r != 'ok' and not r.startswith(_MALFORMED_FTS_CHECK_PREFIX)]
+        assert len(bad_results) == 0, '\n'.join(bad_results)
         if allowed_blobs is not None:
             _check_allowed_blobs(conn=conn, allowed_blobs=allowed_blobs)
 
