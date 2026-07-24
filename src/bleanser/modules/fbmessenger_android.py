@@ -26,10 +26,23 @@ class Normaliser(SqliteNormaliser):
         self.check(c)
         t.drop('properties')  # eh, just some weird random key-values
         t.drop('virtual_folders')  # looks like some temporary thing, just a few values
-        t.drop('_shared_version')
-        t.drop('folder_counts')
+        t.drop('_shared_version')  # internal schema version
+        t.drop('android_metadata')  # SQLite locale metadata
+        t.drop('folder_counts')  # derived folder counters
+        t.drop('ranked_threads')  # derived thread ordering
+        t.drop('sqliteproc_metadata')  # generated procedure metadata
+        t.drop('sqliteproc_schema')  # generated procedure schema
+        t.drop('thread_themes')  # downloaded theme catalog
 
-        for name in ['folders', 'threads', 'thread_participants', 'thread_themes', 'thread_users']:
+        for name in [
+            'folders',
+            'message_reactions',
+            'messages',
+            'thread_participants',
+            'thread_users',
+            'threads',
+            'threads_metadata',
+        ]:
             t.drop_cols(name, cols=['_id'])  # meh.. sometimes changes for no reason
 
         t.drop_cols('folders', cols=['timestamp_ms'])  # changes all the time
@@ -52,9 +65,15 @@ class Normaliser(SqliteNormaliser):
             'timestamp_ms',
             'snippet',
             'admin_snippet',
+            'pic',  # expiring thread-picture URL
             'approx_total_message_count',
             'unread_message_count',
             'vanish_mode_selection_timestamp',
+            'can_reply_to',  # transient recipient-loadability state
+            'cannot_reply_reason',  # transient recipient-loadability state
+            'last_message_commerce_message_type',  # derived last-message summary
+            'has_non_admin_message',  # derived thread summary
+            'thread_connectivity_data',  # transient connectivity state
 
             'rtc_room_info',
             'rtc_call_info',
@@ -72,6 +91,8 @@ class Normaliser(SqliteNormaliser):
                 'profile_pic_square',
                 'contact_capabilities',
                 'contact_capabilities2',
+                'mutual_friends_count',  # volatile derived count
+                'messenger_call_log_third_party_id',  # technical call-log identifier
             ],
         )
 
@@ -97,7 +118,9 @@ class Normaliser(SqliteNormaliser):
 
         t.drop('quick_promotion_filters')
         t.drop('quick_promotions')
+        t.drop('quick_promotion_actions')  # generated promotion actions
         t.drop('presence_states')
+        t.drop('most_likely_to_poll_questions')  # canned poll prompts
 
         ## meh, there is no our own data in these, and changing all the time -- not worth keeping stories
         t.drop('stories')
@@ -108,6 +131,8 @@ class Normaliser(SqliteNormaliser):
         ##
 
         t.drop('cm_search_nullstate_metadata')
+        t.drop('ai_bot_search_metadata')  # generated bot suggestions
+        t.drop('ai_bot_search_prompts')  # canned bot prompts
         t.drop('thread_themes')
         t.drop('mailbox_metadata')
         t.drop('experiment_value')
@@ -125,9 +150,12 @@ class Normaliser(SqliteNormaliser):
         t.drop('messenger_fts_index_client_messages_progress_status')  # derived search-index checkpoint
         t.drop('messenger_fts_index_eb_messages_progress_status')  # derived search-index checkpoint
         t.drop('messenger_fts_index_reverb_progress_status')  # derived search-index checkpoint
+        t.drop('messenger_fts_index_content_tasks')  # derived search-index work queue
+        t.drop('messenger_fts_ocam_tasks')  # derived search-index work queue
         t.drop('push_notifications')
         t.drop('gradient_colors')
         t.drop('messenger_dynamic_presence_backgrounds')
+        t.drop('avatar_template_pack_artifacts')  # generated avatar assets
         t.drop('avatar_template_pack_entries')
         t.drop('avatar_template_packs')
         t.drop('messages_ranges_v2__generated')
@@ -146,10 +174,13 @@ class Normaliser(SqliteNormaliser):
         t.drop('sharing_life_events')
         t.drop('fw_ranking_scores')
         t.drop('fw_ranking_requests')
+        t.drop('ranking_requests')  # transient share-sheet ranking jobs
+        t.drop('ranking_scores')  # derived share-sheet scores
         t.drop('threads_ranges__generated')
         t.drop('threads_ranges_v2__generated')
         t.drop('community_messaging_aggregated_user_presence_counts_for_community')
         t.drop('thread_capability_sync_state')  # derived capability sync metadata
+        t.drop('ohai_gateway_key_configs')  # expiring public transport-key configuration
 
         t.drop_cols(
             'participants',
@@ -216,6 +247,8 @@ class Normaliser(SqliteNormaliser):
             ],
         )
 
+        t.drop_cols('cm_channel_list', cols=['synced_timestamp_ms'])  # refresh timestamp
+        t.drop_cols('cm_community_list', cols=['synced_timestamp_ms'])  # refresh timestamp
         drop_cols_containing(
             'community_folders',
             containing=[
@@ -228,6 +261,7 @@ class Normaliser(SqliteNormaliser):
                 ## volatile
                 'member_count',
                 'capabilities',
+                'read_timestamp_ms',  # local read-state refresh timestamp
                 ##
             ],
         )
@@ -256,7 +290,8 @@ class Normaliser(SqliteNormaliser):
             ],
         )
 
-        # TODO fb_transport_contacts?
+        t.drop_cols('fb_transport_contacts', cols=['pk'])  # unstable local row identifier
+
         for tbl_name in ['contacts', 'client_contacts', 'client_threads']:
             # these change all the time and expire
             drop_cols_containing(
