@@ -52,6 +52,8 @@ You might notice that if you removed 'Day 2', you'd still have an accurate backu
 
 Sidenote: in particular this is describing how `--multiway` finds redundant files, see [`options.md`](./doc/options.md) for more info
 
+For a longer discussion of the design rationale and how bleanser relates to backup retention/deduplication/compaction tools, see [`design.md`](./doc/design.md)
+
 ## How it works
 
 This has `Normaliser`s for different data sources (see [modules](src/bleanser/modules)), and generally follows a pattern like this:
@@ -63,8 +65,8 @@ from typing import Iterator
 
 from bleanser.core.processor import BaseNormaliser, unique_file_in_tempdir
 
-class Normaliser(BaseNormaliser):
 
+class Normaliser(BaseNormaliser):
     @contextmanager
     def normalise(self, *, path: Path) -> Iterator[Path]:
         # if the input file was compressed, the "path" you receive here will be decompressed
@@ -138,9 +140,12 @@ class Normaliser(JsonNormaliser):
     # here, j is a dict, each file that this gets passed from the CLI call
     # below is pre-processed by the cleanup function
     def cleanup(self, j: Json) -> Json:
-        delkeys(j, keys={
-            'images',
-        })
+        delkeys(
+            j,
+            keys={
+                'images',
+            },
+        )
 
         return j
 

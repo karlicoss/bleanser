@@ -83,9 +83,14 @@ class Normaliser(SqliteNormaliser):
         tables = t.get_tables()
         t.drop('secure_message_server_time_v2')
         # eh..some technical information
+        t.drop('acs_request_context')  # transient request bookkeeping
         t.drop('sync_groups')
         t.drop('orca_upgrade_cql_schema_facets')
         t.drop('secure_message_ab_props_v2')  # just weird single value
+        t.drop('secure_acs_blinded_tokens')  # ephemeral access-control credentials
+        t.drop('secure_acs_configurations')  # expiring access-control configuration
+        t.drop('secure_acs_tokens')  # ephemeral access-control credentials
+        t.drop('encrypted_backups_status_trigger')  # transient backup scheduling state
         t.drop('pending_tasks')  # temporary thing?
         t.drop('crypto_auth_token')
         t.drop('logging_events_v2')
@@ -117,6 +122,9 @@ class Normaliser(SqliteNormaliser):
         t.drop('hmps_status')
         t.drop('_cached_participant_thread_info')
         t.drop('messenger_encrypted_messaging_periodic_tasks')
+        t.drop('messenger_fts_index_client_messages_progress_status')  # derived search-index checkpoint
+        t.drop('messenger_fts_index_eb_messages_progress_status')  # derived search-index checkpoint
+        t.drop('messenger_fts_index_reverb_progress_status')  # derived search-index checkpoint
         t.drop('push_notifications')
         t.drop('gradient_colors')
         t.drop('messenger_dynamic_presence_backgrounds')
@@ -141,6 +149,7 @@ class Normaliser(SqliteNormaliser):
         t.drop('threads_ranges__generated')
         t.drop('threads_ranges_v2__generated')
         t.drop('community_messaging_aggregated_user_presence_counts_for_community')
+        t.drop('thread_capability_sync_state')  # derived capability sync metadata
 
         t.drop_cols(
             'participants',
