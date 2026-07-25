@@ -130,7 +130,13 @@ def _check_allowed_blobs(*, conn: Connection, allowed_blobs: AllowedBlobs) -> No
         )
 
 
-def _checked_db(db: Path, *, check: Literal['integrity', 'quick'], allowed_blobs: AllowedBlobs | None) -> Path:
+def _checked_db(
+    db: Path,
+    *,
+    check: Literal['integrity', 'quick'],
+    allowed_blobs: AllowedBlobs | None,
+    custom_tokenizers: frozenset[str] = frozenset(),
+) -> Path:
     """
     check: 'integrity' can be quite slow, O(N log N) in number of rows, because it checks all indices and UNIQUE constraints.
            'quick' is O(N), and mostly achieves same result.
@@ -142,7 +148,16 @@ def _checked_db(db: Path, *, check: Literal['integrity', 'quick'], allowed_blobs
         # note: .execute only does statement at a time?
         # TODO what does schema_version do?
         list(conn.execute('PRAGMA schema_version;'))
-        check_results = [r for (r,) in conn.execute(f'PRAGMA {check}_check;')]
+        try:
+            check_results = [r for (r,) in conn.execute(f'PRAGMA {check}_check;')]
+        except sqlite3.OperationalError as e:
+            unknown_tokenizer_errors = {f'unknown tokenizer: {tokenizer}' for tokenizer in custom_tokenizers}
+            if str(e) not in unknown_tokenizer_errors:
+                raise
+            # A custom tokenizer can make quick_check unusable before dumben removes virtual tables.
+            # The copied, dumbed-down database still receives a full integrity check below.
+            assert check == 'quick', check
+            check_results = []
         # PRAGMA *_check returns one row per problem, or a single "ok" row. Ignore malformed FTS indexes: they are derived search data and dumben strips virtual tables anyway. Seen with PodcastAddict.
         bad_results = [r for r in check_results if r != 'ok' and not r.startswith(_MALFORMED_FTS_CHECK_PREFIX)]
         assert len(bad_results) == 0, '\n'.join(bad_results)
@@ -157,6 +172,14 @@ class SqliteNormaliser(BaseNormaliser):
     # FIXME need a test, i.e. with removing single row?
 
     ALLOWED_BLOBS: AllowedBlobs = frozenset()
+
+    CUSTOM_TOKENIZERS: frozenset[str] = frozenset()
+    """
+    Names of application-defined FTS tokenizers that may be unavailable in the local SQLite build.
+
+    An exact ``unknown tokenizer`` error for one of these names is allowed only during the original database's quick check.
+    Dumben then removes virtual tables from a private copy, which still receives full integrity and BLOB checks.
+    """
 
     # TODO in principle we can get away with using only 'extract'?
     # 'cleanup' is just a sanity check? so you don't cleanup too much by accident?
@@ -183,7 +206,12 @@ class SqliteNormaliser(BaseNormaliser):
         # first, do not check for blobs -- we might not even be able to get the table list in python due to virtual tables
         # NOTE: quick check (instead of integrity) is fine here -- we're going to drop all indices during dumben step anyway,
         #   and it does introduce substantial speedup for bigger databases (e.g. browser history).
-        upath = _checked_db(upath, check='quick', allowed_blobs=None)
+        upath = _checked_db(
+            upath,
+            check='quick',
+            allowed_blobs=None,
+            custom_tokenizers=self.CUSTOM_TOKENIZERS,
+        )
         # NOTE: upath here is still the _original_  path passed to bleanser, so we can't modify in place
 
         assert upath.is_absolute(), f'{upath} is not an absolute path'

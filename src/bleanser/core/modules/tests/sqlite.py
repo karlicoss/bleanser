@@ -8,7 +8,7 @@ import pytest
 
 from ...common import Keep, Prune
 from ...processor import compute_groups, compute_instructions, groups_to_instructions
-from ..sqlite import SqliteNormaliser, _postprocess_dump_hex, _postprocess_dump_hex_line
+from ..sqlite import SqliteNormaliser, _checked_db, _postprocess_dump_hex, _postprocess_dump_hex_line
 
 
 def _dict2db(d: dict, *, to: Path) -> Path:
@@ -159,6 +159,30 @@ def test_sqlite_long_dump_lines_end_to_end(tmp_path: Path) -> None:
         Keep,
         Keep,
     ]
+
+
+def test_sqlite_custom_tokenizer(tmp_path: Path) -> None:
+    db = tmp_path / 'custom_tokenizer.db'
+    with sqlite3.connect(db) as conn:
+        conn.execute('CREATE TABLE payload (value TEXT)')
+        conn.execute("INSERT INTO payload VALUES ('preserved')")
+        conn.execute('CREATE VIRTUAL TABLE search USING fts4(value, tokenize=porter)')
+        conn.execute('PRAGMA writable_schema=ON')
+        conn.execute(
+            "UPDATE sqlite_master SET sql = replace(sql, 'tokenize=porter', 'tokenize=missing') WHERE name = 'search'"
+        )
+
+    with pytest.raises(sqlite3.OperationalError, match='unknown tokenizer: missing'):
+        _checked_db(db, check='quick', allowed_blobs=None)
+
+    class TestNormaliser(SqliteNormaliser):
+        CUSTOM_TOKENIZERS = frozenset({'missing'})
+
+    with TestNormaliser(original=db, base_tmp_dir=tmp_path).do_normalise() as normalised:
+        dump = normalised.read_text()
+
+    assert "INSERT INTO payload VALUES('preserved');" in dump
+    assert 'CREATE VIRTUAL TABLE' not in dump
 
 
 @pytest.mark.parametrize(
