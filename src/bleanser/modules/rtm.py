@@ -10,7 +10,12 @@ from bleanser.core.modules.extract import ExtractObjectsNormaliser
 # Join those physical lines back into the original logical content line.
 def _logical_lines(text: str) -> Iterator[str]:
     previous: str | None = None
-    for line in text.splitlines():
+    physical_lines = text.split('\n')
+    if physical_lines[-1] == '':
+        physical_lines.pop()
+    for line in physical_lines:
+        # RTM occasionally emits duplicated carriage returns before LF.
+        line = line.rstrip('\r')
         if line.startswith((' ', '\t')):
             assert previous is not None
             previous += line[1:]
@@ -67,7 +72,8 @@ def _extract_top_level_components(text: str) -> Iterator[tuple[str, str]]:
 
     assert calendar_closed
     assert active is None
-    assert next(lines, None) is None
+    for line in lines:
+        assert line == ''
     assert todo_count > 0
     yield 'VCALENDAR', '\n'.join(calendar)
 
@@ -77,7 +83,10 @@ class Normaliser(ExtractObjectsNormaliser):
     PRUNE_DOMINATED = True
 
     def extract_objects(self, path: Path) -> Iterator[tuple[str, str]]:
-        yield from _extract_top_level_components(path.read_text())
+        # Preserve physical line endings so _logical_lines can normalize RTM's occasional CRCRLF.
+        # Otherwise universal-newline conversion turns CRCRLF into two logical lines.
+        with path.open(newline='') as stream:
+            yield from _extract_top_level_components(stream.read())
 
 
 if __name__ == '__main__':
@@ -121,6 +130,15 @@ def test_rtm(tmp_path: Path) -> None:
     different_timezone.write_text(calendar(offset='+0100', todos=[['UID:one', 'SUMMARY:a long task']]))
     result = actions(paths=[first, different_timezone, last], Normaliser=Normaliser)
     assert result.pruned == []
+
+    duplicated_carriage_return = tmp_path / 'duplicated-carriage-return.ical'
+    duplicated_carriage_return.write_text(calendar(offset='+0000', todos=[['UID:one', 'SUMMARY:a long task\r']]))
+    result = actions(paths=[first, duplicated_carriage_return, last], Normaliser=Normaliser)
+    assert result.pruned == [duplicated_carriage_return]
+
+    expected = list(_extract_top_level_components(calendar(offset='+0000', todos=[['UID:one', 'SUMMARY:a long task']])))
+    trailing_blank_line = calendar(offset='+0000', todos=[['UID:one', 'SUMMARY:a long task']]) + '\r\n'
+    assert list(_extract_top_level_components(trailing_blank_line)) == expected
 
     components = list(
         _extract_top_level_components(
