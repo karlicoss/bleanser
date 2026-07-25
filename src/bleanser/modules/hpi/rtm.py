@@ -14,7 +14,9 @@ class Normaliser(ExtractObjectsNormaliser):
 
     def extract_objects(self, path: Path) -> Iterator[MyTodo]:
         # HPI's DAL extracts VTODO objects and deliberately excludes calendar-level metadata.
-        yield from DAL(data=path.read_text()).all_todos()
+        # Preserve physical line endings because universal-newline conversion breaks RTM's malformed folded lines.
+        with path.open(newline='') as stream:
+            yield from DAL(data=stream.read()).all_todos()
 
 
 if __name__ == '__main__':
