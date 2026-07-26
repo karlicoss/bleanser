@@ -97,6 +97,7 @@ class Normaliser(SqliteNormaliser):
             'frequents',  # freq used contacts
             'group_notification_version',
             'group_participant_device',  # not sure who'd need it
+            'group_participant_label_metadata',  # Transient edit times; labels remain in group_participant_user.
             'media_hash_thumbnail',
             'media_refs', # just random file paths with counters
             'message_forwarded', # keeps track of some forward_score??
@@ -126,6 +127,27 @@ class Normaliser(SqliteNormaliser):
             'messages_fts_segdir',
             'messages_fts_segments',
             ##
+
+            'labeled_messages_fts',  # Regenerated search index over retained labeled messages.
+            'labeled_messages_fts_content',  # Regenerated search index over retained labeled messages.
+            'labeled_messages_fts_docsize',  # Regenerated search index over retained labeled messages.
+            'labeled_messages_fts_segdir',  # Regenerated search index over retained labeled messages.
+            'labeled_messages_fts_segments',  # Regenerated search index over retained labeled messages.
+            'labeled_messages_fts_stat',  # Regenerated search index over retained labeled messages.
+
+            'message_newsletter_fts',  # Regenerated search index over retained newsletter messages.
+            'message_newsletter_fts_content',  # Regenerated search index over retained newsletter messages.
+            'message_newsletter_fts_docsize',  # Regenerated search index over retained newsletter messages.
+            'message_newsletter_fts_segdir',  # Regenerated search index over retained newsletter messages.
+            'message_newsletter_fts_segments',  # Regenerated search index over retained newsletter messages.
+            'message_newsletter_fts_stat',  # Regenerated search index over retained newsletter messages.
+
+            'ai_thread_info_fts',  # Regenerated search index over retained AI thread metadata.
+            'ai_thread_info_fts_content',  # Regenerated search index over retained AI thread metadata.
+            'ai_thread_info_fts_docsize',  # Regenerated search index over retained AI thread metadata.
+            'ai_thread_info_fts_segdir',  # Regenerated search index over retained AI thread metadata.
+            'ai_thread_info_fts_segments',  # Regenerated search index over retained AI thread metadata.
+            'ai_thread_info_fts_stat',  # Regenerated search index over retained AI thread metadata.
 
             'messages_links',
             'messages_quotes',
@@ -162,11 +184,17 @@ class Normaliser(SqliteNormaliser):
 
             'message_link',  # seems like an index of urls in messages
             'message_status_psa_campaign',
+            'message_comment_parent',  # Aggregate reconstructed from retained comments and messages.
+            'message_structure_analysis_result',  # Derived URL and message-structure analysis.
+            'reporting_info',  # Short-lived protocol reporting tokens linked to retained messages.
+            'reporting_info_content',  # Short-lived protocol reporting tokens linked to retained messages.
 
             'deleted_chat_job',
+            'integrity_chat_info',  # Derived reach-out and friction-banner eligibility.
             'scheduled_reminder_message',
             'message_system_photo_change',
             'status_crossposting_v3',
+            'status_info_ranking_signals',  # Derived status ranking timestamps and engagement cache.
 
             # TODO group_past_participant_user not sure if useful? kinda volatile
         ]:  # fmt: skip
@@ -200,17 +228,35 @@ class Normaliser(SqliteNormaliser):
                 'last_message_reaction_row_id',
                 'last_seen_message_reaction_row_id',
                 'mod_tag',
-                'has_new_community_admin_dialog_been_acknowled',
+                'has_new_community_admin_dialog_been_acknowledged',
                 'show_group_description',
                 'growth_lock_level',
                 'growth_lock_expiration_ts',
                 'chat_origin',
+                'unseen_comment_message_count',
+                'chat_encryption_state',
                 # NOTE ugh. created_timestamp is a bit flaky? often goes from NULL to the actual value
                 # this might be an interesting usecase/test for extract mode?
                 'created_timestamp',
                 ## for 'extract' mode
                 ## archived?
             ],
+        )
+
+        t.drop_cols(
+            table='community_chat',
+            cols=['last_activity_seen_ts'],  # Volatile read position; community activity remains.
+        )
+
+        t.drop_cols(
+            table='composition',
+            cols=['last_seen_timestamp'],  # Volatile UI timestamp; draft content and creation time remain.
+        )
+
+        # sort_id is volatile ordering state; the LID-to-JID identity mapping is retained.
+        t.drop_cols(
+            table='jid_map',
+            cols=['sort_id'],
         )
 
         t.drop_cols(
