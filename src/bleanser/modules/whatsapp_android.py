@@ -91,6 +91,19 @@ class Normaliser(SqliteNormaliser):
 
         t = Tool(c)
 
+        # legacy format (pre-2023)
+        t.drop_cols(
+            table='messages',
+            cols=[
+                'status',  # Mutable delivery state; message content and identity remain.
+                'read_device_timestamp',  # Read-receipt timing; receipt tables are discarded.
+                'receipt_device_timestamp',  # Delivery-receipt timing; receipt tables are discarded.
+                'receipt_server_timestamp',  # Server-receipt timing; receipt tables are discarded.
+                'send_count',  # Retry bookkeeping; successful message content remains.
+                'message_add_on_flags',  # Derived mutable flags; add-on records are discarded.
+            ],
+        )
+
         # note: there are WAY more useless tables there, but for the most part they are empty
         for table in [
             'frequent',
