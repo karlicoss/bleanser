@@ -32,6 +32,7 @@ def _cleanup_jsons(s):
         'is_replied_to_msg_taken_down',
         'hscroll_share',  # some reaction bullshit
         'account_badges',
+        'message_trace_id',  # request tracing token
         ##
 
         ## threads db
@@ -62,6 +63,30 @@ def _cleanup_jsons(s):
         'latest_besties_reel_media',
         'latest_fanclub_reel_media',
         'latest_reel_media',
+
+        # Keep numeric engagement counters because embedded media can be self-owned.
+        # TODO: Maybe remove them later if their history isn't useful.
+        ## derived public-media presentation state
+        'facepile_top_likers',
+        'social_context',
+        ##
+
+        ## server capabilities and rendering state
+        'coauthor_producer_can_see_organic_insights',
+        'hide_view_all_comment_entrypoint',
+        'is_lightweight_media',
+        'supports_reel_reactions',
+        'xposting_available_channel_count',
+        ##
+
+        ## expiring assets and operational tokens
+        'audio_src_expiration_timestamp_us',
+        'cover_artwork_thumbnail_uri',
+        'cover_artwork_uri',
+        'logging_info_token',
+        'mezql_token',
+        'url_expire_at_secs',
+        ##
 
         'follow_friction_type',
         'playable_url_info',
@@ -129,6 +154,35 @@ def _cleanup_jsons(s):
     return json.dumps(j, sort_keys=True).encode('utf8')
 
 
+def test_cleanup_jsons_keeps_counters_but_drops_presentation_metadata() -> None:
+    source = {
+        'media': {
+            'id': 'media-id',
+            'like_count': 10,
+            'view_count': 20,
+            'social_context': [{'username': 'someone'}],
+            'facepile_top_likers': [{'username': 'someone'}],
+            'supports_reel_reactions': True,
+            'cover_artwork_uri': 'https://example.com/volatile.jpg',
+        },
+        'message_trace_id': 'trace-id',
+        'reactions': {'emojis': [{'emoji': '❤️'}]},
+        'nicknames': {'user-id': 'nickname'},
+    }
+
+    cleaned = json.loads(_cleanup_jsons(json.dumps(source)))
+
+    assert cleaned == {
+        'media': {
+            'id': 'media-id',
+            'like_count': 10,
+            'view_count': 20,
+        },
+        'reactions': {'emojis': [{'emoji': '❤️'}]},
+        'nicknames': {'user-id': 'nickname'},
+    }
+
+
 class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
@@ -145,6 +199,8 @@ class Normaliser(SqliteNormaliser):
         self.check(c)
 
         t = Tool(c)
+        t.drop('android_metadata')  # SQLite locale metadata, not Instagram user history
+        t.drop('db_created_config')  # Local database creation timestamp, not Instagram user history
         t.drop('session')  # super volatile
 
         for tbl in ['messages', 'threads']:
