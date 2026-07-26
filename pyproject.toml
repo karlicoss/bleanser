@@ -44,6 +44,7 @@ HPI = [  # for bleanser.modules.hpi
 # To make sure it's not included, need to use `uv run --exact --no-default-groups ...`
 testing = [
     "pytest",
+    "pytest-xdist",
     "ruff",
 
     # optional deps that we include in all testing
@@ -266,6 +267,10 @@ addopts = [
 
   # otherwise it won't discover doctests
   "--doctest-modules",
+
+  # Match the largest standard GitHub-hosted runner without spawning too many workers on development machines.
+  "-n", "auto",
+  "--maxprocesses=4",
 
   # show all test durations (unless they are too short)
   "--durations=0",
