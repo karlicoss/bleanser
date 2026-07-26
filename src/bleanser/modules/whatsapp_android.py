@@ -119,7 +119,7 @@ class Normaliser(SqliteNormaliser):
             'message_vcard',
             'message_vcard_jid',
             'message_view_once_media',
-            'messages',
+            # Keep legacy `messages`: singular `message` is only an empty migration placeholder in those databases.
 
             ## also some search index
             'messages_fts',
