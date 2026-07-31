@@ -3,6 +3,10 @@ from sqlite3 import Connection
 from bleanser.core.modules.sqlite import SqliteNormaliser, Tool
 
 
+# NOTE: Firefox for Android (Fenix) expires small batches of old visits after Places exceeds its fixed 75 MiB target.
+# The limit is hardcoded in PlacesHistoryStorageWorker.
+# Source: https://github.com/mozilla-firefox/firefox/blob/main/mobile/android/android-components/components/browser/storage-sync/src/main/java/mozilla/components/browser/storage/sync/PlacesHistoryStorageWorker.kt#L39
+# Adjacent backups can therefore each contain unique history, so many are not dominated and cannot be pruned.
 class Normaliser(SqliteNormaliser):
     MULTIWAY = True
     PRUNE_DOMINATED = True
@@ -94,6 +98,10 @@ class Normaliser(SqliteNormaliser):
         )
         tool.drop('moz_meta')
         tool.drop('moz_origins')  # prefix/host/frequency -- not interesting
+        tool.drop('moz_previews_tombstones')  # temporary queue for deleting derived preview files
+        tool.drop('moz_newtab_story_click')  # new-tab personalization log, not browsing history
+        tool.drop('moz_newtab_story_impression')  # new-tab personalization log, not browsing history
+        tool.drop('moz_newtab_shortcuts_interaction')  # shortcut personalization log; clicks duplicate visits
         # tool.drop('moz_annos')  # not sure -- contains downloads data? might be volatile
 
         tool.drop_cols(
@@ -112,6 +120,7 @@ class Normaliser(SqliteNormaliser):
         )
 
         ## fenix
+        tool.drop('moz_places_stale_frecencies')  # temporary queue for recalculating derived frecency scores
         tool.drop_cols(
             'moz_bookmarks_synced_structure',
             cols=[
