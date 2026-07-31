@@ -1,6 +1,14 @@
 from bleanser.core.modules.json import Json, JsonNormaliser
 
 
+def _pop_int_counter(obj: dict[str, Json], *, key: str) -> None:
+    value = obj.get(key)
+    if value is None:
+        return
+    assert type(value) is int, value
+    obj.pop(key)
+
+
 class Normaliser(JsonNormaliser):
     PRUNE_DOMINATED = True
     MULTIWAY = True
@@ -17,6 +25,16 @@ class Normaliser(JsonNormaliser):
 
             # pretty volatile, so not worth keeping + reflected in "followers" field anyway
             profile.pop('followers', None)
+
+            following = j.get('following')
+            if isinstance(following, list) and len(following) > 0:
+                # The detailed following records make the summary counter redundant.
+                _pop_int_counter(profile, key='following')
+
+            repos = j.get('repos')
+            if isinstance(repos, list) and len(repos) > 0:
+                # The detailed owned public repository records make the summary counter redundant.
+                _pop_int_counter(profile, key='public_repos')
 
         volatile = [
             'stargazers_count',
