@@ -163,7 +163,13 @@ def prune(
         assert p.exists(), p
 
     need_confirm = not yes
-    apply_instructions(instructions, mode=mode, need_confirm=need_confirm, prune_empty_dirs=prune_empty_dirs)
+    apply_instructions(
+        instructions,
+        paths=paths,
+        mode=mode,
+        need_confirm=need_confirm,
+        prune_empty_dirs=prune_empty_dirs,
+    )
 
 
 # meh... would be nice to use object but it gets casted to str by click??
