@@ -656,6 +656,67 @@ def groups_to_instructions(groups: Iterable[Group]) -> Iterator[Instruction]:
                 done[i] = deli
 
 
+def assert_instruction_structure(
+    *,
+    paths: Sequence[Path],
+    instructions: Sequence[Instruction],
+) -> None:
+    assert len(paths) > 0
+    assert len(paths) == len(set(paths)), paths
+
+    # Each source must receive exactly one instruction, in caller-supplied order.
+    assert len(instructions) == len(paths)
+    assert [instruction.path for instruction in instructions] == list(paths)
+
+    keep_by_path = {instruction.path: isinstance(instruction, Keep) for instruction in instructions}
+    positions_by_path = {path: index for index, path in enumerate(paths)}
+
+    # Each instruction must describe its own group membership.
+    for instruction in instructions:
+        assert isinstance(instruction, (Keep, Prune))
+        assert instruction.path in instruction.group.items
+
+    # Several instructions reference the same group object, while adjacent groups may share a pivot.
+    # Deduplicating by identity retains distinct instruction-visible groups.
+    groups = list({id(instruction.group): instruction.group for instruction in instructions}.values())
+    for group in groups:
+        assert all(item in positions_by_path for item in group.items), group
+        positions = [positions_by_path[item] for item in group.items]
+        assert positions == list(range(positions[0], positions[0] + len(group.items))), group
+
+        # A group is bounded by its first and last items, except that a singleton has only one pivot.
+        expected_pivots = [group.items[0]] if len(group.items) == 1 else [group.items[0], group.items[-1]]
+        assert list(group.pivots) == expected_pivots, group
+
+        # Every visible group must agree with the final decision, including paths shared with another group.
+        for item in group.items:
+            assert keep_by_path[item] == (item in group.pivots), (item, group)
+
+        if group.error:
+            assert len(group.items) == 1, group
+
+    # The outer history boundaries are never safe to discard.
+    assert keep_by_path[paths[0]]
+    assert keep_by_path[paths[-1]]
+
+    # A declared normalisation failure and its immediate neighbours form a retained barrier.
+    for group in groups:
+        if not group.error:
+            continue
+        [error_path] = group.items
+        error_position = positions_by_path[error_path]
+        for neighbour_position in (error_position - 1, error_position, error_position + 1):
+            if 0 <= neighbour_position < len(paths):
+                assert keep_by_path[paths[neighbour_position]]
+
+    error_paths = {group.items[0] for group in groups if group.error}
+    for group in groups:
+        if group.error:
+            continue
+        # A successful group cannot cross or absorb a declared normalisation failure.
+        assert all(item not in error_paths for item in group.items), group
+
+
 def compute_instructions(
     paths: Sequence[Path],
     *,
@@ -681,20 +742,15 @@ def compute_instructions(
 def apply_instructions(
     instructions: Iterable[Instruction],
     *,
+    paths: Sequence[Path],
     mode: Mode = Dry(),  # noqa: B008
     need_confirm: bool = True,
     prune_empty_dirs: bool,
 ) -> NoReturn:
-    # TODO hmm...
-    # if we keep it as iterator, would be kinda nice, then it'd print cleaning stats as you run it
-    # NOTE: will also need to remove (list) call in 'clean' subcommand
-    totals: str
-    if not isinstance(mode, Dry):
-        # force for safety
-        instructions = list(instructions)
-        totals = f'{len(instructions):>3}'
-    else:
-        totals = '???'
+    instructions = list(instructions)
+    assert_instruction_structure(paths=paths, instructions=instructions)
+
+    totals = f'{len(instructions):>3}'
 
     rm_action = {
         Dry   : click.style('REMOVE (dry mode)', fg='yellow'),

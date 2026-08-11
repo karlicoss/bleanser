@@ -45,6 +45,7 @@ HPI = [  # for bleanser.modules.hpi
 testing = [
     "pytest",
     "pytest-xdist",
+    "hypothesis",
     "ruff",
 
     # optional deps that we include in all testing
