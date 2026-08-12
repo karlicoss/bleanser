@@ -49,7 +49,7 @@ class Normaliser(SqliteNormaliser):
         t.drop('status_groups')  # doesn't looks like anything interesting, contains read state?
 
         # seems like it contains last retweet for each tweet or something.. doesn't actually have tweet data
-        t.drop('retweets')
+        t.drop('retweets')  # cached retweet summary without tweet data
 
         t.drop('tokens')  # some internal thing
 
@@ -60,26 +60,39 @@ class Normaliser(SqliteNormaliser):
                 ## volatile
                 'favorite_count',
                 'retweet_count',
+                'view_count',
                 'view_count_info',
                 'reply_count',
                 'bookmark_count',
                 'quote_count',
+                'previous_counts',
                 'tweet_source',  # sometimes NULL at first?
-                'flags',
-                'self_thread_id',
+                'flags',  # internal status flags
+                'self_thread_id',  # server-derived thread grouping
                 'edit_control',  # no idea what it is
                 'unmention_info',  # no idea, some binary crap (not even text)
                 'quick_promote_eligibility',
-                'quoted_status_permalink',
-                'conversation_control',
+                'quoted_status_permalink',  # derived from the quoted status
+                'conversation_control',  # server-side reply policy
+                'grok_analysis_button_enabled',
                 ##
                 #
                 'r_ent_content',  # contains same data as 'content'
                 #
                 # cards contain some extra data embedded from the website (e.g. preview)
                 # might be actually useful to extract data from it
-                'card',
-                'unified_card',
+                'card',  # embedded link preview
+                'unified_card',  # embedded link preview
+                #
+                # Rich server-side annotations are cached rendering data and change independently of the tweet.
+                'community',  # cached community snapshot
+                'author_community_relationship',  # cached relationship state
+                'tweet_community_relationship',  # cached relationship state
+                'birdwatch_pivot',  # cached Community Note rendering
+                'grok_followups',  # cached Grok suggestions
+                'grok_share_attachment',  # cached Grok rendering
+                'grok_translated_post',  # cached translation rendering
+                'jetfuel_attachment',  # cached cashtag rendering
             ],
         )
 
@@ -92,13 +105,13 @@ class Normaliser(SqliteNormaliser):
                 ## volatile
                 'is_read',
                 'sort_index',
-                'timeline_chunk_id',
+                'timeline_chunk_id',  # pagination grouping
                 'updated_at',
                 'scribe_content',  # some "for you" crap
                 'created_at',  # internal created at, not tweet's
                 'feedback_action_prompts',
-                'social_context',
-                'is_linger_impressed',
+                'social_context',  # cached presentation context
+                'is_linger_impressed',  # impression-tracking state
                 'dismissed',
                 ##
             ],
