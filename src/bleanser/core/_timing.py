@@ -8,7 +8,7 @@ from time import perf_counter, process_time
 try:
     import resource
 except ImportError:  # pragma: no cover -- resource is Unix-only
-    resource = None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    resource = None  # type: ignore[assignment]
 
 
 def _child_cpu_time() -> float | None:
