@@ -305,6 +305,9 @@ pass_env = [
 # Generally this is more robust and safer, and prevents weird issues later on.
 set_env.PYTHONSAFEPATH = "1"
 
+# Parallel mypy environments need separate caches to avoid SQLite locking errors.
+set_env.MYPY_CACHE_DIR = "{env:MYPY_CACHE_DIR:{tox_root}{/}.mypy_cache}{/}{env_name}"
+
 # Uhh. This is relying on https://github.com/tox-dev/tox-uv and things are a bit confusing...
 # With this runner:
 #   runner = "uv-venv-runner"
