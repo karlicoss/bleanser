@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -19,7 +19,7 @@ class Normaliser(BaseNormaliser):
         return t
 
     @contextmanager
-    def normalise(self, *, path: Path) -> Iterator[Normalised]:
+    def normalise(self, *, path: Path) -> Generator[Normalised]:
         # todo not sure if need to release some resources here...
         parser = etree.XMLParser(remove_blank_text=True)
         # TODO we seem to lose comments here... meh

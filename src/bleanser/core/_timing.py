@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from time import perf_counter, process_time
 
@@ -19,7 +19,7 @@ def _child_cpu_time() -> float | None:
 
 
 @contextmanager
-def timed(label: str) -> Iterator[None]:
+def timed(label: str) -> Generator[None]:
     wall_started = perf_counter()
     process_started = process_time()
     child_started = _child_cpu_time()

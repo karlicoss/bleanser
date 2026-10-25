@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -47,7 +47,7 @@ class ExtractObjectsNormaliser(BaseNormaliser):
                 f.write("\n")
 
     @contextmanager
-    def normalise(self, *, path: Path) -> Iterator[Normalised]:
+    def normalise(self, *, path: Path) -> Generator[Normalised]:
         cleaned = unique_file_in_tempdir(input_filepath=path, dir=self.tmp_dir, suffix=path.suffix)
 
         self._emit_history(path, cleaned)

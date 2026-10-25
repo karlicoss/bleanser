@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -28,7 +28,7 @@ class JsonNormaliser(BaseNormaliser):
         return j
 
     @contextmanager
-    def normalise(self, *, path: Path) -> Iterator[Normalised]:
+    def normalise(self, *, path: Path) -> Generator[Normalised]:
         # TODO maybe, later implement some sort of class variable instead of hardcoding
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
         # otherwise it essentially blocks waiting for all mimes to compute..

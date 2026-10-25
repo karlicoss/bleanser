@@ -1,4 +1,4 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -121,7 +121,7 @@ def test_bounded_resources(*, tmp_path: Path, multiway: bool, randomize: bool) -
         PRUNE_DOMINATED = True
 
         @contextmanager
-        def normalise(self, *, path: Path) -> Iterator[Normalised]:
+        def normalise(self, *, path: Path) -> Generator[Normalised]:
             normalised = self.tmp_dir / 'normalised'
             normalised.write_text(path.read_text())
             # ugh. it's the only place we can hook in to do frequent checks..
@@ -229,7 +229,7 @@ def test_filter(tmp_path: Path) -> None:
         MULTIWAY = False
 
         @contextmanager
-        def normalise(self, *, path: Path) -> Iterator[Normalised]:
+        def normalise(self, *, path: Path) -> Generator[Normalised]:
             normalised = self.tmp_dir / 'normalised'
             with path.open('r') as fr, normalised.open('w') as fw:
                 for line in fr:

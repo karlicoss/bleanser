@@ -8,7 +8,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import closing, contextmanager
 from pathlib import Path
 from sqlite3 import Connection
@@ -192,7 +192,7 @@ class SqliteNormaliser(BaseNormaliser):
     # need to decide where to log them...
 
     @contextmanager
-    def normalise(self, *, path: Path) -> Iterator[Normalised]:
+    def normalise(self, *, path: Path) -> Generator[Normalised]:
         # note: deliberately keeping mime check inside do_cleanup, since it's executed in a parallel process
         # ok, this is much easier than detecting mime or whatever...
         with path.open('rb') as fb:

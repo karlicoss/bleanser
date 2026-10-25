@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 import warnings
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from functools import cache
@@ -49,7 +49,7 @@ def run_sort(*args: str | Path) -> None:
 
 
 @contextmanager
-def bleanser_tmp_directory() -> Iterator[Path]:
+def bleanser_tmp_directory() -> Generator[Path]:
     # TODO add a --tmp-dir cli setting and use it here?
     with TemporaryDirectory(prefix='bleanser') as tdir:
         yield Path(tdir)
@@ -140,7 +140,7 @@ class BaseNormaliser:
         return rpath
 
     @contextmanager
-    def normalise(self, *, path: Path) -> Iterator[Normalised]:
+    def normalise(self, *, path: Path) -> Generator[Normalised]:
         '''
         path: input file to clean up
               Note that it's not necessarily the same as self.original, e.g. if the original file was compressed
@@ -156,7 +156,7 @@ class BaseNormaliser:
         # for an example, see modules/json.py
 
     @contextmanager
-    def do_normalise(self) -> Iterator[Normalised]:
+    def do_normalise(self) -> Generator[Normalised]:
         """
         This method does set up for normalise method, and generally shouldn't require overriding
         """
@@ -185,7 +185,7 @@ class BaseNormaliser:
         def do_cleanup(self) -> None: ...
 
     @contextmanager
-    def unpacked(self, path: Path, *, wdir: Path) -> Iterator[Path]:
+    def unpacked(self, path: Path, *, wdir: Path) -> Generator[Path]:
         '''
         path: input filepath. this could be compressed or not, CPath with transparently decompress
         wdir: working directory, where temporary files are written
