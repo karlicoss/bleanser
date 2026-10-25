@@ -38,6 +38,9 @@ class Normaliser(JsonNormaliser):
                 # - mix between two users
                 # they change very often and no point keeping track of them
                 continue
+            if 'items' in p:
+                # items.total duplicates len(tracks) and prevents dominated pruning.
+                del p['items']['total']
             pid = p['id']
             j[f'playlist_{pid}_tracks'] = p['tracks']
             upd_playlists.append(p)
