@@ -10,6 +10,7 @@ REDDIT_IGNORE_KEYS = {
     'ups',
     'score',
     'num_comments',
+    'num_crossposts', # derived public counter, not user history
     'upvote_ratio',
     ###
 
@@ -20,6 +21,7 @@ REDDIT_IGNORE_KEYS = {
     ##
 
     '_comments',
+    '_parent', # PRAW bookkeeping; observed only as null
     'accept_chats',
     'accept_pms',
     'advertiser_category',
@@ -173,8 +175,6 @@ REDDIT_IGNORE_KEYS = {
     #
     # subreddit_type: public/restricted -- actually quite useful info!
     # profile -> link_karma, comment_karma -- probs useful to keep
-    #
-    # TODO maybe, num_crossposts? have only seen once so far
 }  # fmt: skip
 
 
@@ -200,6 +200,8 @@ class Normaliser(JsonNormaliser):
         ## karma is flaky, goes up and down even without actual votes
         ## so make it a bit smoother
         profile = j['profile']
+        # Reddit's server-side feature-gating assignments are operational rather than user history.
+        profile.pop('features', None)
         for kf in ['link_karma', 'total_karma']:
             k = profile.get(kf)
             if k is not None:
