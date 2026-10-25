@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -80,7 +80,7 @@ class _ProcessPoolNormaliser(BaseNormaliser):
     """Module-level normaliser so ProcessPoolExecutor can pickle it under spawn."""
 
     @contextmanager
-    def normalise(self, *, path: Path) -> Iterator[Path]:
+    def normalise(self, *, path: Path) -> Generator[Path]:
         lines = path.read_text().splitlines()
         assert lines[0] == _HEADER
         items = lines[1:]
