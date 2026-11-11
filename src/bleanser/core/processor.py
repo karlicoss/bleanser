@@ -178,7 +178,7 @@ class BaseNormaliser:
         finally:
             # ugh, kinda annoying that TemporaryDirectory doesn't allow creating a dir with exact name
             # so here we at least reuse its cleanup method
-            TemporaryDirectory._rmtree(str(self.tmp_dir))  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+            TemporaryDirectory._rmtree(str(self.tmp_dir))  # type: ignore[attr-defined]  # ty: ignore[missing-attribute]
 
     if TYPE_CHECKING:
         # deliberately keep this during type checking to indicate users need to migrate to normalise()
